@@ -1,12 +1,14 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
+    "src/renderer/auto-imports.d.ts",
+    "src/renderer/scomponents.d.ts",
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/preload/*.d.ts",
     "src/typings/*",
-     "src/utils/*"
+    "src/utils/*"
   ],
   "compilerOptions": {
     "composite": true,

@@ -145,11 +145,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref, nextTick, shallowRef } from 'vue'
 import type { FolderInfo } from '@/typings/file'
 import comicCard from '@renderer/components/comic-card.vue'
 import { useSettingStore } from '@renderer/plugins/store'
-import { useMessage, DataTableColumns, NIcon, NButton } from 'naive-ui'
 import {
   Search as searchIcon,
   SettingsSharp as settingIcon,
@@ -163,8 +161,7 @@ import {
   Book as BookIcon
 } from '@vicons/ionicons5'
 import useSetting from '@renderer/components/setting/setting'
-import { useRouter } from 'vue-router'
-
+import { NButton, NIcon, DataTableColumns } from 'naive-ui'
 // 防抖函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
   let timeout: NodeJS.Timeout | null = null

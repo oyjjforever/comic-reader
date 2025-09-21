@@ -52,14 +52,12 @@
 <script setup lang="ts">
 import epub from '@renderer/tools/epub'
 import { Rendition } from 'epubjs'
-import { Component, h, ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { ChevronLeft12Filled as leftIcon, ChevronRight12Filled as rightIcon } from '@vicons/fluent'
 import { Menu as menuIcon, Home as homeIcon, SettingsSharp as settingIcon } from '@vicons/ionicons5'
 import { Mutex } from 'async-mutex'
 import useSetting from '@renderer/components/setting/setting'
 import { useSettingStore } from '@renderer/plugins/store'
-import { NText, NIcon, NSlider, useOsTheme, useMessage } from 'naive-ui'
+import { NText, NIcon, NSlider } from 'naive-ui'
 const message = useMessage()
 const router = useRouter()
 const setting = useSetting()

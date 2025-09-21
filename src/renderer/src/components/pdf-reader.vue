@@ -182,8 +182,6 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import VuePdfEmbed from 'vue-pdf-embed'
 
 // 类型定义

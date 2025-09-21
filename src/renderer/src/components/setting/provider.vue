@@ -44,8 +44,6 @@
 </template>
 
 <script setup lang="ts">
-import { useMessage } from 'naive-ui'
-import { onMounted, provide, ref } from 'vue'
 import { useSettingStore } from '@renderer/plugins/store'
 import { setting } from '@/typings/setting'
 

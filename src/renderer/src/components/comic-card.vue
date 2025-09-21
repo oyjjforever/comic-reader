@@ -51,7 +51,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   FolderOutline as FolderIcon,
   Bookmark as BookmarkIcon,

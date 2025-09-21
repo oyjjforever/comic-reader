@@ -38,22 +38,27 @@ export default defineConfig({
         }
       ]
     },
-    plugins: [vue(), AutoImport({
-      imports: [
-        'vue',
-        {
-          'naive-ui': [
-            'useDialog',
-            'useMessage',
-            'useNotification',
-            'useLoadingBar',
-            'useOsTheme'
-          ]
-        }
-      ]
-    }),
-    Components({
-      resolvers: [NaiveUiResolver()]
-    })]
+    plugins: [
+      vue(),
+      AutoImport({
+        // dirs: ['/src/renderer/**/**'],
+        imports: [
+          'vue',
+          'vue-router',
+          {
+            'naive-ui': [
+              'useDialog',
+              'useMessage',
+              'useNotification',
+              'useLoadingBar',
+              'useOsTheme'
+            ]
+          }
+        ]
+      }),
+      Components({
+        resolvers: [NaiveUiResolver()]
+      })
+    ]
   }
 })

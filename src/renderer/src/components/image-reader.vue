@@ -161,9 +161,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMessage } from 'naive-ui'
 // Props
 const props = defineProps<{
   folderPath: string
