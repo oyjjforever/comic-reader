@@ -83,7 +83,6 @@ const isBookmarked = ref(props.folder.isBookmarked || false)
 const cardRef = ref<HTMLElement>()
 const observer = ref<IntersectionObserver>()
 const hasCoverLoaded = ref(false)
-const coverInfo = ref<{ coverPath?: string; coverFileName?: string }>({})
 
 const toggleBookmark = async () => {
   try {
@@ -118,34 +117,18 @@ const loadCoverInfo = async () => {
   try {
     isLoadingCover.value = true
     imageError.value = false
-
-    // 获取封面信息
-    const info = await window.book.getFolderCoverInfo(props.folder.fullPath)
-    coverInfo.value = info
-
     // 如果有封面路径，加载封面图片
-    if (info.coverPath) {
-      await loadCoverImage(info.coverPath)
+    if (props.folder.coverPath) {
+      coverImageSrc.value = `file://${props.folder.coverPath}`
     }
 
     hasCoverLoaded.value = true
   } catch (error) {
     console.error('获取封面信息失败:', error)
     imageError.value = true
+    coverImageSrc.value = ''
   } finally {
     isLoadingCover.value = false
-  }
-}
-
-// 加载封面图片
-const loadCoverImage = async (coverPath: string) => {
-  try {
-    // 直接使用 file:// 协议加载图片
-    coverImageSrc.value = `file://${coverPath}`
-  } catch (error) {
-    console.error('加载封面图片失败:', error)
-    imageError.value = true
-    coverImageSrc.value = ''
   }
 }
 

@@ -12,15 +12,15 @@ export interface FolderInfo {
   /** 文件夹完整路径 */
   fullPath: string
   /** 创建时间 */
-  createdTime: Date
+  createdTime?: Date
   /** 修改时间 */
-  modifiedTime: Date
+  modifiedTime?: Date
   /** 内部文件个数（不包括子文件夹） */
-  fileCount: number
+  fileCount?: number
   /** 内部文件夹个数 */
-  folderCount: number
+  folderCount?: number
   /** 总项目数（文件+文件夹） */
-  totalItems: number
+  totalItems?: number
   /** 相对路径 */
   relativePath?: string
   /** 文件夹层级深度 */
@@ -34,7 +34,9 @@ export interface FolderInfo {
   /** 文件夹内容类型 */
   contentType?: string,
   /** 是否被收藏 */
-  isBookmarked?: boolean
+  isBookmarked?: boolean,
+  /** 文件夹封面图路径 */
+  coverPath?: string
 }
 
 /**

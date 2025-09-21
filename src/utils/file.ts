@@ -61,10 +61,6 @@ export class FileUtils {
       if (!stat.isDirectory()) {
         throw new Error(`指定路径不是目录: ${folderPath}`)
       }
-
-      // 统计文件夹内容
-      const { fileCount, folderCount, hasSubfolders } = this.analyzeFolderContent(folderPath)
-
       // 构建文件夹信息
       const name = path.basename(folderPath)
       const parentPath = path.dirname(folderPath)
@@ -74,14 +70,7 @@ export class FileUtils {
         fullPath: folderPath,
         createdTime: stat.birthtime,
         modifiedTime: stat.mtime,
-        fileCount,
-        folderCount,
-        totalItems: fileCount + folderCount,
-        relativePath: '',
-        depth: 0,
         parentPath: parentPath !== folderPath ? parentPath : undefined,
-        isLeaf: !hasSubfolders,
-        children: []
       }
     } catch (error) {
       throw new Error(`获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`)
@@ -158,32 +147,18 @@ export class FileUtils {
       throw new Error(`获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  private static getDirectChildrenFolders(
-    dirPath: string): FolderInfo[] {
-    const items = fs.readdirSync(dirPath)
+  private static getDirectChildrenFolders(dirPath: string): FolderInfo[] {
+    const children = fs.readdirSync(dirPath, { withFileTypes: true })
     const foldersInfo: FolderInfo[] = []
-
-    for (const item of items) {
-      const itemPath = path.join(dirPath, item)
-
+    for (const child of children) {
       try {
-        const itemStat = fs.statSync(itemPath)
-
         // 只处理文件夹
-        if (itemStat.isDirectory()) {
-          // 使用统一的内容分析方法
-          const { fileCount, folderCount } = this.analyzeFolderContent(itemPath)
+        if (child.isDirectory()) {
           const folderInfo: FolderInfo = {
-            name: item,
-            fullPath: itemPath,
-            createdTime: itemStat.birthtime,
-            modifiedTime: itemStat.mtime,
-            fileCount,
-            folderCount,
-            totalItems: fileCount + folderCount,
+            name: child.name,
+            fullPath: path.join(child.path, child.name),
           }
           foldersInfo.push(folderInfo)
-
         }
       } catch (error) {
         // 跳过无法访问的文件夹
@@ -204,47 +179,30 @@ export class FileUtils {
   private static getAllChildrenFolders(
     dirPath: string,
     currentDepth: number = 0,
-    basePath: string = dirPath,
-    parentPath?: string
+    basePath: string = dirPath
   ): FolderInfo[] {
-    const items = fs.readdirSync(dirPath)
+    const children = fs.readdirSync(dirPath, { withFileTypes: true })
     const foldersInfo: FolderInfo[] = []
-
-    for (const item of items) {
-      const itemPath = path.join(dirPath, item)
-
+    for (const child of children) {
       try {
-        const itemStat = fs.statSync(itemPath)
-
         // 只处理文件夹
-        if (itemStat.isDirectory()) {
-          // 使用统一的内容分析方法
-          const { fileCount, folderCount, hasSubfolders } = this.analyzeFolderContent(itemPath)
-
-          const relativePath = path.relative(basePath, itemPath)
+        if (child.isDirectory()) {
+          const subChildren = fs.readdirSync(child.path, { withFileTypes: true })
+          const hasSubfolders = subChildren.some(_ => _.isDirectory());
           const isLeaf = !hasSubfolders
-
           const folderInfo: FolderInfo = {
-            name: item,
-            fullPath: itemPath,
-            createdTime: itemStat.birthtime,
-            modifiedTime: itemStat.mtime,
-            fileCount,
-            folderCount,
-            totalItems: fileCount + folderCount,
-            relativePath,
+            name: child.name,
+            fullPath: path.join(child.path, child.name),
             depth: currentDepth,
-            parentPath,
-            isLeaf,
+            isLeaf: !hasSubfolders,
             children: []
           }
-          // 树形结构：递归获取子文件夹
+          // 递归获取子文件夹
           if (hasSubfolders) {
             folderInfo.children = this.getAllChildrenFolders(
-              itemPath,
+              path.join(child.path, child.name),
               currentDepth + 1,
-              basePath,
-              itemPath
+              basePath
             )
           }
           if (!isLeaf) {
@@ -338,55 +296,6 @@ export class FileUtils {
     } catch (error) {
       throw new Error(`读取文件 Buffer 失败: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }
-
-  /**
-   * 获取文件或文件夹的基本信息
-   * @param targetPath 目标路径
-   * @returns 基本信息
-   */
-  static async getPathInfo(targetPath: string): Promise<{
-    name: string
-    fullPath: string
-    isFile: boolean
-    isDirectory: boolean
-    size: number
-    formattedSize: string
-    createdTime: Date
-    modifiedTime: Date
-  }> {
-    try {
-      if (!this.pathExists(targetPath)) {
-        throw new Error(`路径不存在: ${targetPath}`)
-      }
-
-      const stat = fs.statSync(targetPath)
-      const name = path.basename(targetPath)
-
-      return {
-        name,
-        fullPath: targetPath,
-        isFile: stat.isFile(),
-        isDirectory: stat.isDirectory(),
-        size: stat.size,
-        formattedSize: this.formatFileSize(stat.size),
-        createdTime: stat.birthtime,
-        modifiedTime: stat.mtime
-      }
-    } catch (error) {
-      throw new Error(`获取路径信息失败: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  /**
-   * 检查文件是否为指定类型
-   * @param filePath 文件路径
-   * @param extensions 允许的扩展名数组，如 ['.txt', '.md']
-   * @returns 是否为指定类型
-   */
-  static isFileType(filePath: string, extensions: string[]): boolean {
-    const ext = path.extname(filePath).toLowerCase()
-    return extensions.map(e => e.toLowerCase()).includes(ext)
   }
 
   /**

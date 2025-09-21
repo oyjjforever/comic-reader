@@ -1,5 +1,5 @@
 import FileUtils from '../../utils/file'
-import { FolderInfo, FileInfo } from "@/typings/file";
+import { FolderInfo, FileInfo } from '@/typings/file'
 
 /**
  * 文件夹返回格式枚举
@@ -60,44 +60,46 @@ export interface FolderInfoWithCover extends FolderInfo {
  */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
 
-/**
- * 分析文件夹内容类型
- * @param folderPath 文件夹路径
- * @returns 文件夹内容类型
- */
-async function analyzeFolderContentType(folderPath: string): Promise<string> {
+async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<FolderInfo> {
   try {
-    const filesInfo = await FileUtils.getFilesInfo(folderPath, false)
 
-    if (filesInfo.length === 0) {
-      return 'empty'
+
+    // 先获取文件夹信息
+    const folder = await FileUtils.getFolderInfo(path)
+    // 在获取内部文件列表
+    let files = await FileUtils.getFilesInfo(path, false)
+    // 判断文件夹类型
+    let contentType: string
+    if (files.length === 0) {
+      contentType = 'empty'
     }
-
-    const extensions = new Set(filesInfo.map(file => file.extension.toLowerCase()))
+    const extensions = new Set(files.map((file) => file.extension.toLowerCase()))
     // 如果包含多种类型
-    if (extensions.size > 1) {
-      return 'mixed'
+    if (extensions.size < 1) {
+      contentType = 'empty'
     }
-    // 检查是否只包含图片
-    const imageExtensions = Array.from(extensions).filter(ext => IMAGE_EXTENSIONS.includes(ext))
-    const nonImageExtensions = Array.from(extensions).filter(ext => !IMAGE_EXTENSIONS.includes(ext))
-
-    if (imageExtensions.length > 0 && nonImageExtensions.length === 0) {
-      return 'image'
+    else if (extensions.size > 1) {
+      contentType = 'mixed'
     }
-
-    // 检查是否只包含PDF
-    const pdfExtensions = Array.from(extensions).filter(ext => ext === '.pdf')
-    const nonPdfExtensions = Array.from(extensions).filter(ext => ext !== '.pdf')
-
-    if (pdfExtensions.length > 0 && nonPdfExtensions.length === 0) {
-      return 'pdf'
+    // 检查是否包含图片
+    else if (IMAGE_EXTENSIONS.includes(Array.from(extensions)[0])) {
+      contentType = 'image'
     }
-
-    return Array.from(extensions)[0].toString().slice(1)
+    else {
+      contentType = Array.from(extensions)[0].toString().slice(1)
+    }
+    // 选取第一个图片作为封面
+    if (sortOptions) {
+      files = sortFiles(files, sortOptions)
+    }
+    const coverPath = contentType === 'image' ? files[0]?.fullPath : ''
+    return {
+      ...folder,
+      coverPath,
+      contentType
+    }
   } catch (error) {
-    console.warn(`分析文件夹内容类型失败: ${folderPath}`, error)
-    return 'unknown'
+    throw new Error(`获取文件夹详细信息失败: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -107,55 +109,22 @@ async function analyzeFolderContentType(folderPath: string): Promise<string> {
  * @param structureType 结构类型
  * @returns 文件夹信息数组
  */
-async function getFolders(dirPath: string, structureType: FolderStructureType = FolderStructureType.FLAT
+async function getFolders(
+  dirPath: string,
+  structureType: FolderStructureType = FolderStructureType.FLAT
 ): Promise<FolderInfo[]> {
   try {
-    const foldersInfo = await FileUtils.getFoldersInfo(dirPath, structureType)
+    const folders = await FileUtils.getFoldersInfo(dirPath, structureType)
 
     // 为每个文件夹分析内容类型
-    const foldersWithContentType = await Promise.all(
-      foldersInfo.map(async (folder) => {
-        const contentType = await analyzeFolderContentType(folder.fullPath)
-        return {
-          ...folder,
-          contentType
-        }
+    const folderInfo = await Promise.all(
+      folders.map(async (folder) => {
+        return await getFolderInfo(folder.fullPath, { type: SortType.NAME, order: SortOrder.ASC })
       })
     )
-
-    return foldersWithContentType
+    return folderInfo
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-/**
- * 获取单个文件夹的封面信息（按需加载）
- * @param folderPath 文件夹路径
- * @returns 封面信息
- */
-async function getFolderCoverInfo(folderPath: string): Promise<{ coverPath?: string; coverFileName?: string }> {
-  try {
-    let filesInfo = await FileUtils.getFilesInfo(folderPath, false)
-    if (filesInfo.length === 0) return {}
-    // 如果优先选择图片文件
-    // 先查找图片文件
-    const imageFiles = filesInfo.filter(file =>
-      IMAGE_EXTENSIONS.includes(file.extension)
-    )
-
-    if (imageFiles.length > 0) {
-      // 按文件名排序，选择第一个图片文件
-      imageFiles.sort((a, b) => a.name.localeCompare(b.name))
-      return {
-        coverPath: imageFiles[0].fullPath,
-        coverFileName: imageFiles[0].name
-      }
-    }
-    return {}
-  } catch (error) {
-    console.warn(`获取文件夹封面失败: ${folderPath}`, error)
-    return {}
   }
 }
 
@@ -163,25 +132,21 @@ async function getFolderCoverInfo(folderPath: string): Promise<{ coverPath?: str
  * 获取指定文件夹路径下的所有文件（支持排序）
  * @param dirPath 目录路径
  * @param sortOptions 排序选项，可选
- * @param includeSubfolders 是否包含子文件夹中的文件，默认为 false
  * @param filterExtensions 文件扩展名过滤器，可选
  * @returns 文件信息数组
  */
 async function getFiles(
   dirPath: string,
   sortOptions?: SortOptions,
-  includeSubfolders: boolean = false,
   filterExtensions?: string[]
 ): Promise<FileInfo[]> {
   try {
-    let filesInfo = await FileUtils.getFilesInfo(dirPath, includeSubfolders)
+    let filesInfo = await FileUtils.getFilesInfo(dirPath, false)
 
     // 如果指定了文件扩展名过滤器，进行过滤
     if (filterExtensions && filterExtensions.length > 0) {
-      const normalizedExtensions = filterExtensions.map(ext => ext.toLowerCase())
-      filesInfo = filesInfo.filter(file =>
-        normalizedExtensions.includes(file.extension)
-      )
+      const normalizedExtensions = filterExtensions.map((ext) => ext.toLowerCase())
+      filesInfo = filesInfo.filter((file) => normalizedExtensions.includes(file.extension))
     }
 
     // 如果指定了排序选项，进行排序
@@ -237,27 +202,15 @@ async function readFileBuffer(filePath: string): Promise<Buffer> {
   try {
     return await FileUtils.readFileBuffer(filePath)
   } catch (error) {
-    throw new Error(`读取文件 Buffer 失败: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(
+      `读取文件 Buffer 失败: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 }
 
-async function getFolderInfo(filePath: string): Promise<FolderInfo> {
-  try {
-    const folder = await FileUtils.getFolderInfo(filePath)
-    const contentType = await analyzeFolderContentType(filePath)
-    return {
-      ...folder,
-      contentType
-    }
-  } catch (error) {
-    throw new Error(`获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
 const book = {
   getFolders,
   getFiles,
-  getFolderCoverInfo,
-  analyzeFolderContentType,
   readFileBuffer,
   getFolderInfo
 }
