@@ -160,7 +160,7 @@ import {
   Bookmark as BookmarkIcon,
   Book as BookIcon
 } from '@vicons/ionicons5'
-import useSetting from '@renderer/components/setting/setting'
+import useSetting from '@renderer/components/setting'
 import { NButton, NIcon, DataTableColumns } from 'naive-ui'
 // 防抖函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {

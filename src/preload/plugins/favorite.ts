@@ -1,5 +1,5 @@
 import { favorites } from "@/typings/database";
-import database from "../sqlite";
+import database from "./sqlite";
 
 // 打开数据库
 let db = await database.openDatabase()

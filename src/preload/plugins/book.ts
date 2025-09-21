@@ -1,4 +1,4 @@
-import FileUtils from '../../../utils/file'
+import FileUtils from '../../utils/file'
 import { FolderInfo, FileInfo } from "@/typings/file";
 
 /**

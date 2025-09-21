@@ -55,7 +55,7 @@ import { Rendition } from 'epubjs'
 import { ChevronLeft12Filled as leftIcon, ChevronRight12Filled as rightIcon } from '@vicons/fluent'
 import { Menu as menuIcon, Home as homeIcon, SettingsSharp as settingIcon } from '@vicons/ionicons5'
 import { Mutex } from 'async-mutex'
-import useSetting from '@renderer/components/setting/setting'
+import useSetting from '@renderer/components/setting'
 import { useSettingStore } from '@renderer/plugins/store'
 import { NText, NIcon, NSlider } from 'naive-ui'
 const message = useMessage()
