@@ -13,6 +13,10 @@ declare global {
       get: (key: string) => Promise<string | undefined>
       set: (key: string, value: string) => Promise<void>
     },
+    systemInterface: {
+      openExplorer: (path: string) => void
+      unzip: (path: string) => void
+    }
     book: {
       getFolders: (dirPath: string, structureType?: string) => Promise<FolderInfo[]>
       getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean, filterExtensions?: string[]) => Promise<FileInfo[]>

@@ -1,17 +1,14 @@
 import fs from 'fs'
 import path from 'path'
-import { FolderInfo, FileInfo } from "@/typings/file";
+import { FolderInfo, FileInfo } from '@/typings/file'
 
 /**
  * 文件夹返回格式枚举
  */
 export enum FolderStructureType {
-  FLAT = 'flat',    // 平铺格式 - 返回所有最下级文件夹
-  TREE = 'tree'     // 树形格式 - 返回带父子级关系的文件夹
+  FLAT = 'flat', // 平铺格式 - 返回所有最下级文件夹
+  TREE = 'tree' // 树形格式 - 返回带父子级关系的文件夹
 }
-
-
-
 
 /**
  * 文件工具类
@@ -50,7 +47,7 @@ export class FileUtils {
    * @param folderPath 文件夹路径
    * @returns 文件夹信息
    */
-  static async getFolderInfo(folderPath: string): Promise<FolderInfo> {
+  static getFolderInfo(folderPath: string): FolderInfo {
     try {
       // 路径验证
       if (!this.pathExists(folderPath)) {
@@ -70,54 +67,14 @@ export class FileUtils {
         fullPath: folderPath,
         createdTime: stat.birthtime,
         modifiedTime: stat.mtime,
-        parentPath: parentPath !== folderPath ? parentPath : undefined,
+        parentPath: parentPath !== folderPath ? parentPath : undefined
       }
     } catch (error) {
-      throw new Error(`获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
-
-  /**
-   * 分析文件夹内容统计
-   * @param folderPath 文件夹路径
-   * @returns 内容统计信息
-   */
-  private static analyzeFolderContent(folderPath: string): {
-    fileCount: number
-    folderCount: number
-    hasSubfolders: boolean
-  } {
-    let fileCount = 0
-    let folderCount = 0
-    let hasSubfolders = false
-
-    try {
-      const items = fs.readdirSync(folderPath)
-
-      for (const item of items) {
-        const itemPath = path.join(folderPath, item)
-
-        try {
-          const itemStat = fs.statSync(itemPath)
-
-          if (itemStat.isFile()) {
-            fileCount++
-          } else if (itemStat.isDirectory()) {
-            folderCount++
-            hasSubfolders = true
-          }
-        } catch {
-          // 跳过无法访问的项目
-          continue
-        }
-      }
-    } catch {
-      // 如果无法读取文件夹内容，保持默认值
-    }
-
-    return { fileCount, folderCount, hasSubfolders }
-  }
-
   /**
    * 获取指定路径下的所有文件夹信息
    * @param dirPath 目录路径
@@ -129,25 +86,27 @@ export class FileUtils {
     structureType: FolderStructureType = FolderStructureType.FLAT
   ): FolderInfo[] {
     try {
-      // 检查路径是否存在
-      if (!this.pathExists(dirPath)) {
-        throw new Error(`路径不存在: ${dirPath}`)
-      }
-
-      // 检查是否为目录
-      const stat = fs.statSync(dirPath)
-      if (!stat.isDirectory()) {
-        throw new Error(`指定路径不是目录: ${dirPath}`)
-      }
       if (structureType === FolderStructureType.TREE) {
         return this.getAllChildrenFolders(dirPath)
       }
       return this.getDirectChildrenFolders(dirPath)
     } catch (error) {
-      throw new Error(`获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
-  private static getDirectChildrenFolders(dirPath: string): FolderInfo[] {
+  static getDirectChildrenFolders(dirPath: string): FolderInfo[] {
+    // 检查路径是否存在
+    if (!this.pathExists(dirPath)) {
+      throw new Error(`路径不存在: ${dirPath}`)
+    }
+
+    // 检查是否为目录
+    const stat = fs.statSync(dirPath)
+    if (!stat.isDirectory()) {
+      throw new Error(`指定路径不是目录: ${dirPath}`)
+    }
     const children = fs.readdirSync(dirPath, { withFileTypes: true })
     const foldersInfo: FolderInfo[] = []
     for (const child of children) {
@@ -156,7 +115,7 @@ export class FileUtils {
         if (child.isDirectory()) {
           const folderInfo: FolderInfo = {
             name: child.name,
-            fullPath: path.join(child.path, child.name),
+            fullPath: path.join(child.path, child.name)
           }
           foldersInfo.push(folderInfo)
         }
@@ -176,23 +135,34 @@ export class FileUtils {
    * @param parentPath 父路径
    * @returns 文件夹信息数组
    */
-  private static getAllChildrenFolders(
+  static getAllChildrenFolders(
     dirPath: string,
     currentDepth: number = 0,
     basePath: string = dirPath
   ): FolderInfo[] {
+    // 检查路径是否存在
+    if (!this.pathExists(dirPath)) {
+      throw new Error(`路径不存在: ${dirPath}`)
+    }
+
+    // 检查是否为目录
+    const stat = fs.statSync(dirPath)
+    if (!stat.isDirectory()) {
+      throw new Error(`指定路径不是目录: ${dirPath}`)
+    }
     const children = fs.readdirSync(dirPath, { withFileTypes: true })
     const foldersInfo: FolderInfo[] = []
     for (const child of children) {
       try {
         // 只处理文件夹
         if (child.isDirectory()) {
-          const subChildren = fs.readdirSync(child.path, { withFileTypes: true })
-          const hasSubfolders = subChildren.some(_ => _.isDirectory());
+          const childPath = path.join(child.path, child.name)
+          const subChildren = fs.readdirSync(childPath, { withFileTypes: true })
+          const hasSubfolders = subChildren.some((_) => _.isDirectory())
           const isLeaf = !hasSubfolders
           const folderInfo: FolderInfo = {
             name: child.name,
-            fullPath: path.join(child.path, child.name),
+            fullPath: childPath,
             depth: currentDepth,
             isLeaf: !hasSubfolders,
             children: []
@@ -200,7 +170,7 @@ export class FileUtils {
           // 递归获取子文件夹
           if (hasSubfolders) {
             folderInfo.children = this.getAllChildrenFolders(
-              path.join(child.path, child.name),
+              childPath,
               currentDepth + 1,
               basePath
             )
@@ -208,7 +178,6 @@ export class FileUtils {
           if (!isLeaf) {
             foldersInfo.push(folderInfo)
           }
-
         }
       } catch (error) {
         // 跳过无法访问的文件夹
@@ -225,7 +194,7 @@ export class FileUtils {
    * @param includeSubfolders 是否包含子文件夹中的文件，默认为 false
    * @returns 文件信息数组
    */
-  static async getFilesInfo(dirPath: string, includeSubfolders: boolean = false): Promise<FileInfo[]> {
+  static getFilesInfo(dirPath: string, includeSubfolders: boolean = false): FileInfo[] {
     try {
       // 检查路径是否存在
       if (!this.pathExists(dirPath)) {
@@ -294,7 +263,9 @@ export class FileUtils {
       const buffer = fs.readFileSync(filePath)
       return buffer
     } catch (error) {
-      throw new Error(`读取文件 Buffer 失败: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `读取文件 Buffer 失败: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 

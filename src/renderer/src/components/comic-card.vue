@@ -156,7 +156,6 @@ const setupIntersectionObserver = () => {
 
   observer.value.observe(cardRef.value)
 }
-
 // 监听收藏状态变化
 watch(
   () => props.folder.isBookmarked,

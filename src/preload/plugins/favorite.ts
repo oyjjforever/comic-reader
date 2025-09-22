@@ -181,7 +181,7 @@ const getFavoriteCount = async (): Promise<number> => {
     }
 }
 
-const favoriteManagement = {
+export default {
     getFavorites,
     getFavorite,
     isFavorited,
@@ -191,5 +191,3 @@ const favoriteManagement = {
     toggleFavorite,
     getFavoriteCount,
 }
-
-export default favoriteManagement

@@ -69,7 +69,7 @@
       </n-spin>
     </div>
     <!-- 主体内容区域 -->
-    <main class="main-content" v-else-if="settingStore.setting.resourcePath">
+    <main class="main-content" v-else-if="resourcePath">
       <!-- 左侧文件树 -->
       <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
         <div class="sidebar-header">
@@ -87,10 +87,10 @@
             :node-props="nodeProps"
             key-field="fullPath"
             label-field="name"
-            selectable
             block-line
             class="folder-tree"
             default-expand-all
+            :default-selected-keys="[resourcePath]"
           />
         </div>
       </aside>
@@ -106,6 +106,7 @@
               :folder="folder"
               class="grid-item"
               @click="toRead(folder)"
+              @contextmenu="(e) => handleContextMenu(e, folder)"
             />
           </div>
 
@@ -162,6 +163,8 @@ import {
 } from '@vicons/ionicons5'
 import useSetting from '@renderer/components/setting'
 import { NButton, NIcon, DataTableColumns } from 'naive-ui'
+import ContextMenu from '@imengyu/vue3-context-menu'
+import { computed } from 'vue'
 // 防抖函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
   let timeout: NodeJS.Timeout | null = null
@@ -198,7 +201,7 @@ const isLoading = ref(false)
 const isSearching = ref(false)
 const renderBatchSize = ref(20) // 每批渲染的数量
 const currentBatch = ref(1) // 当前渲染到第几批
-
+const resourcePath = computed(() => settingStore.setting.resourcePath)
 // 定义筛选条件
 const filterForm = ref<{
   name?: string
@@ -339,7 +342,6 @@ const toggleSidebar = () => {
 }
 
 const toRead = (book: FolderInfo) => {
-  console.log(book)
   if (book.contentType === 'empty') {
     // 使用 naive-ui 的消息提示
     message.warning('该文件夹不包含任何文件')
@@ -367,14 +369,12 @@ const toRead = (book: FolderInfo) => {
 
 // 获取文件夹列表 - 优化版本
 const getFolders = async () => {
-  if (!settingStore.setting.resourcePath) return
+  if (!resourcePath.value) return
   isLoading.value = true
   try {
     // 并行加载树形数据和平铺数据
-    const [treeData, flatData] = await Promise.all([
-      window.book.getFolders(settingStore.setting.resourcePath, 'tree'),
-      window.book.getFolders(settingStore.setting.resourcePath, 'flat')
-    ])
+    const treeData = await window.book.getFolders(resourcePath.value, 'tree')
+
     folderTreeData.value = [
       {
         name: '我的收藏',
@@ -382,14 +382,14 @@ const getFolders = async () => {
         isLeaf: true,
         prefix: () => h(NIcon, { component: BookmarkIcon, color: '#FFD700' })
       },
-      { name: '资源目录', fullPath: settingStore.setting.resourcePath, children: treeData }
+      { name: '资源目录', fullPath: resourcePath.value, children: treeData }
     ]
     // 使用 nextTick 确保 DOM 更新不阻塞
     await nextTick()
-    currentFolderList.value = flatData
     // 清空缓存
     searchCache.clear()
     currentBatch.value = 1
+    onTreeNodeClick(resourcePath.value as string)
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
   } finally {
@@ -446,7 +446,6 @@ const getFavoriteBooks = async () => {
     isShowingFavorites.value = true
 
     const favorites = await window.favorite.getFavorites()
-    console.log('收藏书籍:', favorites)
     // 将收藏路径转换为 FolderInfo 格式
     const favoriteBooks: FolderInfo[] = []
 
@@ -514,7 +513,6 @@ const handleScroll = throttle((event: Event) => {
 
 // 树节点点击事件 - 优化版本
 const onTreeNodeClick = async (folderPath: string) => {
-  if (isLoading.value) return
   // 重置收藏状态
   isShowingFavorites.value = false
   isLoading.value = true
@@ -537,7 +535,33 @@ const onTreeNodeClick = async (folderPath: string) => {
 const settingHandleClick = () => {
   setting.open(getFolders)
 }
-
+function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
+  //prevent the browser's default menu
+  e.preventDefault()
+  //show your menu
+  ContextMenu.showContextMenu({
+    x: e.x,
+    y: e.y,
+    items: [
+      {
+        label: '在文件管理器中打开',
+        onClick: () => {
+          window.systemInterface.openExplorer(folder.fullPath)
+        }
+      },
+      {
+        label: '解压',
+        onClick: () => {
+          window.systemInterface.unzip(folder.fullPath)
+        }
+      },
+      {
+        label: 'A submenu',
+        children: [{ label: 'Item1' }, { label: 'Item2' }, { label: 'Item3' }]
+      }
+    ]
+  })
+}
 // 页面挂载时加载数据
 onMounted(async () => {
   await settingStore.updateSetting()

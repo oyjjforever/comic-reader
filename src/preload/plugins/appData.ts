@@ -41,9 +41,7 @@ export async function set(key: string, value: string): Promise<void> {
     }
 }
 
-const appData = {
+export default {
     get,
     set,
 }
-
-export default appData

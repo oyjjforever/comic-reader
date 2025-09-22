@@ -52,8 +52,6 @@ const createTable = () => {
     `)
 }
 
-const database = {
+export default {
     openDatabase,
 }
-
-export default database

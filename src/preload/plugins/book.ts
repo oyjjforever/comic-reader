@@ -46,46 +46,29 @@ export interface SortOptions {
 }
 
 /**
- * 文件夹信息扩展接口（包含封面图）
- */
-export interface FolderInfoWithCover extends FolderInfo {
-  /** 封面图路径 */
-  coverPath?: string
-  /** 封面图文件名 */
-  coverFileName?: string
-}
-
-/**
  * 支持的图片格式
  */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
 
 async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<FolderInfo> {
   try {
-
-
     // 先获取文件夹信息
-    const folder = await FileUtils.getFolderInfo(path)
+    const folder = FileUtils.getFolderInfo(path)
     // 在获取内部文件列表
-    let files = await FileUtils.getFilesInfo(path, false)
+    let files = FileUtils.getFilesInfo(path, false)
     // 判断文件夹类型
     let contentType: string
-    if (files.length === 0) {
-      contentType = 'empty'
-    }
     const extensions = new Set(files.map((file) => file.extension.toLowerCase()))
     // 如果包含多种类型
     if (extensions.size < 1) {
       contentType = 'empty'
-    }
-    else if (extensions.size > 1) {
+    } else if (extensions.size > 1) {
       contentType = 'mixed'
     }
     // 检查是否包含图片
     else if (IMAGE_EXTENSIONS.includes(Array.from(extensions)[0])) {
       contentType = 'image'
-    }
-    else {
+    } else {
       contentType = Array.from(extensions)[0].toString().slice(1)
     }
     // 选取第一个图片作为封面
@@ -99,7 +82,9 @@ async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<F
       contentType
     }
   } catch (error) {
-    throw new Error(`获取文件夹详细信息失败: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(
+      `获取文件夹详细信息失败: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 }
 
@@ -114,8 +99,10 @@ async function getFolders(
   structureType: FolderStructureType = FolderStructureType.FLAT
 ): Promise<FolderInfo[]> {
   try {
-    const folders = await FileUtils.getFoldersInfo(dirPath, structureType)
-
+    const folders =
+      structureType === FolderStructureType.TREE
+        ? FileUtils.getAllChildrenFolders(dirPath)
+        : FileUtils.getDirectChildrenFolders(dirPath)
     // 为每个文件夹分析内容类型
     const folderInfo = await Promise.all(
       folders.map(async (folder) => {
@@ -141,7 +128,7 @@ async function getFiles(
   filterExtensions?: string[]
 ): Promise<FileInfo[]> {
   try {
-    let filesInfo = await FileUtils.getFilesInfo(dirPath, false)
+    let filesInfo = FileUtils.getFilesInfo(dirPath, false)
 
     // 如果指定了文件扩展名过滤器，进行过滤
     if (filterExtensions && filterExtensions.length > 0) {
@@ -208,11 +195,9 @@ async function readFileBuffer(filePath: string): Promise<Buffer> {
   }
 }
 
-const book = {
+export default {
   getFolders,
   getFiles,
   readFileBuffer,
   getFolderInfo
 }
-
-export default book

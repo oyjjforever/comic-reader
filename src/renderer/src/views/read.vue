@@ -53,8 +53,6 @@ const getData = async () => {
     if (route.query.page) {
       currentPage.value = parseInt(route.query.page as string) || 1
     }
-
-    console.log(book.value)
     const folderName = book.value.folderPath.split(/[/\\]/).pop() || '阅读'
 
     // 根据内容类型设置标题
@@ -69,7 +67,6 @@ const getData = async () => {
 
     document.title = titlePrefix + folderName
   } catch (error: any) {
-    console.log(error)
     message.error(error.message)
 
     // 返回上一页
