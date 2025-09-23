@@ -19,7 +19,7 @@ declare global {
     }
     book: {
       getFolders: (dirPath: string, structureType?: string) => Promise<FolderInfo[]>
-      getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean, filterExtensions?: string[]) => Promise<FileInfo[]>
+      getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => FileInfo[]
       readFileBuffer: (filePath: string) => Promise<Buffer>
       getFolderInfo: (filePath: string) => Promise<FolderInfo>
       getFolderCoverInfo: (filePath: string) => Promise<{ coverPath?: string; coverFileName?: string }>

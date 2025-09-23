@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <header class="navbar">
       <!-- 左侧：视图切换 -->
-      <div class="navbar-left">
+      <!-- <div class="navbar-left">
         <n-button-group>
           <n-button
             :type="viewMode === 'grid' ? 'primary' : 'default'"
@@ -26,18 +26,18 @@
             列表
           </n-button>
         </n-button-group>
-      </div>
+      </div> -->
 
       <!-- 中间：搜索框 -->
       <div class="navbar-center">
         <n-input
-          v-model:value="filterForm.name"
+          v-model="search.keyword"
           type="text"
           placeholder="搜索漫画..."
           clearable
           class="search-input"
           :loading="isSearching"
-          @input="handleSearchInput"
+          @input="onQuery"
         >
           <template #prefix>
             <n-icon :component="searchIcon" />
@@ -53,7 +53,9 @@
           </template>
           {{ isDarkMode ? '明亮' : '夜间' }}
         </n-button>
-
+        <n-dropdown trigger="click" :options="options" @select="onSort">
+          <n-button>排序</n-button>
+        </n-dropdown>
         <n-button size="small" @click="settingHandleClick">
           <template #icon>
             <n-icon :component="settingIcon" />
@@ -63,13 +65,13 @@
       </div>
     </header>
     <!-- 加载状态 -->
-    <div v-if="isLoading" class="loading-container">
+    <!-- <div v-if="isLoading" class="loading-container">
       <n-spin size="large">
         <template #description> 正在加载文件夹... </template>
       </n-spin>
-    </div>
+    </div> -->
     <!-- 主体内容区域 -->
-    <main class="main-content" v-else-if="resourcePath">
+    <main class="main-content" v-if="resourcePath">
       <!-- 左侧文件树 -->
       <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
         <div class="sidebar-header">
@@ -83,14 +85,13 @@
 
         <div class="sidebar-content">
           <n-tree
-            :data="folderTreeData"
+            :data="tree.data"
             :node-props="nodeProps"
             key-field="fullPath"
             label-field="name"
             block-line
             class="folder-tree"
             default-expand-all
-            :default-selected-keys="[resourcePath]"
           />
         </div>
       </aside>
@@ -98,7 +99,7 @@
       <!-- 右侧主内容区 -->
       <section class="content-area">
         <!-- 网格视图 -->
-        <div v-if="viewMode === 'grid'" class="grid-view" @scroll="handleScroll">
+        <div class="grid-view" @scroll="handleScroll">
           <div class="grid-container">
             <comic-card
               v-for="folder in displayedFolderList"
@@ -116,20 +117,6 @@
               加载更多 ({{ displayedFolderList.length }}/{{ filteredFolderList.length }})
             </n-button>
           </div>
-        </div>
-
-        <!-- 列表视图 -->
-        <div v-else class="list-view">
-          <n-data-table
-            :columns="listColumns"
-            :data="displayedFolderList"
-            :pagination="false"
-            :bordered="false"
-            :loading="isSearching"
-            striped
-            @row-click="toRead"
-            class="list-table"
-          />
         </div>
       </section>
     </main>
@@ -158,41 +145,19 @@ import {
   Moon as MoonIcon,
   ChevronForward as ChevronRightIcon,
   ChevronBack as ChevronLeftIcon,
-  Bookmark as BookmarkIcon,
-  Book as BookIcon
+  Bookmark as BookmarkIcon
 } from '@vicons/ionicons5'
 import useSetting from '@renderer/components/setting'
 import { NButton, NIcon, DataTableColumns } from 'naive-ui'
 import ContextMenu from '@imengyu/vue3-context-menu'
-import { computed } from 'vue'
-// 防抖函数
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
-  let timeout: NodeJS.Timeout | null = null
-  return ((...args: any[]) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }) as T
-}
-
-// 节流函数
-function throttle<T extends (...args: any[]) => any>(func: T, limit: number): T {
-  let inThrottle: boolean
-  return ((...args: any[]) => {
-    if (!inThrottle) {
-      func(...args)
-      inThrottle = true
-      setTimeout(() => (inThrottle = false), limit)
-    }
-  }) as T
-}
-
+import { computed, reactive } from 'vue'
+import { debounce, throttle } from 'lodash'
 const message = useMessage()
 const settingStore = useSettingStore()
 const setting = useSetting()
 const router = useRouter()
 
 // 界面状态
-const viewMode = ref<'grid' | 'list'>('grid')
 const isDarkMode = ref(false)
 const isSidebarHidden = ref(false)
 
@@ -202,86 +167,51 @@ const isSearching = ref(false)
 const renderBatchSize = ref(20) // 每批渲染的数量
 const currentBatch = ref(1) // 当前渲染到第几批
 const resourcePath = computed(() => settingStore.setting.resourcePath)
-// 定义筛选条件
-const filterForm = ref<{
-  name?: string
-  order: 'id ASC' | 'id DESC' | 'updated_at ASC' | 'updated_at DESC'
-}>({
-  order: settingStore.setting.bookSort || 'id DESC'
-})
 
-// 列表视图列定义
-const listColumns: DataTableColumns<FolderInfo> = [
+const options = [
   {
-    title: '阅读',
-    key: 'name',
-    width: 80,
-    align: 'center',
-    render: (row) => {
-      return h(
-        NButton,
-        {
-          onClick: () => toRead(row)
-        },
-        [h(NIcon, { component: BookIcon, size: 16 })]
-      )
-    }
+    label: '名称升序',
+    key: 'name_asc'
   },
   {
-    title: '名称',
-    key: 'name',
-    ellipsis: {
-      tooltip: true
-    },
-    sorter: (row1, row2) => row1.name.localeCompare(row2.name)
+    label: '名称降序',
+    key: 'name_desc'
   },
   {
-    title: '文件数',
-    key: 'fileCount',
-    width: 100,
-    sorter: (row1, row2) => row1.fileCount - row2.fileCount
+    label: '创建时间升序',
+    key: 'createTime_asc'
   },
   {
-    title: '内容类型',
-    key: 'contentType',
-    width: 100
-  },
-  {
-    title: '路径',
-    key: 'fullPath',
-    ellipsis: {
-      tooltip: true
-    }
+    label: '创建时间降序',
+    key: 'createTime_desc'
   }
 ]
 
-// 文件夹相关状态
-const folderTreeData = ref<any[]>([])
-const currentFolderList = shallowRef<FolderInfo[]>([]) // 使用 shallowRef 提升性能
-const currentSortKey = ref('name_asc')
-const isShowingFavorites = ref(false) // 是否正在显示收藏
-
-// 缓存搜索结果
-const searchCache = new Map<string, FolderInfo[]>()
-const filteredCache = ref<FolderInfo[]>([])
+const tree = reactive({
+  data: [],
+  currentNode: {},
+  currentKey: ''
+})
+const grid = reactive({
+  rows: [],
+  filterRows: []
+})
+const search = reactive({
+  keyword: '',
+  sort: 'name_asc'
+})
 
 // 优化后的过滤和排序逻辑
 const filteredFolderList = computed(() => {
   if (isSearching.value) {
-    return filteredCache.value
+    return grid.filterRows
   }
 
-  let list = [...currentFolderList.value] // 浅拷贝避免修改原数组
+  let list = [...grid.rows] // 浅拷贝避免修改原数组
 
   // 搜索过滤
-  if (filterForm.value.name) {
-    const searchTerm = filterForm.value.name.toLowerCase()
-    const cacheKey = `${searchTerm}_${currentSortKey.value}`
-
-    if (searchCache.has(cacheKey)) {
-      return searchCache.get(cacheKey)!
-    }
-
+  if (search.keyword) {
+    const searchTerm = search.keyword.toLowerCase()
     list = list.filter((folder) => folder.name.toLowerCase().includes(searchTerm))
   }
 
@@ -289,30 +219,19 @@ const filteredFolderList = computed(() => {
   const sortFunctions = {
     name_asc: (a: FolderInfo, b: FolderInfo) => a.name.localeCompare(b.name),
     name_desc: (a: FolderInfo, b: FolderInfo) => b.name.localeCompare(a.name),
-    fileCount_asc: (a: FolderInfo, b: FolderInfo) => a.fileCount - b.fileCount,
-    fileCount_desc: (a: FolderInfo, b: FolderInfo) => b.fileCount - a.fileCount
+    createTime_asc: (a: FolderInfo, b: FolderInfo) =>
+      a.createdTime.getTime() - b.createdTime.getTime(),
+    createTime_desc: (a: FolderInfo, b: FolderInfo) =>
+      b.createdTime.getTime() - a.createdTime.getTime()
   }
 
-  const sortFn = sortFunctions[currentSortKey.value as keyof typeof sortFunctions]
+  const sortFn = sortFunctions[search.sort as keyof typeof sortFunctions]
   if (sortFn) {
     list.sort(sortFn)
   }
 
-  // 缓存结果
-  if (filterForm.value.name) {
-    const cacheKey = `${filterForm.value.name.toLowerCase()}_${currentSortKey.value}`
-    searchCache.set(cacheKey, list)
-
-    // 限制缓存大小
-    if (searchCache.size > 50) {
-      const firstKey = searchCache.keys().next().value
-      searchCache.delete(firstKey)
-    }
-  }
-
   return list
 })
-
 // 分批渲染优化 - 移除分页逻辑
 const displayedFolderList = computed(() => {
   const list = filteredFolderList.value
@@ -368,14 +287,14 @@ const toRead = (book: FolderInfo) => {
 }
 
 // 获取文件夹列表 - 优化版本
-const getFolders = async () => {
+const fetchTreeData = async () => {
   if (!resourcePath.value) return
   isLoading.value = true
   try {
     // 并行加载树形数据和平铺数据
     const treeData = await window.book.getFolders(resourcePath.value, 'tree')
-
-    folderTreeData.value = [
+    console.log(treeData)
+    tree.data = [
       {
         name: '我的收藏',
         fullPath: '__favorites__',
@@ -384,10 +303,6 @@ const getFolders = async () => {
       },
       { name: '资源目录', fullPath: resourcePath.value, children: treeData }
     ]
-    // 使用 nextTick 确保 DOM 更新不阻塞
-    await nextTick()
-    // 清空缓存
-    searchCache.clear()
     currentBatch.value = 1
     onTreeNodeClick(resourcePath.value as string)
   } catch (error: any) {
@@ -396,35 +311,37 @@ const getFolders = async () => {
     isLoading.value = false
   }
 }
-
+function onSort(key: string | number) {
+  search.sort = key
+  onQuery()
+}
 // 防抖搜索函数
-const debouncedSearch = debounce(async (searchTerm: string) => {
+const onQuery = debounce(async (keyword?: string) => {
   isSearching.value = true
 
   try {
-    await nextTick() // 等待 DOM 更新
-
-    let list = [...currentFolderList.value]
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      list = list.filter((folder) => folder.name.toLowerCase().includes(term))
+    let list = [...grid.rows]
+    if (keyword) {
+      const _keyword = keyword.toLowerCase()
+      list = list.filter((folder) => folder.name.toLowerCase().includes(_keyword))
     }
 
     // 排序
     const sortFunctions = {
       name_asc: (a: FolderInfo, b: FolderInfo) => a.name.localeCompare(b.name),
       name_desc: (a: FolderInfo, b: FolderInfo) => b.name.localeCompare(a.name),
-      fileCount_asc: (a: FolderInfo, b: FolderInfo) => a.fileCount - b.fileCount,
-      fileCount_desc: (a: FolderInfo, b: FolderInfo) => b.fileCount - a.fileCount
+      createTime_asc: (a: FolderInfo, b: FolderInfo) =>
+        a.createdTime.getTime() - b.createdTime.getTime(),
+      createTime_desc: (a: FolderInfo, b: FolderInfo) =>
+        b.createdTime.getTime() - a.createdTime.getTime()
     }
 
-    const sortFn = sortFunctions[currentSortKey.value as keyof typeof sortFunctions]
+    const sortFn = sortFunctions[search.sort as keyof typeof sortFunctions]
     if (sortFn) {
       list.sort(sortFn)
     }
 
-    filteredCache.value = list
+    grid.filterRows = list
   } catch (error) {
     console.error('搜索失败:', error)
   } finally {
@@ -443,7 +360,6 @@ const loadMoreBatch = throttle(() => {
 const getFavoriteBooks = async () => {
   try {
     isLoading.value = true
-    isShowingFavorites.value = true
 
     const favorites = await window.favorite.getFavorites()
     // 将收藏路径转换为 FolderInfo 格式
@@ -465,9 +381,8 @@ const getFavoriteBooks = async () => {
       }
     }
 
-    currentFolderList.value = favoriteBooks
+    grid.rows = favoriteBooks
     currentBatch.value = 1
-    searchCache.clear()
   } catch (error) {
     message.error(`获取收藏书籍失败: ${(error as Error).message}`)
   } finally {
@@ -479,6 +394,7 @@ const getFavoriteBooks = async () => {
 const nodeProps = ({ option }) => {
   return {
     onClick() {
+      tree.currentKey = option.fullPath
       // 收藏节点特殊处理
       if (option.fullPath === '__favorites__') {
         getFavoriteBooks()
@@ -486,14 +402,10 @@ const nodeProps = ({ option }) => {
       }
 
       if (option.isLeaf) return
+      tree.currentNode = option
       onTreeNodeClick(option.fullPath as string)
     }
   }
-}
-
-// 搜索输入处理
-const handleSearchInput = (value: string) => {
-  debouncedSearch(value)
 }
 
 // 滚动处理 - 自动加载更多
@@ -513,17 +425,12 @@ const handleScroll = throttle((event: Event) => {
 
 // 树节点点击事件 - 优化版本
 const onTreeNodeClick = async (folderPath: string) => {
-  // 重置收藏状态
-  isShowingFavorites.value = false
   isLoading.value = true
-
+  tree.currentKey = folderPath
   try {
-    // 获取该路径下的直接子文件夹
-    await nextTick()
-    currentFolderList.value = await window.book.getFolders(folderPath, 'flat')
+    grid.rows = await window.book.getFolders(folderPath, 'flat')
     // 重置状态
     currentBatch.value = 1
-    searchCache.clear()
   } catch (error) {
     message.error(`获取子文件夹失败: ${(error as Error).message}`)
   } finally {
@@ -533,7 +440,7 @@ const onTreeNodeClick = async (folderPath: string) => {
 
 // 设置按钮回调
 const settingHandleClick = () => {
-  setting.open(getFolders)
+  setting.open(fetchTreeData)
 }
 function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   //prevent the browser's default menu
@@ -565,11 +472,11 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
 // 页面挂载时加载数据
 onMounted(async () => {
   await settingStore.updateSetting()
-  getFolders()
+  fetchTreeData()
 })
 </script>
 
-<style scoped>
+<style>
 /* 主容器 */
 .home-container {
   @apply h-screen flex flex-col;

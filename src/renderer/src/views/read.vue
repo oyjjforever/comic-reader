@@ -44,7 +44,7 @@ const book = ref({
 // 定义当前页面（用于PDF阅读）
 const currentPage = ref(1)
 // 获取数据（书籍或文件夹）
-const getData = async () => {
+const fetchData = async () => {
   try {
     book.value = Object.assign(book.value, route.query)
     book.value.folderPath = decodeURIComponent(book.value.folderPath as string)
@@ -57,14 +57,6 @@ const getData = async () => {
 
     // 根据内容类型设置标题
     let titlePrefix = '漫画阅读器 - '
-    if (book.value.contentType === 'pdf') {
-      titlePrefix += 'PDF - '
-    } else if (book.value.contentType === 'image') {
-      titlePrefix += '图片 - '
-    } else if (book.value.contentType === 'ebook') {
-      titlePrefix += '电子书 - '
-    }
-
     document.title = titlePrefix + folderName
   } catch (error: any) {
     message.error(error.message)
@@ -85,7 +77,7 @@ const handlePageUpdate = (page: number) => {
 
 // 页面挂载时获取数据
 onMounted(() => {
-  getData()
+  fetchData()
 })
 </script>
 

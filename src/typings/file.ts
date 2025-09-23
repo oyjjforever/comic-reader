@@ -58,3 +58,13 @@ export interface FileInfo {
   /** 格式化的文件大小 */
   formattedSize: string
 }
+
+/**
+ * 排序选项接口
+ */
+export interface SortOptions {
+  /** 排序类型 */
+  type: string
+  /** 排序方向 */
+  order: string
+}

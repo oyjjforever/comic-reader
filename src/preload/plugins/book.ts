@@ -1,49 +1,5 @@
 import FileUtils from '../../utils/file'
-import { FolderInfo, FileInfo } from '@/typings/file'
-
-/**
- * 文件夹返回格式枚举
- */
-export enum FolderStructureType {
-  /** 平铺格式 - 返回所有最下级文件夹 */
-  FLAT = 'flat',
-  /** 树形格式 - 返回带父子级关系的文件夹 */
-  TREE = 'tree'
-}
-
-/**
- * 排序类型枚举
- */
-export enum SortType {
-  /** 按名称排序 */
-  NAME = 'name',
-  /** 按创建时间排序 */
-  CREATED_TIME = 'createdTime',
-  /** 按修改时间排序 */
-  MODIFIED_TIME = 'modifiedTime',
-  /** 按文件大小排序 */
-  SIZE = 'size'
-}
-
-/**
- * 排序方向枚举
- */
-export enum SortOrder {
-  /** 升序 */
-  ASC = 'asc',
-  /** 降序 */
-  DESC = 'desc'
-}
-
-/**
- * 排序选项接口
- */
-export interface SortOptions {
-  /** 排序类型 */
-  type: SortType
-  /** 排序方向 */
-  order: SortOrder
-}
+import { FolderInfo, FileInfo, SortOptions } from '@/typings/file'
 
 /**
  * 支持的图片格式
@@ -55,29 +11,26 @@ async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<F
     // 先获取文件夹信息
     const folder = FileUtils.getFolderInfo(path)
     // 在获取内部文件列表
-    let files = FileUtils.getFilesInfo(path, false)
+    let files = getFiles(path, sortOptions)
     // 判断文件夹类型
     let contentType: string
     const extensions = new Set(files.map((file) => file.extension.toLowerCase()))
     // 如果包含多种类型
     if (extensions.size < 1) {
       contentType = 'empty'
-    } else if (extensions.size > 1) {
-      contentType = 'mixed'
     }
     // 检查是否包含图片
     else if (IMAGE_EXTENSIONS.includes(Array.from(extensions)[0])) {
       contentType = 'image'
+    } else if (extensions.size > 1) {
+      contentType = 'mixed'
     } else {
       contentType = Array.from(extensions)[0].toString().slice(1)
-    }
-    // 选取第一个图片作为封面
-    if (sortOptions) {
-      files = sortFiles(files, sortOptions)
     }
     const coverPath = contentType === 'image' ? files[0]?.fullPath : ''
     return {
       ...folder,
+      fileCount: files.length,
       coverPath,
       contentType
     }
@@ -96,20 +49,22 @@ async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<F
  */
 async function getFolders(
   dirPath: string,
-  structureType: FolderStructureType = FolderStructureType.FLAT
+  structureType: string = 'flat'
 ): Promise<FolderInfo[]> {
   try {
-    const folders =
-      structureType === FolderStructureType.TREE
-        ? FileUtils.getAllChildrenFolders(dirPath)
-        : FileUtils.getDirectChildrenFolders(dirPath)
-    // 为每个文件夹分析内容类型
-    const folderInfo = await Promise.all(
-      folders.map(async (folder) => {
-        return await getFolderInfo(folder.fullPath, { type: SortType.NAME, order: SortOrder.ASC })
-      })
-    )
-    return folderInfo
+    if (structureType === 'tree') {
+      return FileUtils.getAllChildrenFolders(dirPath)
+    } else {
+      const folders = FileUtils.getDirectChildrenFolders(dirPath).filter(_ => _.isLeaf)
+      // 为每个文件夹分析内容类型
+      const folderInfo = await Promise.all(
+        folders.map(async (folder) => {
+          return await getFolderInfo(folder.fullPath)
+        })
+      )
+      return folderInfo
+    }
+
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -122,26 +77,21 @@ async function getFolders(
  * @param filterExtensions 文件扩展名过滤器，可选
  * @returns 文件信息数组
  */
-async function getFiles(
+function getFiles(
   dirPath: string,
-  sortOptions?: SortOptions,
-  filterExtensions?: string[]
-): Promise<FileInfo[]> {
+  sortOptions: SortOptions = {
+    type: 'createdTime',
+    order: 'asc'
+  },
+): FileInfo[] {
   try {
-    let filesInfo = FileUtils.getFilesInfo(dirPath, false)
-
-    // 如果指定了文件扩展名过滤器，进行过滤
-    if (filterExtensions && filterExtensions.length > 0) {
-      const normalizedExtensions = filterExtensions.map((ext) => ext.toLowerCase())
-      filesInfo = filesInfo.filter((file) => normalizedExtensions.includes(file.extension))
-    }
-
+    let files = FileUtils.getFilesInfo(dirPath, false)
     // 如果指定了排序选项，进行排序
     if (sortOptions) {
-      filesInfo = sortFiles(filesInfo, sortOptions)
+      files = sortFiles(files, sortOptions)
     }
 
-    return filesInfo
+    return files
   } catch (error) {
     throw new Error(`获取文件列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -160,23 +110,23 @@ function sortFiles(files: FileInfo[], sortOptions: SortOptions): FileInfo[] {
     let comparison = 0
 
     switch (type) {
-      case SortType.NAME:
+      case 'name':
         comparison = a.name.localeCompare(b.name)
         break
-      case SortType.CREATED_TIME:
+      case 'createdTime':
         comparison = a.createdTime.getTime() - b.createdTime.getTime()
         break
-      case SortType.MODIFIED_TIME:
+      case 'modifiedTime':
         comparison = a.modifiedTime.getTime() - b.modifiedTime.getTime()
         break
-      case SortType.SIZE:
+      case 'size':
         comparison = a.size - b.size
         break
       default:
         comparison = 0
     }
 
-    return order === SortOrder.DESC ? -comparison : comparison
+    return order === 'desc' ? -comparison : comparison
   })
 }
 

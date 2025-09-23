@@ -408,7 +408,7 @@ const loadImageList = async () => {
     loading.value = true
     error.value = false
 
-    const imageFiles = await window.book.getFiles(props.folderPath)
+    const imageFiles = window.book.getFiles(props.folderPath)
 
     if (imageFiles.length === 0) {
       message.warning('该文件夹中没有找到图片文件')

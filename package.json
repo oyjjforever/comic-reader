@@ -29,6 +29,7 @@
     "autoprefixer": "^10.4.16",
     "electron-updater": "^6.1.7",
     "epubjs": "^0.3.93",
+    "lodash": "^4.17.21",
     "naive-ui": "^2.37.3",
     "pinia": "^2.1.7",
     "postcss": "^8.4.33",

@@ -113,9 +113,13 @@ export class FileUtils {
       try {
         // 只处理文件夹
         if (child.isDirectory()) {
+          const childPath = path.join(child.path, child.name)
+          const subChildren = fs.readdirSync(childPath, { withFileTypes: true })
+          const hasSubfolders = subChildren.some((_) => _.isDirectory())
           const folderInfo: FolderInfo = {
             name: child.name,
-            fullPath: path.join(child.path, child.name)
+            fullPath: path.join(child.path, child.name),
+            isLeaf: !hasSubfolders,
           }
           foldersInfo.push(folderInfo)
         }
@@ -189,11 +193,11 @@ export class FileUtils {
   }
 
   /**
-   * 获取指定文件夹路径下的所有文件信息
-   * @param dirPath 目录路径
-   * @param includeSubfolders 是否包含子文件夹中的文件，默认为 false
-   * @returns 文件信息数组
-   */
+ * 获取指定文件夹路径下的所有文件信息
+ * @param dirPath 目录路径
+ * @param includeSubfolders 是否包含子文件夹中的文件，默认为 false
+ * @returns 文件信息数组
+ */
   static getFilesInfo(dirPath: string, includeSubfolders: boolean = false): FileInfo[] {
     try {
       // 检查路径是否存在
