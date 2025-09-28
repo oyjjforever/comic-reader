@@ -181,7 +181,7 @@ const setTheme = () => {
 
 // 渲染epub阅读器
 const render = async () => {
-  const imageFiles = window.book.getFiles(props.folderPath)
+  const imageFiles = await window.book.getFiles(props.folderPath)
   console.log(imageFiles)
   // 读取epub文件
   window.fs.readFile(imageFiles[0].fullPath, async (err: any, data: Buffer) => {

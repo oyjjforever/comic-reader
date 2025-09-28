@@ -5,7 +5,7 @@ function openExplorer(path: string) {
     exec(`explorer /select,"${path}"`);
 }
 function unzip(path: string) {
-    const fileName = FileUtils.getFileNameWithoutExtension(path)
+    // const fileName = FileUtils.getFileNameWithoutExtension(path)
     exec(`7z x ${path} -o${FileUtils}`);
 }
 

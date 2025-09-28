@@ -2,8 +2,10 @@ import { favorites } from "@/typings/database";
 import database from "./sqlite";
 
 // 打开数据库
-let db = await database.openDatabase()
-
+let db
+database.openDatabase().then(res => {
+    db = res
+})
 /**
  * @description: 读取全部收藏
  * @param {string} order 排序方式，例如`id DESC, id ASC`

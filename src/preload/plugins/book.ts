@@ -9,9 +9,9 @@ const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.sv
 async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<FolderInfo> {
   try {
     // 先获取文件夹信息
-    const folder = FileUtils.getFolderInfo(path)
+    const folder = await FileUtils.getFolderInfo(path)
     // 在获取内部文件列表
-    let files = getFiles(path, sortOptions)
+    let files = await getFiles(path, sortOptions)
     // 判断文件夹类型
     let contentType: string
     const extensions = new Set(files.map((file) => file.extension.toLowerCase()))
@@ -53,9 +53,9 @@ async function getFolders(
 ): Promise<FolderInfo[]> {
   try {
     if (structureType === 'tree') {
-      return FileUtils.getAllChildrenFolders(dirPath)
+      return await FileUtils.getAllChildrenFolders(dirPath)
     } else {
-      const folders = FileUtils.getDirectChildrenFolders(dirPath).filter(_ => _.isLeaf)
+      const folders = (await FileUtils.getDirectChildrenFolders(dirPath)).filter(_ => _.isLeaf)
       // 为每个文件夹分析内容类型
       const folderInfo = await Promise.all(
         folders.map(async (folder) => {
@@ -77,15 +77,15 @@ async function getFolders(
  * @param filterExtensions 文件扩展名过滤器，可选
  * @returns 文件信息数组
  */
-function getFiles(
+async function getFiles(
   dirPath: string,
   sortOptions: SortOptions = {
     type: 'createdTime',
     order: 'asc'
   },
-): FileInfo[] {
+): Promise<FileInfo[]> {
   try {
-    let files = FileUtils.getFilesInfo(dirPath, false)
+    let files = await FileUtils.getFilesInfo(dirPath, false)
     // 如果指定了排序选项，进行排序
     if (sortOptions) {
       files = sortFiles(files, sortOptions)

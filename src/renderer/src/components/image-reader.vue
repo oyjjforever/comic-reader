@@ -408,7 +408,7 @@ const loadImageList = async () => {
     loading.value = true
     error.value = false
 
-    const imageFiles = window.book.getFiles(props.folderPath)
+    const imageFiles = await window.book.getFiles(props.folderPath)
 
     if (imageFiles.length === 0) {
       message.warning('该文件夹中没有找到图片文件')
@@ -528,8 +528,6 @@ const jumpToPage = async (index: number) => {
     currentIndex.value = index
     zoomLevel.value = 1 // 先重置为1，等图片加载完成后自动适应
     cleanupCache()
-
-    await nextTick()
     preloadImages()
     jumpToPageTimer = null
   }, 100) // 100ms 防抖延迟

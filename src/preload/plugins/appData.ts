@@ -2,7 +2,10 @@ import type { appData as appDataType } from "@/typings/database";
 import database from "./sqlite";
 
 // 打开数据库
-let db = await database.openDatabase()
+let db
+database.openDatabase().then(res => {
+    db = res
+})
 
 /**
  * @description: 获取数据

@@ -1,7 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { FolderInfo, FileInfo } from '@/typings/file'
-
+const util = require('util');
+// 将回调函数转换为 Promise
+const readFileAsync = util.promisify(fs.readFile);
+const readDirAsync = util.promisify(fs.readdir);
+const statAsync = util.promisify(fs.stat);
 /**
  * 文件夹返回格式枚举
  */
@@ -47,14 +51,14 @@ export class FileUtils {
    * @param folderPath 文件夹路径
    * @returns 文件夹信息
    */
-  static getFolderInfo(folderPath: string): FolderInfo {
+  static async getFolderInfo(folderPath: string): Promise<FolderInfo> {
     try {
       // 路径验证
       if (!this.pathExists(folderPath)) {
         throw new Error(`路径不存在: ${folderPath}`)
       }
 
-      const stat = fs.statSync(folderPath)
+      const stat = await statAsync(folderPath)
       if (!stat.isDirectory()) {
         throw new Error(`指定路径不是目录: ${folderPath}`)
       }
@@ -81,40 +85,40 @@ export class FileUtils {
    * @param structureType 返回格式类型：flat(平铺) 或 tree(树形)
    * @returns 文件夹信息数组
    */
-  static getFoldersInfo(
+  static async getFoldersInfo(
     dirPath: string,
     structureType: FolderStructureType = FolderStructureType.FLAT
-  ): FolderInfo[] {
+  ): Promise<FolderInfo[]> {
     try {
       if (structureType === FolderStructureType.TREE) {
-        return this.getAllChildrenFolders(dirPath)
+        return await this.getAllChildrenFolders(dirPath)
       }
-      return this.getDirectChildrenFolders(dirPath)
+      return await this.getDirectChildrenFolders(dirPath)
     } catch (error) {
       throw new Error(
         `获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`
       )
     }
   }
-  static getDirectChildrenFolders(dirPath: string): FolderInfo[] {
+  static async getDirectChildrenFolders(dirPath: string): Promise<FolderInfo[]> {
     // 检查路径是否存在
     if (!this.pathExists(dirPath)) {
       throw new Error(`路径不存在: ${dirPath}`)
     }
 
     // 检查是否为目录
-    const stat = fs.statSync(dirPath)
+    const stat = await statAsync(dirPath)
     if (!stat.isDirectory()) {
       throw new Error(`指定路径不是目录: ${dirPath}`)
     }
-    const children = fs.readdirSync(dirPath, { withFileTypes: true })
+    const children = await readDirAsync(dirPath, { withFileTypes: true })
     const foldersInfo: FolderInfo[] = []
     for (const child of children) {
       try {
         // 只处理文件夹
         if (child.isDirectory()) {
           const childPath = path.join(child.path, child.name)
-          const subChildren = fs.readdirSync(childPath, { withFileTypes: true })
+          const subChildren = await readDirAsync(childPath, { withFileTypes: true })
           const hasSubfolders = subChildren.some((_) => _.isDirectory())
           const folderInfo: FolderInfo = {
             name: child.name,
@@ -139,29 +143,29 @@ export class FileUtils {
    * @param parentPath 父路径
    * @returns 文件夹信息数组
    */
-  static getAllChildrenFolders(
+  static async getAllChildrenFolders(
     dirPath: string,
     currentDepth: number = 0,
     basePath: string = dirPath
-  ): FolderInfo[] {
+  ): Promise<FolderInfo[]> {
     // 检查路径是否存在
     if (!this.pathExists(dirPath)) {
       throw new Error(`路径不存在: ${dirPath}`)
     }
 
     // 检查是否为目录
-    const stat = fs.statSync(dirPath)
+    const stat = await statAsync(dirPath)
     if (!stat.isDirectory()) {
       throw new Error(`指定路径不是目录: ${dirPath}`)
     }
-    const children = fs.readdirSync(dirPath, { withFileTypes: true })
+    const children = await readDirAsync(dirPath, { withFileTypes: true })
     const foldersInfo: FolderInfo[] = []
     for (const child of children) {
       try {
         // 只处理文件夹
         if (child.isDirectory()) {
           const childPath = path.join(child.path, child.name)
-          const subChildren = fs.readdirSync(childPath, { withFileTypes: true })
+          const subChildren = await readDirAsync(childPath, { withFileTypes: true })
           const hasSubfolders = subChildren.some((_) => _.isDirectory())
           const isLeaf = !hasSubfolders
           const folderInfo: FolderInfo = {
@@ -173,7 +177,7 @@ export class FileUtils {
           }
           // 递归获取子文件夹
           if (hasSubfolders) {
-            folderInfo.children = this.getAllChildrenFolders(
+            folderInfo.children = await this.getAllChildrenFolders(
               childPath,
               currentDepth + 1,
               basePath
@@ -198,7 +202,7 @@ export class FileUtils {
  * @param includeSubfolders 是否包含子文件夹中的文件，默认为 false
  * @returns 文件信息数组
  */
-  static getFilesInfo(dirPath: string, includeSubfolders: boolean = false): FileInfo[] {
+  static async getFilesInfo(dirPath: string, includeSubfolders: boolean = false): Promise<FileInfo[]> {
     try {
       // 检查路径是否存在
       if (!this.pathExists(dirPath)) {
@@ -206,19 +210,19 @@ export class FileUtils {
       }
 
       // 检查是否为目录
-      const stat = fs.statSync(dirPath)
+      const stat = await statAsync(dirPath)
       if (!stat.isDirectory()) {
         throw new Error(`指定路径不是目录: ${dirPath}`)
       }
 
       const filesInfo: FileInfo[] = []
 
-      const processDirectory = (currentPath: string) => {
-        const items = fs.readdirSync(currentPath)
+      const processDirectory = async (currentPath: string) => {
+        const items = await readDirAsync(currentPath)
 
         for (const item of items) {
           const itemPath = path.join(currentPath, item)
-          const itemStat = fs.statSync(itemPath)
+          const itemStat = await statAsync(itemPath)
 
           if (itemStat.isFile()) {
             const fileInfo: FileInfo = {
@@ -233,12 +237,12 @@ export class FileUtils {
             filesInfo.push(fileInfo)
           } else if (itemStat.isDirectory() && includeSubfolders) {
             // 递归处理子文件夹
-            processDirectory(itemPath)
+            await processDirectory(itemPath)
           }
         }
       }
 
-      processDirectory(dirPath)
+      await processDirectory(dirPath)
       return filesInfo
     } catch (error) {
       throw new Error(`获取文件信息失败: ${error instanceof Error ? error.message : String(error)}`)
@@ -258,13 +262,13 @@ export class FileUtils {
       }
 
       // 检查是否为文件
-      const stat = fs.statSync(filePath)
+      const stat = await statAsync(filePath)
       if (!stat.isFile()) {
         throw new Error(`指定路径不是文件: ${filePath}`)
       }
 
       // 读取文件内容为 Buffer
-      const buffer = fs.readFileSync(filePath)
+      const buffer = await readFileAsync(filePath)
       return buffer
     } catch (error) {
       throw new Error(

@@ -156,17 +156,9 @@ const setupIntersectionObserver = () => {
 
   observer.value.observe(cardRef.value)
 }
-// 监听收藏状态变化
-watch(
-  () => props.folder.isBookmarked,
-  (newVal) => {
-    isBookmarked.value = newVal || false
-  }
-)
 
 // 组件挂载时设置观察器和检查收藏状态
 onMounted(async () => {
-  await nextTick()
   setupIntersectionObserver()
 
   // 检查当前文件夹的收藏状态

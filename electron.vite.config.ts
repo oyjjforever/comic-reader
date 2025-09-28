@@ -10,7 +10,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         output: {
-          format: 'es'
+          format: 'cjs'
         }
       }
     }
@@ -20,7 +20,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         output: {
-          format: 'es'
+          format: 'cjs'
         }
       }
     }

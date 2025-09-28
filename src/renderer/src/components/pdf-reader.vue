@@ -462,7 +462,7 @@ const loadPdfList = async () => {
     state.error = false
     state.loadingText = '加载PDF文件列表...'
 
-    const files = window.book.getFiles(props.folderPath)
+    const files = await window.book.getFiles(props.folderPath)
 
     if (files.length === 0) {
       state.errorMessage = '该文件夹中没有找到PDF文件'
