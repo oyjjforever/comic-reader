@@ -4,11 +4,12 @@
       <n-dialog-provider>
         <n-message-provider>
           <setting-provider>
-            <router-view v-slot="{ Component }">
+            <Layout></Layout>
+            <!-- <router-view v-slot="{ Component }">
               <keep-alive include="home">
                 <component :is="Component" />
               </keep-alive>
-            </router-view>
+            </router-view> -->
           </setting-provider>
         </n-message-provider>
       </n-dialog-provider>
@@ -21,6 +22,7 @@ import SettingProvider from '@renderer/components/setting/provider.vue'
 import { useSettingStore } from '@renderer/plugins/store'
 import { ref, watch } from 'vue'
 import { useOsTheme, GlobalTheme, darkTheme } from 'naive-ui'
+import Layout from '@renderer/layout/index.vue'
 const settingStore = useSettingStore()
 const osTheme = useOsTheme()
 

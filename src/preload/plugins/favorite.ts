@@ -1,11 +1,9 @@
 import { favorites } from "@/typings/database";
+import { Database } from 'sqlite'
 import database from "./sqlite";
 
 // 打开数据库
-let db
-database.openDatabase().then(res => {
-    db = res
-})
+let db: Database | null = null;
 /**
  * @description: 读取全部收藏
  * @param {string} order 排序方式，例如`id DESC, id ASC`
@@ -13,7 +11,7 @@ database.openDatabase().then(res => {
  */
 const getFavorites = async (order?: string): Promise<favorites[]> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     if (!order) {
@@ -33,7 +31,7 @@ const getFavorites = async (order?: string): Promise<favorites[]> => {
  */
 const getFavorite = async (id: number): Promise<favorites> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {
@@ -56,7 +54,7 @@ const getFavorite = async (id: number): Promise<favorites> => {
  */
 const isFavorited = async (fullPath: string): Promise<boolean> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {
@@ -74,7 +72,7 @@ const isFavorited = async (fullPath: string): Promise<boolean> => {
  */
 const addFavorite = async (fullPath: string): Promise<number> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {
@@ -106,7 +104,7 @@ const addFavorite = async (fullPath: string): Promise<number> => {
  */
 const deleteFavorite = async (id: number): Promise<void> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {
@@ -127,7 +125,7 @@ const deleteFavorite = async (id: number): Promise<void> => {
  */
 const deleteFavoriteByPath = async (fullPath: string): Promise<void> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {
@@ -148,7 +146,7 @@ const deleteFavoriteByPath = async (fullPath: string): Promise<void> => {
  */
 const toggleFavorite = async (fullPath: string): Promise<boolean> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {
@@ -172,7 +170,7 @@ const toggleFavorite = async (fullPath: string): Promise<boolean> => {
  */
 const getFavoriteCount = async (): Promise<number> => {
     if (!db) {
-        throw new Error('数据库初始化失败')
+        db = await database.openDatabase()
     }
 
     try {

@@ -1,18 +1,18 @@
 import type { appData as appDataType } from "@/typings/database";
+import { Database } from 'sqlite'
 import database from "./sqlite";
 
 // 打开数据库
-let db
-database.openDatabase().then(res => {
-    db = res
-})
-
+let db: Database | null = null;
 /**
  * @description: 获取数据
  * @param {string} key Key
  * @return {Promise<string | undefined>} Value
  */
 export async function get(key: string): Promise<string | undefined> {
+    if (!db) {
+        db = await database.openDatabase()
+    }
     // 查询数据
     let data = await db.get<appDataType>(`SELECT * FROM app_data WHERE key = ?`, key)
 
@@ -31,6 +31,9 @@ export async function get(key: string): Promise<string | undefined> {
  * @return {Promise<void>} 返回Promise
  */
 export async function set(key: string, value: string): Promise<void> {
+    if (!db) {
+        db = await database.openDatabase()
+    }
     // 查询数据
     let data = await get(key)
 

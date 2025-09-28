@@ -54,7 +54,7 @@
           {{ isDarkMode ? '明亮' : '夜间' }}
         </n-button>
         <n-dropdown trigger="click" :options="options" @select="onSort">
-          <n-button>排序</n-button>
+          <n-button size="small">排序</n-button>
         </n-dropdown>
         <n-button size="small" @click="settingHandleClick">
           <template #icon>
@@ -169,37 +169,15 @@ const currentBatch = ref(1) // 当前渲染到第几批
 const resourcePath = computed(() => settingStore.setting.resourcePath)
 
 const options = [
-  {
-    label: '名称升序',
-    key: 'name_asc'
-  },
-  {
-    label: '名称降序',
-    key: 'name_desc'
-  },
-  {
-    label: '创建时间升序',
-    key: 'createTime_asc'
-  },
-  {
-    label: '创建时间降序',
-    key: 'createTime_desc'
-  }
+  { label: '名称升序', key: 'name_asc' },
+  { label: '名称降序', key: 'name_desc' },
+  { label: '创建时间升序', key: 'createTime_asc' },
+  { label: '创建时间降序', key: 'createTime_desc' }
 ]
 
-const tree = reactive({
-  data: [],
-  currentNode: {},
-  currentKey: ''
-})
-const grid = reactive({
-  rows: [],
-  filterRows: []
-})
-const search = reactive({
-  keyword: '',
-  sort: 'name_asc'
-})
+const tree = reactive({ data: [], currentNode: {}, currentKey: '' })
+const grid = reactive({ rows: [], filterRows: [] })
+const search = reactive({ keyword: '', sort: 'name_asc' })
 
 // 优化后的过滤和排序逻辑
 const filteredFolderList = computed(() => {
@@ -371,10 +349,7 @@ const getFavoriteBooks = async () => {
         const folderInfo = await window.book.getFolderInfo(favorite.fullPath)
 
         if (folderInfo) {
-          favoriteBooks.push({
-            ...folderInfo,
-            isBookmarked: true
-          })
+          favoriteBooks.push({ ...folderInfo, isBookmarked: true })
         }
       } catch (error) {
         console.warn(`收藏路径不存在或无法访问: ${favorite.fullPath}`)
@@ -462,10 +437,7 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
           window.systemInterface.unzip(folder.fullPath)
         }
       },
-      {
-        label: 'A submenu',
-        children: [{ label: 'Item1' }, { label: 'Item2' }, { label: 'Item3' }]
-      }
+      { label: 'A submenu', children: [{ label: 'Item1' }, { label: 'Item2' }, { label: 'Item3' }] }
     ]
   })
 }
@@ -476,191 +448,192 @@ onMounted(async () => {
 })
 </script>
 
-<style>
-/* 主容器 */
+<style lang="scss">
+// SCSS 变量定义
+$transition-duration: 0.3s;
+$navbar-height: 64px;
+$sidebar-width-full: 20%;
+$sidebar-min-width: 256px;
+$sidebar-width-hidden: 48px;
+$grid-gap: 24px;
+$border-radius: 8px;
+
+// 主容器
 .home-container {
-  @apply h-screen flex flex-col;
-  @apply bg-white text-gray-900;
-  transition: all 0.3s ease;
-}
+  @apply h-full w-full flex flex-col bg-white text-gray-900;
+  // transition: all $transition-duration ease;
 
-.home-container.dark-mode {
-  @apply bg-gray-900 text-gray-100;
-}
+  &.dark-mode {
+    @apply bg-gray-900 text-gray-100;
 
-/* 导航栏 */
-.navbar {
-  @apply flex items-center justify-between px-6 py-4;
-  @apply bg-white border-b border-gray-200;
-  @apply shadow-sm;
-  height: 64px;
-  flex-shrink: 0;
-}
+    .navbar {
+      @apply bg-gray-800 border-gray-700;
+    }
 
-.dark-mode .navbar {
-  @apply bg-gray-800 border-gray-700;
-}
+    .sidebar {
+      @apply bg-gray-800 border-gray-700;
 
-.navbar-left {
-  @apply flex items-center gap-3;
-  flex: 0 0 auto;
-}
+      &-header {
+        @apply border-gray-700;
+      }
 
-.navbar-center {
-  @apply flex-1 max-w-md mx-6;
-}
+      &-title {
+        @apply text-gray-300;
+      }
+    }
 
-.search-input {
-  @apply w-full;
-}
+    .breadcrumb,
+    .content-stats {
+      @apply border-gray-700;
+    }
+  }
 
-.navbar-right {
-  @apply flex items-center gap-2;
-  flex: 0 0 auto;
-}
+  // 导航栏
+  .navbar {
+    @apply flex items-center justify-between px-6 py-4;
+    @apply bg-white border-b border-gray-200 shadow-sm;
+    height: $navbar-height;
+    flex-shrink: 0;
 
-/* 主内容区 */
-.main-content {
-  @apply flex flex-1 overflow-hidden;
-}
+    &-left {
+      @apply flex items-center gap-3;
+      flex: 0 0 auto;
+    }
 
-/* 侧边栏 */
-.sidebar {
-  @apply w-1/5 min-w-64 bg-gray-50 border-r border-gray-200;
-  @apply flex flex-col;
-  transition: all 0.3s ease;
-}
+    &-center {
+      @apply flex-1 max-w-md mx-6;
 
-.dark-mode .sidebar {
-  @apply bg-gray-800 border-gray-700;
-}
+      .search-input {
+        @apply w-full;
+      }
+    }
 
-.sidebar-hidden {
-  @apply w-12 min-w-12;
-}
+    &-right {
+      @apply flex items-center gap-2;
+      flex: 0 0 auto;
+    }
+  }
 
-.sidebar-header {
-  @apply flex items-center justify-between px-4 py-3;
-  @apply border-b border-gray-200;
-  flex-shrink: 0;
-}
+  // 主内容区
+  .main-content {
+    @apply flex flex-1 overflow-hidden;
+  }
 
-.dark-mode .sidebar-header {
-  @apply border-gray-700;
-}
+  // 侧边栏
+  .sidebar {
+    @apply bg-gray-50 border-r border-gray-200 flex flex-col;
+    width: $sidebar-width-full;
+    min-width: $sidebar-min-width;
+    // transition: all $transition-duration ease;
 
-.sidebar-title {
-  @apply text-sm font-medium text-gray-700;
-  @apply m-0;
-}
+    &-hidden {
+      width: $sidebar-width-hidden;
+      min-width: $sidebar-width-hidden;
 
-.dark-mode .sidebar-title {
-  @apply text-gray-300;
-}
+      .sidebar-title,
+      .sidebar-content {
+        @apply hidden;
+      }
+    }
 
-.sidebar-hidden .sidebar-title {
-  @apply hidden;
-}
+    &-header {
+      @apply flex items-center justify-between px-4 py-3 border-b border-gray-200;
+      flex-shrink: 0;
+    }
 
-.sidebar-content {
-  @apply flex-1 overflow-auto p-2;
-}
+    &-title {
+      @apply text-sm font-medium text-gray-700 m-0;
+    }
 
-.sidebar-hidden .sidebar-content {
-  @apply hidden;
-}
+    &-content {
+      @apply flex-1 overflow-auto p-2;
+    }
+  }
 
-.folder-tree {
-  @apply text-sm;
-}
+  .folder-tree {
+    @apply text-sm;
+  }
 
-/* 内容区域 */
-.content-area {
-  @apply flex-1 flex flex-col overflow-hidden;
-}
+  // 内容区域
+  .content-area {
+    @apply flex-1 flex flex-col overflow-hidden;
+  }
 
-.breadcrumb {
-  @apply px-6 py-3 border-b border-gray-200;
-  flex-shrink: 0;
-}
+  .breadcrumb {
+    @apply px-6 py-3 border-b border-gray-200;
+    flex-shrink: 0;
+  }
 
-.dark-mode .breadcrumb {
-  @apply border-gray-700;
-}
+  .content-stats {
+    @apply px-6 py-3 border-b border-gray-200;
+    flex-shrink: 0;
+  }
 
-.content-stats {
-  @apply px-6 py-3 border-b border-gray-200;
-  flex-shrink: 0;
-}
+  // 网格视图
+  .grid-view {
+    @apply flex-1 overflow-auto p-6;
+  }
 
-.dark-mode .content-stats {
-  @apply border-gray-700;
-}
+  .grid-container {
+    @apply grid;
+    gap: $grid-gap;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
 
-/* 网格视图 */
-.grid-view {
-  @apply flex-1 overflow-auto p-6;
-}
+  .grid-item {
+    // @apply transition-all duration-200;
+  }
 
-.grid-container {
-  @apply grid gap-6;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-}
+  // 列表视图
+  .list-view {
+    @apply flex-1 overflow-auto;
 
-.grid-item {
-  @apply transition-all duration-200;
-}
+    .list-table {
+      @apply h-full;
+    }
 
-/* 列表视图 */
-.list-view {
-  @apply flex-1 overflow-auto;
-}
+    .list-cover {
+      @apply flex items-center justify-center text-gray-400;
+    }
+  }
 
-.list-table {
-  @apply h-full;
-}
+  // 加载状态
+  .loading-container {
+    @apply flex-1 flex items-center justify-center;
+    min-height: 400px;
+  }
 
-.list-cover {
-  @apply flex items-center justify-center;
-  @apply text-gray-400;
-}
+  // 加载更多
+  .load-more-container {
+    @apply flex justify-center py-6;
+  }
 
-/* 加载状态 */
-.loading-container {
-  @apply flex-1 flex items-center justify-center;
-  min-height: 400px;
-}
+  // 空状态
+  .empty-state {
+    @apply flex-1 flex items-center justify-center;
+  }
 
-/* 加载更多 */
-.load-more-container {
-  @apply flex justify-center py-6;
-}
+  // 动画效果
+  .card-enter-active,
+  .card-leave-active {
+    transition: all $transition-duration ease;
+  }
 
-/* 空状态 */
-.empty-state {
-  @apply flex-1 flex items-center justify-center;
-}
+  .card-enter-from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
 
-/* 动画 */
-.card-enter-active,
-.card-leave-active {
-  transition: all 0.3s ease;
+  .card-leave-to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+  }
 }
-
-.card-enter-from {
-  opacity: 0;
-  transform: translateY(20px) scale(0.9);
-}
-
-.card-leave-to {
-  opacity: 0;
-  transform: translateY(-20px) scale(0.9);
-}
-
-/* 响应式设计 */
+// 响应式设计
 @media (max-width: 1024px) {
   .sidebar {
-    @apply w-1/4 min-w-48;
+    width: 25%;
+    min-width: 192px;
   }
 
   .grid-container {
@@ -671,23 +644,23 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .navbar {
     @apply px-4 py-3;
-  }
 
-  .navbar-center {
-    @apply mx-4;
+    &-center {
+      @apply mx-4;
+    }
   }
 
   .sidebar {
     @apply absolute z-10 h-full;
-    @apply w-64;
-  }
+    width: 256px;
 
-  .sidebar-hidden {
-    @apply -translate-x-full;
+    &-hidden {
+      @apply -translate-x-full;
+    }
   }
 
   .grid-container {
-    @apply gap-4;
+    gap: 16px;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 
@@ -697,9 +670,11 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
-  .navbar-left,
-  .navbar-right {
-    @apply gap-1;
+  .navbar {
+    &-left,
+    &-right {
+      @apply gap-1;
+    }
   }
 
   .grid-container {

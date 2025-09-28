@@ -3,13 +3,21 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
 
+let mainWindow;
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
     show: false,
     autoHideMenuBar: true,
+    frame: false,
+    transparent: true,
+    titleBarStyle: 'hidden',
+    // titleBarOverlay: {
+    //   color: '#fff',
+    //   symbolColor: 'black'
+    // },
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       contextIsolation: true,
@@ -20,7 +28,9 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    setTimeout(() => {
+      mainWindow.show()
+    }, 100)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -63,7 +73,26 @@ app.whenReady().then(() => {
     })
     return result
   })
-
+   ipcMain.handle("get-window-size", () => {
+      if (mainWindow.isFullScreen()) mainWindow.webContents.send("main-window-max");
+      else mainWindow.webContents.send("main-window-unmax");
+    });
+  ipcMain.handle("window-min", () => {
+    mainWindow.minimize();
+  });
+  ipcMain.handle("window-unmax", () => {
+    mainWindow.setFullScreen(false)
+    mainWindow.setSize(1280,720);
+    mainWindow.center();
+    mainWindow.webContents.send("main-window-unmax");
+  });
+  ipcMain.handle("window-max", () => {
+    mainWindow.setFullScreen(true)
+    mainWindow.webContents.send("main-window-max")
+  });
+  ipcMain.handle("window-close", () => {
+    app.exit();
+  });
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -80,6 +109,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app"s specific main process
-// code. You can also put them in separate files and require them here.
