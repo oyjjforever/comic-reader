@@ -1,25 +1,18 @@
 <template>
   <!-- EPUB 阅读器 -->
-  <div v-if="book.contentType === 'epub'">
-    <epub-reader :folderPath="book.folderPath"></epub-reader>
-  </div>
-
+  <epub-reader v-if="book.contentType === 'epub'" :folderPath="book.folderPath"></epub-reader>
   <!-- 图片阅读器 -->
-  <div v-else-if="book.contentType === 'image'">
-    <img-reader :folderPath="book.folderPath"></img-reader>
-  </div>
-
+  <img-reader v-else-if="book.contentType === 'image'" :folderPath="book.folderPath"></img-reader>
   <!-- PDF 阅读器 -->
-  <div v-else-if="book.contentType === 'pdf'">
-    <pdf-reader
-      :folderPath="book.folderPath"
-      :currentPage="currentPage"
-      @update:currentPage="handlePageUpdate"
-    ></pdf-reader>
-  </div>
+  <pdf-reader
+    v-else-if="book.contentType === 'pdf'"
+    :folderPath="book.folderPath"
+    :currentPage="currentPage"
+    @update:currentPage="handlePageUpdate"
+  ></pdf-reader>
 
   <!-- 加载状态 -->
-  <div v-else class="w-screen h-screen flex justify-center items-center">
+  <div v-else class="w-full h-full flex justify-center items-center">
     <n-spin size="large">
       <template #description> 加载中... </template>
     </n-spin>

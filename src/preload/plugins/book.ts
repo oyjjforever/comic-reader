@@ -80,7 +80,7 @@ async function getFolders(
 async function getFiles(
   dirPath: string,
   sortOptions: SortOptions = {
-    type: 'createdTime',
+    type: 'name',
     order: 'asc'
   },
 ): Promise<FileInfo[]> {

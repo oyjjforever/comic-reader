@@ -1,5 +1,5 @@
 <template>
-  <div class="w-screen h-screen relative">
+  <div class="w-full h-full relative">
     <div class="flex flex-col w-full h-full">
       <div class="flex-grow">
         <div id="epub-reader" class="w-full h-full"></div>

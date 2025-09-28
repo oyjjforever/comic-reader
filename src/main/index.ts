@@ -7,17 +7,13 @@ let mainWindow;
 function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 1280,
+    width: 1290,
     height: 720,
     show: false,
     autoHideMenuBar: true,
     frame: false,
     transparent: true,
     titleBarStyle: 'hidden',
-    // titleBarOverlay: {
-    //   color: '#fff',
-    //   symbolColor: 'black'
-    // },
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       contextIsolation: true,
@@ -73,22 +69,23 @@ app.whenReady().then(() => {
     })
     return result
   })
-   ipcMain.handle("get-window-size", () => {
-      if (mainWindow.isFullScreen()) mainWindow.webContents.send("main-window-max");
-      else mainWindow.webContents.send("main-window-unmax");
-    });
+  ipcMain.on("get-window-size", () => {
+    return mainWindow.isFullScreen()
+    if (mainWindow.isFullScreen()) mainWindow.webContents.send("main-window-max");
+    else mainWindow.webContents.send("main-window-unmax");
+  });
   ipcMain.handle("window-min", () => {
     mainWindow.minimize();
   });
   ipcMain.handle("window-unmax", () => {
     mainWindow.setFullScreen(false)
-    mainWindow.setSize(1280,720);
+    mainWindow.setSize(1290, 720);
     mainWindow.center();
-    mainWindow.webContents.send("main-window-unmax");
+    // mainWindow.webContents.send("main-window-unmax");
   });
   ipcMain.handle("window-max", () => {
     mainWindow.setFullScreen(true)
-    mainWindow.webContents.send("main-window-max")
+    // mainWindow.webContents.send("main-window-max")
   });
   ipcMain.handle("window-close", () => {
     app.exit();

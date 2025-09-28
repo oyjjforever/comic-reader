@@ -66,33 +66,30 @@ import {
   SettingsSharp,
   BookmarkOutline
 } from '@vicons/ionicons5'
-import { VideoClipMultiple24Regular,Book24Regular } from '@vicons/fluent'
+import { VideoClipMultiple24Regular, Book24Regular } from '@vicons/fluent'
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
-  { icon: VideoClipMultiple24Regular, name: 'video' },
+  { icon: VideoClipMultiple24Regular, name: 'video' }
 ]
 
-const bottomMenuItems = [
-  { icon: SettingsSharp, name: 'setting' },
-]
+const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
 
 // 响应式状态
 const activeIndex = ref(0)
 const activeBottomIndex = ref(-1)
 
 // 事件处理
-const handleMenuClick = (index: number,name:string) => {
+const handleMenuClick = (index: number, name: string) => {
   activeIndex.value = index
   activeBottomIndex.value = -1
 }
 
-const handleBottomMenuClick = (index: number,name:string) => {
+const handleBottomMenuClick = (index: number, name: string) => {
   activeBottomIndex.value = index
   activeIndex.value = -1
-  if(name==='setting') {
-    console.log("🚀 ~ handleBottomMenuClick ~ name:", name)
-    
+  if (name === 'setting') {
+    console.log('🚀 ~ handleBottomMenuClick ~ name:', name)
   }
 }
 
@@ -101,9 +98,11 @@ function onMin() {
 }
 function onMax() {
   window.electron.ipcRenderer.invoke('window-max')
+  isScreenFull.value = true
 }
 function onUnMax() {
   window.electron.ipcRenderer.invoke('window-unmax')
+  isScreenFull.value = false
 }
 function onClose() {
   window.electron.ipcRenderer.invoke('window-close')
@@ -111,14 +110,14 @@ function onClose() {
 const isScreenFull = ref(false)
 onMounted(() => {
   // 渲染进程加载完成后，主动发起请求获取窗口大小
-  window.electron.ipcRenderer.invoke('get-window-size')
+  isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
   // 主进程ready时发送的通信，渲染进程无法获取到，需要上面主动发送
-  window.electron.ipcRenderer.on('main-window-max', (event) => {
-    isScreenFull.value = true
-  })
-  window.electron.ipcRenderer.on('main-window-unmax', (event) => {
-    isScreenFull.value = false
-  })
+  // window.electron.ipcRenderer.on('main-window-max', (event) => {
+  //   isScreenFull.value = true
+  // })
+  // window.electron.ipcRenderer.on('main-window-unmax', (event) => {
+  //   isScreenFull.value = false
+  // })
 })
 </script>
 
@@ -259,23 +258,8 @@ $background-color: #322f3b;
   border-radius: 0 24px 24px 0;
   overflow: hidden;
   position: relative;
-  padding: 6px 15px 15px 0px;
-  // 添加内容区域的微妙阴影
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: linear-gradient(
-      to bottom,
-      transparent,
-      rgba(0, 0, 0, 0.05) 20%,
-      rgba(0, 0, 0, 0.05) 80%,
-      transparent
-    );
-  }
+  padding: 30px 6px 6px 0px;
+
   .main-content-header {
     display: flex;
     align-items: center;
@@ -283,7 +267,8 @@ $background-color: #322f3b;
     gap: 4px;
     float: right;
     position: absolute;
-    right: 10px;
+    top: 2px;
+    right: 0px;
     [class*='wb-'] {
       width: 26px;
       height: 26px;
@@ -328,7 +313,6 @@ $background-color: #322f3b;
     height: 100%;
     border-radius: 20px;
     overflow: hidden;
-    padding-top: 10px;
     background: #fff;
     &::before {
       content: '';

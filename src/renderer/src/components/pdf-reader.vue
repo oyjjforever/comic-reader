@@ -679,7 +679,7 @@ onUnmounted(() => {
 
 <style scoped>
 .pdf-reader {
-  @apply w-screen h-screen relative overflow-hidden;
+  @apply w-full h-full relative overflow-hidden;
   background: #1a1a1a;
   cursor: none;
 }
