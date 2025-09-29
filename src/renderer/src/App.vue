@@ -5,11 +5,6 @@
         <n-message-provider>
           <setting-provider>
             <Layout></Layout>
-            <!-- <router-view v-slot="{ Component }">
-              <keep-alive include="home">
-                <component :is="Component" />
-              </keep-alive>
-            </router-view> -->
           </setting-provider>
         </n-message-provider>
       </n-dialog-provider>

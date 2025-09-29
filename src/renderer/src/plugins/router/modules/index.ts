@@ -5,7 +5,7 @@ export default [
         children: [
             {
                 path: '/',
-                name: "home",
+                name: "comicBook",
                 component: () => import('@renderer/views/comic-book/index.vue'),
                 meta: {
                     title: "书架"

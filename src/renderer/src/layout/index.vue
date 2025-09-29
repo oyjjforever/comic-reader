@@ -49,7 +49,11 @@
         <div class="wb-close" @click="onClose" />
       </div>
       <div class="main-content">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <keep-alive include="comicBook">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </div>
     </div>
   </div>

@@ -141,7 +141,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" name="comicBook">
 import type { FolderInfo } from '@/typings/file'
 import comicCard from '@renderer/components/comic-card.vue'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
@@ -443,6 +443,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 页面挂载时加载数据
 onMounted(async () => {
+  console.log('onMounted')
   await settingStore.updateSetting()
   fetchTreeData()
   

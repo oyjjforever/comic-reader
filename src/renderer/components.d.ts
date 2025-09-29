@@ -24,6 +24,8 @@ declare module 'vue' {
     NLoadingBarProvider: typeof import('naive-ui')['NLoadingBarProvider']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NModal: typeof import('naive-ui')['NModal']
+    NSpin: typeof import('naive-ui')['NSpin']
+    NTag: typeof import('naive-ui')['NTag']
     NTree: typeof import('naive-ui')['NTree']
     PdfReader: typeof import('./src/components/pdf-reader.vue')['default']
     PerformanceMonitor: typeof import('./src/components/performance-monitor.vue')['default']

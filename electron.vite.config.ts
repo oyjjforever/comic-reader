@@ -4,6 +4,7 @@ import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
+import vueSetupExtend from 'vite-plugin-vue-setup-extend'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -40,6 +41,7 @@ export default defineConfig({
     },
     plugins: [
       vue(),
+      vueSetupExtend(),
       AutoImport({
         // dirs: ['/src/renderer/**/**'],
         imports: [
