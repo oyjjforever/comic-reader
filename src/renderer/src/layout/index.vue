@@ -128,7 +128,7 @@ $background-color: #322f3b;
   height: 100vh;
   background: #f5f5f5;
   border-radius: 24px;
-  overflow: hidden;
+  // overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
@@ -256,7 +256,7 @@ $background-color: #322f3b;
   flex: 1;
   background: $background-color;
   border-radius: 0 24px 24px 0;
-  overflow: hidden;
+  // overflow: hidden;
   position: relative;
   padding: 30px 6px 6px 0px;
 
@@ -312,8 +312,10 @@ $background-color: #322f3b;
     width: 100%;
     height: 100%;
     border-radius: 20px;
-    overflow: hidden;
+    // overflow: hidden;
     background: #fff;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100'  fill='white'/%3E%3C/svg%3E");
+    mask-size: 100%;
     &::before {
       content: '';
       position: absolute;
@@ -407,5 +409,25 @@ $background-color: #322f3b;
     opacity: 1;
     transform: translateY(0);
   }
+}
+</style>
+<style lang="scss">
+/* 适用于WebKit内核的浏览器 (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px; /* 垂直滚动条的宽度 */
+  height: 8px; /* 水平滚动条的高度 */
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1; /* 轨道颜色 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1; /* 滑块颜色 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8; /* 滑块悬停颜色 */
 }
 </style>
