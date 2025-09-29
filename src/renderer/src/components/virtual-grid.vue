@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick } from 'vue'
 import { throttle, debounce } from 'lodash'
 
 interface VirtualGridProps {
@@ -63,6 +63,11 @@ const containerRef = ref<HTMLElement>()
 const scrollTop = ref(0)
 const containerWidth = ref(0)
 const containerHeight = ref(0)
+
+// keep-alive 状态管理
+const savedScrollTop = ref(0)
+const isActive = ref(true)
+const hasInitialized = ref(false)
 
 // 计算网格布局参数
 const columnsCount = computed(() => {
@@ -151,7 +156,7 @@ const handleScroll = throttle((event: Event) => {
 
 // 容器尺寸监听
 const updateContainerSize = debounce(() => {
-  if (containerRef.value) {
+  if (containerRef.value && isActive.value) {
     const rect = containerRef.value.getBoundingClientRect()
     containerWidth.value = rect.width
     containerHeight.value = rect.height
@@ -163,16 +168,40 @@ let resizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
   await nextTick()
-  updateContainerSize()
-  
-  // 监听容器尺寸变化
-  if (containerRef.value && window.ResizeObserver) {
-    resizeObserver = new ResizeObserver(updateContainerSize)
-    resizeObserver.observe(containerRef.value)
+  if (!hasInitialized.value) {
+    updateContainerSize()
+    
+    // 监听容器尺寸变化
+    if (containerRef.value && window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(updateContainerSize)
+      resizeObserver.observe(containerRef.value)
+    }
+    
+    // 监听窗口尺寸变化（备用方案）
+    window.addEventListener('resize', updateContainerSize)
+    hasInitialized.value = true
   }
-  
-  // 监听窗口尺寸变化（备用方案）
-  window.addEventListener('resize', updateContainerSize)
+})
+
+// keep-alive 组件激活时
+onActivated(() => {
+  isActive.value = true
+  nextTick(() => {
+    // 恢复滚动位置
+    if (containerRef.value && savedScrollTop.value > 0) {
+      containerRef.value.scrollTop = savedScrollTop.value
+      scrollTop.value = savedScrollTop.value
+    }
+    // 更新容器尺寸（可能在失活期间窗口大小发生了变化）
+    updateContainerSize()
+  })
+})
+
+// keep-alive 组件失活时
+onDeactivated(() => {
+  isActive.value = false
+  // 保存当前滚动位置
+  savedScrollTop.value = scrollTop.value
 })
 
 onUnmounted(() => {
@@ -182,13 +211,54 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateContainerSize)
 })
 
-// 监听items变化，重置滚动位置
-watch(() => props.items.length, () => {
-  if (containerRef.value) {
-    containerRef.value.scrollTop = 0
-    scrollTop.value = 0
+// 监听items变化，智能处理滚动位置
+watch(() => props.items.length, (newLength, oldLength) => {
+  // 只在组件激活且数据真正变化时处理
+  if (isActive.value && newLength !== oldLength) {
+    if (newLength === 0) {
+      // 数据清空时重置到顶部
+      if (containerRef.value) {
+        containerRef.value.scrollTop = 0
+        scrollTop.value = 0
+        savedScrollTop.value = 0
+      }
+    } else if (oldLength > 0 && newLength < oldLength) {
+      // 数据减少时，检查当前滚动位置是否仍然有效
+      const maxScrollTop = Math.max(0, totalHeight.value - containerHeight.value)
+      if (scrollTop.value > maxScrollTop) {
+        const newScrollTop = Math.max(0, maxScrollTop)
+        if (containerRef.value) {
+          containerRef.value.scrollTop = newScrollTop
+          scrollTop.value = newScrollTop
+          savedScrollTop.value = newScrollTop
+        }
+      }
+    }
+    // 数据增加时保持当前滚动位置，不做任何处理
   }
 })
+
+// 监听items引用变化（完全不同的数组）
+watch(() => props.items, (newItems, oldItems) => {
+  // 如果是完全不同的数组引用，说明是新的数据集
+  if (isActive.value && newItems !== oldItems && Array.isArray(newItems)) {
+    // 只有在数据源完全改变时才重置滚动位置
+    if (oldItems && oldItems.length > 0 && newItems.length > 0) {
+      // 检查是否是相同的数据（通过第一个和最后一个元素的key）
+      const oldFirstKey = oldItems[0] && getItemKey(oldItems[0])
+      const newFirstKey = newItems[0] && getItemKey(newItems[0])
+      
+      if (oldFirstKey !== newFirstKey) {
+        // 数据源完全不同，重置滚动位置
+        if (containerRef.value) {
+          containerRef.value.scrollTop = 0
+          scrollTop.value = 0
+          savedScrollTop.value = 0
+        }
+      }
+    }
+  }
+}, { deep: false })
 
 // 性能统计
 const performanceStats = computed(() => ({
@@ -207,6 +277,7 @@ defineExpose({
     if (containerRef.value) {
       containerRef.value.scrollTop = 0
       scrollTop.value = 0
+      savedScrollTop.value = 0
     }
   },
   scrollToIndex: (index: number) => {
@@ -215,6 +286,28 @@ defineExpose({
       const targetScrollTop = row * (props.itemHeight + props.gap)
       containerRef.value.scrollTop = targetScrollTop
       scrollTop.value = targetScrollTop
+      savedScrollTop.value = targetScrollTop
+    }
+  },
+  // 保存当前滚动位置
+  saveScrollPosition: () => {
+    savedScrollTop.value = scrollTop.value
+  },
+  // 恢复滚动位置
+  restoreScrollPosition: () => {
+    if (containerRef.value && savedScrollTop.value > 0) {
+      containerRef.value.scrollTop = savedScrollTop.value
+      scrollTop.value = savedScrollTop.value
+    }
+  },
+  // 获取当前滚动位置
+  getScrollPosition: () => scrollTop.value,
+  // 设置滚动位置
+  setScrollPosition: (position: number) => {
+    if (containerRef.value) {
+      containerRef.value.scrollTop = position
+      scrollTop.value = position
+      savedScrollTop.value = position
     }
   },
   getStats: () => performanceStats.value

@@ -161,7 +161,7 @@ import {
 import useSetting from '@renderer/components/setting'
 import { NButton, NIcon, DataTableColumns } from 'naive-ui'
 import ContextMenu from '@imengyu/vue3-context-menu'
-import { computed, reactive } from 'vue'
+import { computed, reactive, onActivated, onDeactivated } from 'vue'
 import { debounce, throttle } from 'lodash'
 const message = useMessage()
 const settingStore = useSettingStore()
@@ -178,6 +178,13 @@ const isSearching = ref(false)
 const virtualGridRef = ref()
 const showPerformanceMonitor = ref(false)
 const resourcePath = computed(() => settingStore.setting.resourcePath)
+
+// keep-alive 数据缓存状态
+const dataCache = reactive({
+  currentPath: '',
+  isDataLoaded: false,
+  lastLoadTime: 0
+})
 
 // 性能统计
 const performanceStats = computed(() => {
@@ -338,6 +345,14 @@ const onQuery = debounce(async (keyword?: string) => {
 
 // 获取收藏的书籍
 const getFavoriteBooks = async () => {
+  const favoritesPath = '__favorites__'
+  
+  // 检查是否是相同路径且数据已加载
+  if (dataCache.currentPath === favoritesPath && dataCache.isDataLoaded) {
+    tree.currentKey = favoritesPath
+    return
+  }
+
   try {
     isLoading.value = true
 
@@ -359,8 +374,19 @@ const getFavoriteBooks = async () => {
     }
 
     grid.rows = favoriteBooks
+    
+    // 更新缓存状态
+    dataCache.currentPath = favoritesPath
+    dataCache.isDataLoaded = true
+    dataCache.lastLoadTime = Date.now()
+    
+    // 重置滚动位置
+    if (virtualGridRef.value) {
+      virtualGridRef.value.scrollToTop()
+    }
   } catch (error) {
     message.error(`获取收藏书籍失败: ${(error as Error).message}`)
+    dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
   }
@@ -388,12 +414,37 @@ const nodeProps = ({ option }) => {
 
 // 树节点点击事件 - 优化版本
 const onTreeNodeClick = async (folderPath: string) => {
+  // 检查是否是相同路径且数据已加载
+  if (dataCache.currentPath === folderPath && dataCache.isDataLoaded) {
+    // 相同路径，不重新加载数据，只切换当前选中状态
+    tree.currentKey = folderPath
+    return
+  }
+
+  // 保存当前滚动位置（如果有的话）
+  if (virtualGridRef.value && dataCache.currentPath) {
+    virtualGridRef.value.saveScrollPosition()
+  }
+
   isLoading.value = true
   tree.currentKey = folderPath
+  
   try {
     grid.rows = await window.book.getFolders(folderPath, 'flat')
+    
+    // 更新缓存状态
+    dataCache.currentPath = folderPath
+    dataCache.isDataLoaded = true
+    dataCache.lastLoadTime = Date.now()
+    
+    // 只有在切换到不同路径时才重置滚动位置
+    if (virtualGridRef.value) {
+      virtualGridRef.value.scrollToTop()
+    }
   } catch (error) {
     message.error(`获取子文件夹失败: ${(error as Error).message}`)
+    // 错误时清除缓存状态
+    dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
   }
@@ -449,6 +500,24 @@ onMounted(async () => {
   
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
+})
+
+// keep-alive 组件激活时
+onActivated(() => {
+  console.log('onActivated - 组件被激活')
+  // 恢复虚拟网格的滚动位置
+  if (virtualGridRef.value) {
+    virtualGridRef.value.restoreScrollPosition()
+  }
+})
+
+// keep-alive 组件失活时
+onDeactivated(() => {
+  console.log('onDeactivated - 组件被缓存')
+  // 保存虚拟网格的滚动位置
+  if (virtualGridRef.value) {
+    virtualGridRef.value.saveScrollPosition()
+  }
 })
 
 onUnmounted(() => {

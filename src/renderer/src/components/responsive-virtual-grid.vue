@@ -91,6 +91,21 @@ defineExpose({
   },
   scrollToIndex: (index: number) => {
     virtualGridRef.value?.scrollToIndex(index)
+  },
+  saveScrollPosition: () => {
+    virtualGridRef.value?.saveScrollPosition()
+  },
+  restoreScrollPosition: () => {
+    virtualGridRef.value?.restoreScrollPosition()
+  },
+  getScrollPosition: () => {
+    return virtualGridRef.value?.getScrollPosition() || 0
+  },
+  setScrollPosition: (position: number) => {
+    virtualGridRef.value?.setScrollPosition(position)
+  },
+  getStats: () => {
+    return virtualGridRef.value?.getStats()
   }
 })
 </script>
