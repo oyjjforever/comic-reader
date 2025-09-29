@@ -5,8 +5,8 @@ export default [
         children: [
             {
                 path: '/',
-                name: "comicBook",
-                component: () => import('@renderer/views/comic-book/index.vue'),
+                name: "book",
+                component: () => import('@renderer/views/book/index.vue'),
                 meta: {
                     title: "书架"
                 }
@@ -14,7 +14,17 @@ export default [
             {
                 path: '/book',
                 name: "book.read",
-                component: () => import('@renderer/views/comic-book/reader.vue'),
+                component: () => import('@renderer/views/book/reader.vue'),
+            },
+            {
+                path: '/setting',
+                name: "setting",
+                component: () => import('@renderer/views/setting/index.vue'),
+            },
+            {
+                path: '/video',
+                name: "video",
+                component: () => import('@renderer/views/video/index.vue'),
             }
         ],
     },

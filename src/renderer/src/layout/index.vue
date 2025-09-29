@@ -50,7 +50,7 @@
       </div>
       <div class="main-content">
         <router-view v-slot="{ Component }">
-          <keep-alive include="comicBook">
+          <keep-alive include="book">
             <component :is="Component" />
           </keep-alive>
         </router-view>
@@ -62,15 +62,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { NIcon } from 'naive-ui'
-import {
-  Book,
-  DocumentTextOutline,
-  BarChartOutline,
-  CubeOutline,
-  SettingsSharp,
-  BookmarkOutline
-} from '@vicons/ionicons5'
+import { SettingsSharp } from '@vicons/ionicons5'
 import { VideoClipMultiple24Regular, Book24Regular } from '@vicons/fluent'
+const router = useRouter()
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
@@ -87,14 +81,13 @@ const activeBottomIndex = ref(-1)
 const handleMenuClick = (index: number, name: string) => {
   activeIndex.value = index
   activeBottomIndex.value = -1
+  router.push({ name })
 }
 
 const handleBottomMenuClick = (index: number, name: string) => {
   activeBottomIndex.value = index
   activeIndex.value = -1
-  if (name === 'setting') {
-    console.log('🚀 ~ handleBottomMenuClick ~ name:', name)
-  }
+  router.push({ name })
 }
 
 function onMin() {
@@ -138,6 +131,7 @@ $background-color: #322f3b;
 
 .sidebar {
   min-width: 80px;
+  max-width: 80px;
   background: $background-color;
   display: flex;
   flex-direction: column;

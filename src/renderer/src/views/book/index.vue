@@ -56,12 +56,6 @@
         <n-dropdown trigger="click" :options="options" @select="onSort">
           <n-button size="small">排序</n-button>
         </n-dropdown>
-        <n-button size="small" @click="settingHandleClick">
-          <template #icon>
-            <n-icon :component="settingIcon" />
-          </template>
-          设置
-        </n-button>
       </div>
     </header>
     <!-- 加载状态 -->
@@ -141,7 +135,7 @@
   </div>
 </template>
 
-<script setup lang="ts" name="comicBook">
+<script setup lang="ts" name="book">
 import type { FolderInfo } from '@/typings/file'
 import comicCard from '@renderer/components/comic-card.vue'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
@@ -158,14 +152,12 @@ import {
   ChevronBack as ChevronLeftIcon,
   Bookmark as BookmarkIcon
 } from '@vicons/ionicons5'
-import useSetting from '@renderer/components/setting'
 import { NButton, NIcon, DataTableColumns } from 'naive-ui'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import { computed, reactive, onActivated, onDeactivated } from 'vue'
 import { debounce, throttle } from 'lodash'
 const message = useMessage()
 const settingStore = useSettingStore()
-const setting = useSetting()
 const router = useRouter()
 
 // 界面状态
@@ -242,7 +234,6 @@ const filteredFolderList = computed(() => {
   return list
 })
 
-
 // 方法
 const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value
@@ -285,7 +276,7 @@ const fetchTreeData = async () => {
   isLoading.value = true
   try {
     // 并行加载树形数据和平铺数据
-    const treeData = await window.book.getFolders(resourcePath.value, 'tree')
+    const treeData = await window.book.getFolderTree(resourcePath.value)
     console.log(treeData)
     tree.data = [
       {
@@ -341,12 +332,10 @@ const onQuery = debounce(async (keyword?: string) => {
   }
 }, 300) // 300ms 防抖延迟
 
-
-
 // 获取收藏的书籍
 const getFavoriteBooks = async () => {
   const favoritesPath = '__favorites__'
-  
+
   // 检查是否是相同路径且数据已加载
   if (dataCache.currentPath === favoritesPath && dataCache.isDataLoaded) {
     tree.currentKey = favoritesPath
@@ -374,12 +363,12 @@ const getFavoriteBooks = async () => {
     }
 
     grid.rows = favoriteBooks
-    
+
     // 更新缓存状态
     dataCache.currentPath = favoritesPath
     dataCache.isDataLoaded = true
     dataCache.lastLoadTime = Date.now()
-    
+
     // 重置滚动位置
     if (virtualGridRef.value) {
       virtualGridRef.value.scrollToTop()
@@ -410,8 +399,6 @@ const nodeProps = ({ option }) => {
   }
 }
 
-
-
 // 树节点点击事件 - 优化版本
 const onTreeNodeClick = async (folderPath: string) => {
   // 检查是否是相同路径且数据已加载
@@ -428,15 +415,15 @@ const onTreeNodeClick = async (folderPath: string) => {
 
   isLoading.value = true
   tree.currentKey = folderPath
-  
+
   try {
-    grid.rows = await window.book.getFolders(folderPath, 'flat')
-    
+    grid.rows = await window.book.getFolderList(folderPath)
+
     // 更新缓存状态
     dataCache.currentPath = folderPath
     dataCache.isDataLoaded = true
     dataCache.lastLoadTime = Date.now()
-    
+
     // 只有在切换到不同路径时才重置滚动位置
     if (virtualGridRef.value) {
       virtualGridRef.value.scrollToTop()
@@ -452,7 +439,7 @@ const onTreeNodeClick = async (folderPath: string) => {
 
 // 设置按钮回调
 const settingHandleClick = () => {
-  setting.open(fetchTreeData)
+  router.push({ name: 'setting' })
 }
 function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   //prevent the browser's default menu
@@ -497,7 +484,7 @@ onMounted(async () => {
   console.log('onMounted')
   await settingStore.updateSetting()
   fetchTreeData()
-  
+
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
 })

@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     ComicCard: typeof import('./src/components/comic-card.vue')['default']
+    copy: typeof import('./src/components/comic-card copy.vue')['default']
     EpubReader: typeof import('./src/components/epub-reader.vue')['default']
     ImageReader: typeof import('./src/components/image-reader.vue')['default']
     NButton: typeof import('naive-ui')['NButton']
@@ -33,6 +34,7 @@ declare module 'vue' {
     ResponsiveVirtualGrid: typeof import('./src/components/responsive-virtual-grid.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    VideoCard: typeof import('./src/components/video-card.vue')['default']
     VirtualGrid: typeof import('./src/components/virtual-grid.vue')['default']
   }
 }

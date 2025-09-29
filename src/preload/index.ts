@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import fs from 'fs'
 import systemInterface from './plugins/systemInterface'
 import book from './plugins/book'
+import video from './plugins/video'
 import appData from './plugins/appData'
 import favorite from './plugins/favorite'
 
@@ -21,6 +22,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('appData', appData)
     contextBridge.exposeInMainWorld('favorite', favorite)
     contextBridge.exposeInMainWorld('book', book)
+    contextBridge.exposeInMainWorld('video', video)
   } catch (error) {
     console.error(error)
   }

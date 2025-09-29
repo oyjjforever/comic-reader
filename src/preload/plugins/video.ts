@@ -4,69 +4,18 @@ import { FolderInfo, FileInfo, SortOptions } from '@/typings/file'
 /**
  * 支持的图片格式
  */
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
-
-async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<FolderInfo> {
-  try {
-    // 先获取文件夹信息
-    const folder = await FileUtils.getFolderInfo(path)
-    // 在获取内部文件列表
-    let files = await getFiles(path, sortOptions)
-    // 判断文件夹类型
-    let contentType: string
-    const extensions = new Set(files.map((file) => file.extension.toLowerCase()))
-    // 如果包含多种类型
-    if (extensions.size < 1) {
-      contentType = 'empty'
-    }
-    // 检查是否包含图片
-    else if (IMAGE_EXTENSIONS.includes(Array.from(extensions)[0])) {
-      contentType = 'image'
-    } else if (extensions.size > 1) {
-      contentType = 'mixed'
-    } else {
-      contentType = Array.from(extensions)[0].toString().slice(1)
-    }
-    const coverPath = contentType === 'image' ? files[0]?.fullPath : ''
-    return {
-      ...folder,
-      fileCount: files.length,
-      coverPath,
-      contentType
-    }
-  } catch (error) {
-    throw new Error(
-      `获取文件夹详细信息失败: ${error instanceof Error ? error.message : String(error)}`
-    )
-  }
-}
+const VIDEO_EXTENSIONS = [".mp4", ".webm", ".ogg", ".ogv", ".m4v"]
 
 async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    return await FileUtils.getAllChildrenFolders(dirPath, 0, dirPath, false)
+    return await FileUtils.getAllChildrenFolders(dirPath, 0, dirPath, true)
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
-async function getFolderList(
-  dirPath: string,
-): Promise<FolderInfo[]> {
-  try {
-    const folders = (await FileUtils.getDirectChildrenFolders(dirPath)).filter(_ => _.isLeaf)
-    // 为每个文件夹分析内容类型
-    const folderInfo = await Promise.all(
-      folders.map(async (folder) => {
-        return await getFolderInfo(folder.fullPath)
-      })
-    )
-    return folderInfo
-  } catch (error) {
-    throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
 
 /**
  * 获取指定文件夹路径下的所有文件（支持排序）
@@ -84,6 +33,10 @@ async function getFiles(
 ): Promise<FileInfo[]> {
   try {
     let files = await FileUtils.getFilesInfo(dirPath, false)
+    // 过滤非视频文件
+    files = files.filter((file) => {
+      return VIDEO_EXTENSIONS.includes(file.extension.toLowerCase())
+    })
     // 如果指定了排序选项，进行排序
     if (sortOptions) {
       files = sortFiles(files, sortOptions)
@@ -130,7 +83,5 @@ function sortFiles(files: FileInfo[], sortOptions: SortOptions): FileInfo[] {
 
 export default {
   getFolderTree,
-  getFolderList,
   getFiles,
-  getFolderInfo
 }

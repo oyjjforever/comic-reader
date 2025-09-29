@@ -79,27 +79,6 @@ export class FileUtils {
       )
     }
   }
-  /**
-   * 获取指定路径下的所有文件夹信息
-   * @param dirPath 目录路径
-   * @param structureType 返回格式类型：flat(平铺) 或 tree(树形)
-   * @returns 文件夹信息数组
-   */
-  static async getFoldersInfo(
-    dirPath: string,
-    structureType: FolderStructureType = FolderStructureType.FLAT
-  ): Promise<FolderInfo[]> {
-    try {
-      if (structureType === FolderStructureType.TREE) {
-        return await this.getAllChildrenFolders(dirPath)
-      }
-      return await this.getDirectChildrenFolders(dirPath)
-    } catch (error) {
-      throw new Error(
-        `获取文件夹信息失败: ${error instanceof Error ? error.message : String(error)}`
-      )
-    }
-  }
   static async getDirectChildrenFolders(dirPath: string): Promise<FolderInfo[]> {
     // 检查路径是否存在
     if (!this.pathExists(dirPath)) {
@@ -146,7 +125,8 @@ export class FileUtils {
   static async getAllChildrenFolders(
     dirPath: string,
     currentDepth: number = 0,
-    basePath: string = dirPath
+    basePath: string = dirPath,
+    containsLeaf: boolean = true,
   ): Promise<FolderInfo[]> {
     // 检查路径是否存在
     if (!this.pathExists(dirPath)) {
@@ -180,10 +160,11 @@ export class FileUtils {
             folderInfo.children = await this.getAllChildrenFolders(
               childPath,
               currentDepth + 1,
-              basePath
+              basePath,
+              containsLeaf
             )
           }
-          if (!isLeaf) {
+          if (containsLeaf || (!containsLeaf && !isLeaf)) {
             foldersInfo.push(folderInfo)
           }
         }

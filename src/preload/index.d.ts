@@ -18,11 +18,15 @@ declare global {
       unzip: (path: string) => void
     }
     book: {
-      getFolders: (dirPath: string, structureType?: string) => Promise<FolderInfo[]>
+      getFolderTree: (dirPath: string) => Promise<FolderInfo[]>
+      getFolderList: (dirPath: string) => Promise<FolderInfo[]>
       getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => Promise<FileInfo[]>
-      readFileBuffer: (filePath: string) => Promise<Buffer>
       getFolderInfo: (filePath: string) => Promise<FolderInfo>
       getFolderCoverInfo: (filePath: string) => Promise<{ coverPath?: string; coverFileName?: string }>
+    },
+    video: {
+      getFolderTree: (dirPath: string) => Promise<FolderInfo[]>
+      getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => Promise<FileInfo[]>
     }
     favorite: {
       getFavorites: () => Promise<any[]>
