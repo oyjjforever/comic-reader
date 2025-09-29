@@ -98,25 +98,27 @@
 
       <!-- 右侧主内容区 -->
       <section class="content-area">
-        <!-- 网格视图 -->
-        <div class="grid-view" @scroll="handleScroll">
-          <div class="grid-container">
-            <comic-card
-              v-for="folder in displayedFolderList"
-              :key="folder.fullPath"
-              :folder="folder"
-              class="grid-item"
-              @click="toRead(folder)"
-              @contextmenu="(e) => handleContextMenu(e, folder)"
-            />
-          </div>
-
-          <!-- 加载更多按钮 -->
-          <div v-if="hasMoreToRender" class="load-more-container">
-            <n-button @click="loadMoreBatch" :loading="isSearching">
-              加载更多 ({{ displayedFolderList.length }}/{{ filteredFolderList.length }})
-            </n-button>
-          </div>
+        <!-- 响应式虚拟网格视图 -->
+        <div class="grid-view">
+          <responsive-virtual-grid
+            ref="virtualGridRef"
+            :items="filteredFolderList"
+            key-field="fullPath"
+            :overscan="2"
+            :min-item-width="160"
+            :max-item-width="240"
+            :aspect-ratio="0.75"
+            :gap="24"
+          >
+            <template #default="{ item }">
+              <comic-card
+                :folder="item"
+                class="grid-item"
+                @click="toRead(item)"
+                @contextmenu="(e) => handleContextMenu(e, item)"
+              />
+            </template>
+          </responsive-virtual-grid>
         </div>
       </section>
     </main>
@@ -129,12 +131,21 @@
         </template>
       </n-empty>
     </div>
+
+    <!-- 性能监控 -->
+    <performance-monitor
+      v-if="showPerformanceMonitor"
+      :stats="performanceStats"
+      :enabled="showPerformanceMonitor"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { FolderInfo } from '@/typings/file'
 import comicCard from '@renderer/components/comic-card.vue'
+import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
+import PerformanceMonitor from '@renderer/components/performance-monitor.vue'
 import { useSettingStore } from '@renderer/plugins/store'
 import {
   Search as searchIcon,
@@ -164,9 +175,22 @@ const isSidebarHidden = ref(false)
 // 性能优化状态
 const isLoading = ref(false)
 const isSearching = ref(false)
-const renderBatchSize = ref(20) // 每批渲染的数量
-const currentBatch = ref(1) // 当前渲染到第几批
+const virtualGridRef = ref()
+const showPerformanceMonitor = ref(false)
 const resourcePath = computed(() => settingStore.setting.resourcePath)
+
+// 性能统计
+const performanceStats = computed(() => {
+  if (virtualGridRef.value?.getStats) {
+    return virtualGridRef.value.getStats()
+  }
+  return {
+    renderedItems: 0,
+    totalItems: filteredFolderList.value.length,
+    scrollTop: 0,
+    visibleRange: { start: 0, end: 0 }
+  }
+})
 
 const options = [
   { label: '名称升序', key: 'name_asc' },
@@ -210,23 +234,7 @@ const filteredFolderList = computed(() => {
 
   return list
 })
-// 分批渲染优化 - 移除分页逻辑
-const displayedFolderList = computed(() => {
-  const list = filteredFolderList.value
 
-  // 如果数据量大，分批渲染
-  if (list.length > renderBatchSize.value) {
-    const batchEnd = Math.min(currentBatch.value * renderBatchSize.value, list.length)
-    return list.slice(0, batchEnd)
-  }
-
-  return list
-})
-
-// 是否还有更多数据需要渲染
-const hasMoreToRender = computed(() => {
-  return currentBatch.value * renderBatchSize.value < filteredFolderList.value.length
-})
 
 // 方法
 const toggleDarkMode = () => {
@@ -281,7 +289,6 @@ const fetchTreeData = async () => {
       },
       { name: '资源目录', fullPath: resourcePath.value, children: treeData }
     ]
-    currentBatch.value = 1
     onTreeNodeClick(resourcePath.value as string)
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
@@ -327,12 +334,7 @@ const onQuery = debounce(async (keyword?: string) => {
   }
 }, 300) // 300ms 防抖延迟
 
-// 分批加载更多数据
-const loadMoreBatch = throttle(() => {
-  if (hasMoreToRender.value) {
-    currentBatch.value++
-  }
-}, 100)
+
 
 // 获取收藏的书籍
 const getFavoriteBooks = async () => {
@@ -357,7 +359,6 @@ const getFavoriteBooks = async () => {
     }
 
     grid.rows = favoriteBooks
-    currentBatch.value = 1
   } catch (error) {
     message.error(`获取收藏书籍失败: ${(error as Error).message}`)
   } finally {
@@ -383,20 +384,7 @@ const nodeProps = ({ option }) => {
   }
 }
 
-// 滚动处理 - 自动加载更多
-const handleScroll = throttle((event: Event) => {
-  const target = event.target as HTMLElement
-  const { scrollTop, scrollHeight, clientHeight } = target
 
-  // 当滚动到底部附近时自动加载更多
-  if (
-    scrollHeight - scrollTop - clientHeight < 200 &&
-    hasMoreToRender.value &&
-    !isSearching.value
-  ) {
-    loadMoreBatch()
-  }
-}, 100)
 
 // 树节点点击事件 - 优化版本
 const onTreeNodeClick = async (folderPath: string) => {
@@ -404,8 +392,6 @@ const onTreeNodeClick = async (folderPath: string) => {
   tree.currentKey = folderPath
   try {
     grid.rows = await window.book.getFolders(folderPath, 'flat')
-    // 重置状态
-    currentBatch.value = 1
   } catch (error) {
     message.error(`获取子文件夹失败: ${(error as Error).message}`)
   } finally {
@@ -441,10 +427,32 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
     ]
   })
 }
+// 切换性能监控
+const togglePerformanceMonitor = () => {
+  showPerformanceMonitor.value = !showPerformanceMonitor.value
+}
+
+// 键盘快捷键处理
+const handleKeydown = (event: KeyboardEvent) => {
+  // Ctrl/Cmd + Shift + P 切换性能监控
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'P') {
+    event.preventDefault()
+    togglePerformanceMonitor()
+  }
+}
+
 // 页面挂载时加载数据
 onMounted(async () => {
   await settingStore.updateSetting()
   fetchTreeData()
+  
+  // 添加键盘事件监听
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  // 清理键盘事件监听
+  document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -571,17 +579,11 @@ $border-radius: 8px;
 
   // 网格视图
   .grid-view {
-    @apply flex-1 overflow-auto p-6;
-  }
-
-  .grid-container {
-    @apply grid;
-    gap: $grid-gap;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    @apply flex-1 overflow-hidden p-6;
   }
 
   .grid-item {
-    // @apply transition-all duration-200;
+    // 虚拟网格项目样式由virtual-grid组件控制
   }
 
   // 列表视图
@@ -635,10 +637,6 @@ $border-radius: 8px;
     width: 25%;
     min-width: 192px;
   }
-
-  .grid-container {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
 }
 
 @media (max-width: 768px) {
@@ -659,11 +657,6 @@ $border-radius: 8px;
     }
   }
 
-  .grid-container {
-    gap: 16px;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
-
   .content-area {
     @apply w-full;
   }
@@ -675,10 +668,6 @@ $border-radius: 8px;
     &-right {
       @apply gap-1;
     }
-  }
-
-  .grid-container {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 }
 </style>

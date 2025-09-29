@@ -18,7 +18,7 @@
           :class="{ active: activeIndex === index }"
           @click="handleMenuClick(index, item.name)"
         >
-          <n-icon size="20" :color="activeIndex === index ? '#ffffff' : '#9ca3af'">
+          <n-icon size="25" :color="activeIndex === index ? '#ffffff' : '#9ca3af'">
             <component :is="item.icon" />
           </n-icon>
         </div>
@@ -133,12 +133,12 @@ $background-color: #322f3b;
 }
 
 .sidebar {
-  width: 80px;
+  min-width: 80px;
   background: $background-color;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 0;
+  padding: 13px 0;
   border-radius: 24px 0 0 24px;
   position: relative;
 
@@ -149,7 +149,8 @@ $background-color: #322f3b;
       width: 48px;
       height: 48px;
       background: rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
+      border-radius: 48px;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -321,7 +322,7 @@ $background-color: #322f3b;
       position: absolute;
       left: 0;
       top: 0;
-      width: 90%;
+      width: calc(100% - 100px);
       height: 30px;
       -webkit-app-region: drag;
     }

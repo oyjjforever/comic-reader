@@ -24,12 +24,13 @@ declare module 'vue' {
     NLoadingBarProvider: typeof import('naive-ui')['NLoadingBarProvider']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NModal: typeof import('naive-ui')['NModal']
-    NSpin: typeof import('naive-ui')['NSpin']
-    NTag: typeof import('naive-ui')['NTag']
     NTree: typeof import('naive-ui')['NTree']
     PdfReader: typeof import('./src/components/pdf-reader.vue')['default']
+    PerformanceMonitor: typeof import('./src/components/performance-monitor.vue')['default']
     Provider: typeof import('./src/components/setting/provider.vue')['default']
+    ResponsiveVirtualGrid: typeof import('./src/components/responsive-virtual-grid.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    VirtualGrid: typeof import('./src/components/virtual-grid.vue')['default']
   }
 }

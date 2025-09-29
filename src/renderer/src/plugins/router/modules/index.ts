@@ -6,7 +6,7 @@ export default [
             {
                 path: '/',
                 name: "home",
-                component: () => import('@renderer/views/home.vue'),
+                component: () => import('@renderer/views/comic-book/index.vue'),
                 meta: {
                     title: "书架"
                 }
@@ -14,7 +14,7 @@ export default [
             {
                 path: '/book',
                 name: "book.read",
-                component: () => import('@renderer/views/read.vue'),
+                component: () => import('@renderer/views/comic-book/reader.vue'),
             }
         ],
     },
