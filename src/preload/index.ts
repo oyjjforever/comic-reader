@@ -6,6 +6,7 @@ import book from './plugins/book'
 import video from './plugins/video'
 import appData from './plugins/appData'
 import favorite from './plugins/favorite'
+import videoBookmarks from './plugins/video-bookmarks'
 
 // Custom APIs for renderer
 const api = {}
@@ -21,6 +22,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('systemInterface', systemInterface)
     contextBridge.exposeInMainWorld('appData', appData)
     contextBridge.exposeInMainWorld('favorite', favorite)
+    contextBridge.exposeInMainWorld('videoBookmarks', videoBookmarks)
     contextBridge.exposeInMainWorld('book', book)
     contextBridge.exposeInMainWorld('video', video)
   } catch (error) {

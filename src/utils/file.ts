@@ -79,6 +79,37 @@ export class FileUtils {
       )
     }
   }
+  /**
+ * 获取单个文件的详细信息
+ * @param filepath 文件夹路径
+ * @returns 文件夹信息
+ */
+  static async getFileInfo(filepath: string): Promise<FileInfo> {
+    try {
+      // 路径验证
+      if (!this.pathExists(filepath)) {
+        throw new Error(`路径不存在: ${filepath}`)
+      }
+
+      const file = await statAsync(filepath)
+      // 构建文件信息
+      const name = path.basename(filepath)
+
+      return {
+        name,
+        fullPath: filepath,
+        extension: path.extname(name).toLowerCase(),
+        createdTime: file.birthtime,
+        modifiedTime: file.mtime,
+        size: file.size,
+        formattedSize: this.formatFileSize(file.size)
+      }
+    } catch (error) {
+      throw new Error(
+        `获取文件信息失败: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
   static async getDirectChildrenFolders(dirPath: string): Promise<FolderInfo[]> {
     // 检查路径是否存在
     if (!this.pathExists(dirPath)) {

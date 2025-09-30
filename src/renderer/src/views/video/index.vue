@@ -329,14 +329,14 @@ const getFavoriteBooks = async () => {
   try {
     isLoading.value = true
 
-    const favorites = await window.favorite.getFavorites()
+    const favorites = await window.favorite.getFavorites('id DESC', 'video')
     // 将收藏路径转换为 FolderInfo 格式
     const favoriteBooks: FolderInfo[] = []
 
     for (const favorite of favorites) {
       try {
         // 检查路径是否存在并获取文件夹信息
-        const folderInfo = await window.video.getFolderInfo(favorite.fullPath)
+        const folderInfo = await window.video.getFileInfo(favorite.fullPath)
 
         if (folderInfo) {
           favoriteBooks.push({ ...folderInfo, isBookmarked: true })

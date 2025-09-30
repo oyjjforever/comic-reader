@@ -345,7 +345,7 @@ const getFavoriteBooks = async () => {
   try {
     isLoading.value = true
 
-    const favorites = await window.favorite.getFavorites()
+    const favorites = await window.favorite.getFavorites('id DESC', 'book')
     // 将收藏路径转换为 FolderInfo 格式
     const favoriteBooks: FolderInfo[] = []
 

@@ -3,6 +3,7 @@ import sqlite3 from 'sqlite3'
 import { Database } from 'sqlite'
 import type { books } from '@/typings/database'
 import type { FolderInfo, FileInfo } from '@/typings/file'
+import type { VideoBookmark } from '@/typings/video-bookmarks'
 
 declare global {
   interface Window {
@@ -26,6 +27,7 @@ declare global {
     },
     video: {
       getFolderTree: (dirPath: string) => Promise<FolderInfo[]>
+      getFileInfo: (dirPath: string) => Promise<FileInfo>
       getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => Promise<FileInfo[]>
     }
     favorite: {
@@ -37,6 +39,14 @@ declare global {
       deleteFavoriteByPath: (fullPath: string) => Promise<{ success: boolean; message: string }>
       toggleFavorite: (fullPath: string) => Promise<boolean>
       getFavoriteCount: () => Promise<number>
+    }
+    videoBookmarks: {
+      getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>;
+      addVideoBookmark: (videoPath: string, timePoint: number, title?: string, description?: string) => Promise<number>;
+      deleteVideoBookmark: (id: number) => Promise<void>;
+      updateVideoBookmark: (id: number, title?: string, description?: string) => Promise<void>;
+      getVideoBookmarkCount: (videoPath: string) => Promise<number>;
+      isTimePointBookmarked: (videoPath: string, timePoint: number) => Promise<boolean>;
     }
   }
 }

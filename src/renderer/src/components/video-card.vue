@@ -91,7 +91,7 @@ const hasCoverLoaded = ref(false)
 
 const toggleBookmark = async () => {
   try {
-    const result = await window.favorite.toggleFavorite(props.folder.fullPath)
+    const result = await window.favorite.toggleFavorite(props.folder.fullPath, 'video')
     isBookmarked.value = result
     emit('bookmark', props.folder, isBookmarked.value)
   } catch (error) {
@@ -217,7 +217,7 @@ onMounted(async () => {
   setupIntersectionObserver()
   // 检查当前文件夹的收藏状态
   try {
-    const isFavorited = await window.favorite.isFavorited(props.folder.fullPath)
+    const isFavorited = await window.favorite.isFavorited(props.folder.fullPath, 'video')
     isBookmarked.value = isFavorited
   } catch (error) {
     console.error('检查收藏状态失败:', error)

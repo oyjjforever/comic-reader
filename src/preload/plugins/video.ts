@@ -16,6 +16,16 @@ async function getFolderTree(
   }
 }
 
+async function getFileInfo(
+  dirPath: string,
+): Promise<FileInfo> {
+  try {
+    return await FileUtils.getFileInfo(dirPath)
+  } catch (error) {
+    throw new Error(`获取文件信息: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 
 /**
  * 获取指定文件夹路径下的所有文件（支持排序）
@@ -83,5 +93,6 @@ function sortFiles(files: FileInfo[], sortOptions: SortOptions): FileInfo[] {
 
 export default {
   getFolderTree,
+  getFileInfo,
   getFiles,
 }

@@ -47,7 +47,21 @@ const createTable = () => {
         CREATE TABLE IF NOT EXISTS favorites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fullPath TEXT NOT NULL UNIQUE,
+            module TEXT NOT NULL,
             created_at TEXT NOT NULL
+        )
+    `)
+
+    // 创建视频时间点收藏表
+    db?.exec(`
+        CREATE TABLE IF NOT EXISTS video_bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_path TEXT NOT NULL,
+            time_point REAL NOT NULL,
+            title TEXT,
+            description TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(video_path, time_point)
         )
     `)
 }
