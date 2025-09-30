@@ -1,24 +1,29 @@
 <template>
-  <div class="comic-card" ref="cardRef">
+  <div class="comic-card" ref="cardRef" @mouseenter="onMouseenter" @mouseleave="onMouseleave">
     <!-- 封面区域 -->
     <div class="cover-container">
       <!-- 封面图片 -->
       <div class="cover-image-wrapper">
-        <img
-          v-if="coverImageSrc && !imageError"
-          :src="coverImageSrc"
-          :alt="folder.name"
-          class="cover-image"
-          @error="onImageError"
-        />
-        <div v-else-if="isLoadingCover" class="loading-cover">
-          <n-icon :component="FolderIcon" size="32" />
-          <div class="loading-text">加载中...</div>
-        </div>
-        <div v-else class="default-cover">
-          <n-icon :component="FolderIcon" size="48" />
-          <div class="default-text">{{ folder.name }}</div>
-        </div>
+        <template v-if="!isHover">
+          <img
+            v-if="coverImageSrc && !imageError && !isHover"
+            :src="coverImageSrc"
+            :alt="folder.name"
+            class="cover-image"
+            @error="onImageError"
+          />
+          <div v-else-if="isLoadingCover" class="loading-cover">
+            <n-icon :component="FolderIcon" size="32" />
+            <div class="loading-text">加载中...</div>
+          </div>
+          <div v-else class="default-cover">
+            <n-icon :component="FolderIcon" size="48" />
+            <div class="default-text">{{ folder.name }}</div>
+          </div>
+        </template>
+        <video v-else muted loop preload="metadata" ref="videoRef">
+          <source :src="`file://${folder.fullPath}`" type="video/mp4" />
+        </video>
       </div>
 
       <!-- 收藏按钮 -->
@@ -140,7 +145,7 @@ function getVideoThumbnail(path: string) {
 
     video.addEventListener('loadedmetadata', () => {
       // 尝试定位到第1秒获取封面
-      video.currentTime = 5
+      video.currentTime = 0
     })
 
     video.addEventListener('seeked', () => {
@@ -192,7 +197,21 @@ const setupIntersectionObserver = () => {
 
   observer.value.observe(cardRef.value)
 }
-
+const isHover = ref(false)
+const videoRef = ref()
+const timer = ref(null)
+const onMouseenter = async () => {
+  timer.value = setTimeout(async () => {
+    isHover.value = true
+    await nextTick()
+    const video = videoRef.value
+    video.play()
+  }, 500)
+}
+const onMouseleave = async () => {
+  timer.value && clearTimeout(timer.value)
+  isHover.value = false
+}
 // 组件挂载时设置观察器和检查收藏状态
 onMounted(async () => {
   setupIntersectionObserver()
@@ -214,8 +233,7 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
-/* 主卡片容器 */
+<style lang="scss" scoped>
 .comic-card {
   background: #f8f9fa;
   border-radius: 12px;
@@ -228,11 +246,15 @@ onUnmounted(() => {
   aspect-ratio: 3/4;
   display: flex;
   flex-direction: column;
-}
 
-.comic-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+
+    .cover-image {
+      transform: scale(1.05);
+    }
+  }
 }
 
 /* 封面容器 */
@@ -249,6 +271,11 @@ onUnmounted(() => {
   position: relative;
   border-radius: 12px 12px 0 0;
   overflow: hidden;
+  video {
+    transition: opacity 0.2s ease;
+    position: absolute;
+    bottom: -50%;
+  }
 }
 
 /* 封面图片 */
@@ -256,11 +283,6 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.comic-card:hover .cover-image {
-  transform: scale(1.05);
 }
 
 /* 默认封面 */
@@ -320,24 +342,25 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   z-index: 2;
-}
 
-.bookmark-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  transform: scale(1.1);
-}
+  &:hover {
+    background: rgba(255, 255, 255, 0.95);
+    transform: scale(1.1);
+  }
 
-.bookmark-btn:active {
-  transform: scale(0.95);
-}
+  &:active {
+    transform: scale(0.95);
+  }
 
-.bookmark-btn.bookmarked {
-  background: rgba(255, 193, 7, 0.9);
-  color: white;
-}
+  &.bookmarked {
+    background: rgba(255, 193, 7, 0.9);
+    color: white;
+    animation: bookmarkPulse 0.3s ease-out;
 
-.bookmark-btn.bookmarked:hover {
-  background: rgba(255, 193, 7, 1);
+    &:hover {
+      background: rgba(255, 193, 7, 1);
+    }
+  }
 }
 
 /* 文件夹类型标识 */
@@ -355,45 +378,31 @@ onUnmounted(() => {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
   background: rgba(3, 192, 235, 0.9);
-}
 
-.folder-type-badge:hover {
-  transform: scale(1.05);
-}
+  &:hover {
+    transform: scale(1.05);
+  }
 
-/* 不同类型的颜色 */
-.folder-type-badge.type-image {
-  background: rgba(52, 199, 89, 0.9);
-}
+  /* 不同类型的颜色 */
+  &.type-image {
+    background: rgba(52, 199, 89, 0.9);
+  }
 
-.folder-type-badge.type-pdf {
-  background: rgba(255, 59, 48, 0.9);
-}
+  &.type-pdf {
+    background: rgba(255, 59, 48, 0.9);
+  }
 
-.folder-type-badge.type-ebook {
-  background: rgba(0, 122, 255, 0.9);
-}
+  &.type-ebook {
+    background: rgba(0, 122, 255, 0.9);
+  }
 
-.folder-type-badge.type-mixed {
-  background: rgba(255, 149, 0, 0.9);
-}
+  &.type-mixed {
+    background: rgba(255, 149, 0, 0.9);
+  }
 
-.folder-type-badge.type-empty {
-  background: rgba(142, 142, 147, 0.9);
-}
-
-.bookmark-btn {
-  top: 12px;
-  left: 12px;
-  width: 28px;
-  height: 28px;
-}
-
-.folder-type-badge {
-  top: 12px;
-  right: 12px;
-  padding: 3px 6px;
-  font-size: 9px;
+  &.type-empty {
+    background: rgba(142, 142, 147, 0.9);
+  }
 }
 
 /* 信息展示区 */
@@ -417,6 +426,7 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   min-height: 2.6em; /* 确保双行高度 */
+  word-break: break-all;
 }
 
 /* 页数信息 */
@@ -425,6 +435,35 @@ onUnmounted(() => {
   color: #666666;
   margin: 0;
   font-weight: 400;
+}
+
+/* 动画效果 */
+@keyframes bookmarkPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 卡片进入动画 */
+.comic-card {
+  animation: cardFadeIn 0.4s ease-out;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 夜间模式支持 */
@@ -508,39 +547,6 @@ onUnmounted(() => {
     padding: 2px 5px;
     font-size: 8px;
     opacity: 0.7;
-  }
-}
-
-/* 动画效果 */
-@keyframes bookmarkPulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-.bookmark-btn.bookmarked {
-  animation: bookmarkPulse 0.3s ease-out;
-}
-
-/* 卡片进入动画 */
-.comic-card {
-  animation: cardFadeIn 0.4s ease-out;
-}
-
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 </style>
