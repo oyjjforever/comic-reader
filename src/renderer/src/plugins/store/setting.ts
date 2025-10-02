@@ -6,7 +6,10 @@ export const defaultSetting: setting = {
     theme: 'auto',
     bookSort: 'id DESC',
     resourcePath: '',
-    folderStructureType: 'flat'
+    folderStructureType: 'flat',
+    videoResourcePath: '',
+    defaultDownloadPath: '',
+    thirdPartyUrl: ''
 }
 
 export const useSettingStore = defineStore('setting', {

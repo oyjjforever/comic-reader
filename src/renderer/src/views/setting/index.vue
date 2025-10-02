@@ -41,6 +41,18 @@
           </n-button>
         </n-input-group>
       </n-form-item>
+      <n-form-item path="defaultDownloadPath" label="默认下载路径">
+        <n-input-group>
+          <n-input
+            v-model:value="formData.defaultDownloadPath"
+            placeholder="请选择默认下载文件夹路径"
+            readonly
+          />
+          <n-button type="primary" @click="selectResourcePath('defaultDownloadPath')">
+            选择文件夹
+          </n-button>
+        </n-input-group>
+      </n-form-item>
     </n-form>
   </div>
 </template>

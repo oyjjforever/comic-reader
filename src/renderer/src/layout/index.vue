@@ -63,12 +63,13 @@
 import { ref } from 'vue'
 import { NIcon } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
-import { VideoClipMultiple24Regular, Book24Regular } from '@vicons/fluent'
+import { VideoClipMultiple24Regular, Book24Regular, AirplaneTakeOff16Regular } from '@vicons/fluent'
 const router = useRouter()
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
-  { icon: VideoClipMultiple24Regular, name: 'video' }
+  { icon: VideoClipMultiple24Regular, name: 'video' },
+  { icon: AirplaneTakeOff16Regular, name: 'site' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]

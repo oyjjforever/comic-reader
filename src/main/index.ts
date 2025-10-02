@@ -1,5 +1,7 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import { app, net, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import path from 'path'
+import fs from 'fs'
+import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
 
@@ -19,7 +21,8 @@ function createWindow(): void {
       contextIsolation: true,
       sandbox: false,
       webSecurity: false,
-      preload: join(__dirname, '../preload/index.cjs'),
+      webviewTag: true,
+      preload: path.join(__dirname, '../preload/index.cjs'),
     }
   })
 
@@ -40,7 +43,7 @@ function createWindow(): void {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -61,18 +64,17 @@ app.whenReady().then(() => {
   createWindow()
 
   // 注册IPC处理器
-  // 文件夹选择对话框
-  ipcMain.handle('dialog:openDirectory', async () => {
+  // 文件夹选择对话框（支持 defaultPath）
+  ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: string }) => {
     const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-      title: '选择资源文件夹'
+      properties: ['openDirectory', 'createDirectory'],
+      title: '选择文件夹',
+      defaultPath: options?.defaultPath
     })
     return result
   })
   ipcMain.on("get-window-size", () => {
     return mainWindow.isFullScreen()
-    if (mainWindow.isFullScreen()) mainWindow.webContents.send("main-window-max");
-    else mainWindow.webContents.send("main-window-unmax");
   });
   ipcMain.handle("window-min", () => {
     mainWindow.minimize();
@@ -90,6 +92,170 @@ app.whenReady().then(() => {
   ipcMain.handle("window-close", () => {
     app.exit();
   });
+  // 解压文件函数
+  async function extractFile(filePath: string, extractDir: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ext = path.extname(filePath).toLowerCase()
+
+      // 检查7zip是否可用
+      let sevenZipCmd = ''
+      try {
+        // 尝试查找7zip安装路径
+        if (process.platform === 'win32') {
+          // Windows系统查找7zip
+          const possiblePaths = [
+            'W:\\Program Files\\7-Zip\\7z.exe',
+            'C:\\Program Files\\7-Zip\\7z.exe',
+            'C:\\Program Files (x86)\\7-Zip\\7z.exe',
+            process.env['ProgramFiles'] + '\\7-Zip\\7z.exe',
+            process.env['ProgramFiles(x86)'] + '\\7-Zip\\7z.exe'
+          ]
+
+          for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+              sevenZipCmd = p
+              break
+            }
+          }
+
+          if (!sevenZipCmd) {
+            // 如果找不到7zip，尝试使用系统自带的tar或使用Node.js解压库
+            throw new Error('未找到7zip安装路径')
+          }
+        }
+      } catch (err) {
+        console.warn('7zip未安装，使用Node.js解压:', err)
+        sevenZipCmd = ''
+      }
+
+      if (sevenZipCmd) {
+        // 使用7zip解压
+        const args = ['x', filePath, `-o${extractDir}`, '-y']
+        const child = spawn(sevenZipCmd, args)
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolve()
+          } else {
+            reject(new Error(`7zip解压失败，退出码: ${code}`))
+          }
+        })
+
+        child.on('error', (err) => {
+          reject(new Error(`7zip解压错误: ${err.message}`))
+        })
+      } else {
+        // 使用Node.js内置解压（支持zip格式）
+        if (ext === '.zip') {
+          const { extract } = require('zip-lib')
+          extract(filePath, extractDir)
+            .then(() => resolve())
+            .catch((err: any) => reject(new Error(`ZIP解压失败: ${err.message}`)))
+        } else {
+          reject(new Error(`不支持的解压格式: ${ext}，请安装7zip`))
+        }
+      }
+    })
+  }
+
+  ipcMain.on('download:start', async (_e, payload) => {
+    try {
+      const { url, fileName, savePath, autoExtract = true } = payload || {}
+      if (!url || !fileName || !savePath) {
+        mainWindow?.webContents.send('download:failed', { state: 'error', message: '缺少必要参数' })
+        return
+      }
+
+      // 清理文件名，拼接保存路径
+      const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_')
+      const fullPath = path.join(savePath, safeName)
+
+      // 确保目录存在
+      if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true })
+
+      const request = net.request(url)
+      request.on('response', (response: any) => {
+        const fileStream = fs.createWriteStream(fullPath)
+        const lenHeader = response.headers?.['content-length']
+        const total = Array.isArray(lenHeader) ? parseInt(lenHeader[0] || '0', 10) : parseInt(lenHeader || '0', 10)
+        let received = 0
+
+        // 添加文件流错误处理
+        fileStream.on('error', (err) => {
+          mainWindow?.webContents.send('download:failed', { state: 'error', message: `文件写入失败: ${err.message}` })
+        })
+
+        fileStream.on('finish', async () => {
+          try {
+            // 下载完成，检查是否需要解压
+            const ext = path.extname(fullPath).toLowerCase()
+            const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
+
+            if (autoExtract && supportedExts.includes(ext)) {
+              mainWindow?.webContents.send('download:extracting', { filePath: fullPath })
+
+              // 创建解压目录
+              const extractDir = path.join(savePath, path.basename(fullPath, ext))
+              if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true })
+
+              // 解压文件
+              await extractFile(fullPath, extractDir)
+
+              // 解压成功后删除原始压缩文件
+              fs.unlinkSync(fullPath)
+
+              mainWindow?.webContents.send('download:completed', {
+                savePath: extractDir,
+                extractedPath: extractDir,
+                extracted: true
+              })
+            } else {
+              mainWindow?.webContents.send('download:completed', {
+                savePath: fullPath,
+                extracted: false
+              })
+            }
+          } catch (extractErr) {
+            mainWindow?.webContents.send('download:failed', {
+              state: 'error',
+              message: `下载完成但解压失败: ${extractErr.message}`
+            })
+          }
+        })
+
+        response.on('data', (chunk: Buffer) => {
+          received += chunk.length
+          fileStream.write(chunk)
+          mainWindow?.webContents.send('download:progress', { received, total })
+        })
+
+        response.on('end', () => {
+          fileStream.end()
+        })
+
+        response.on('error', (err: any) => {
+          fileStream.destroy()
+          mainWindow?.webContents.send('download:failed', { state: 'error', message: `响应错误: ${err.message}` })
+        })
+      })
+
+      request.on('error', (err: any) => {
+        mainWindow?.webContents.send('download:failed', { state: 'error', message: `请求失败: ${err.message}` })
+      })
+
+      request.end()
+    } catch (err) {
+      mainWindow?.webContents.send('download:failed', { state: 'error', message: `未知错误: ${err.message}` })
+    }
+  })
+  // 在 persist:thirdparty 分区拦截下载
+  const { session } = require('electron')
+  const thirdPartySession = session.fromPartition('persist:thirdparty')
+  thirdPartySession.on('will-download', (event, item, webContents) => {
+    item.setSavePath('C:/')
+    mainWindow.webContents.send("download:prepare", { url: item.getURL(), fileName: item.getFilename() });
+    return
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

@@ -15,16 +15,6 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  ref,
-  onMounted,
-  onUnmounted,
-  onActivated,
-  onDeactivated,
-  watch,
-  nextTick
-} from 'vue'
 import { throttle, debounce } from 'lodash'
 
 interface VirtualGridProps {

@@ -26,10 +26,15 @@ export default [
                 name: "video",
                 component: () => import('@renderer/views/video/index.vue'),
             },
-             {
+            {
                 path: '/video/player',
                 name: "video.play",
                 component: () => import('@renderer/views/video/player.vue'),
+            },
+            {
+                path: '/site',
+                name: "site",
+                component: () => import('@renderer/views/site/index.vue'),
             }
         ],
     },
