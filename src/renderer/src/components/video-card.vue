@@ -145,7 +145,7 @@ function getVideoThumbnail(path: string) {
 
     video.addEventListener('loadedmetadata', () => {
       // 尝试定位到第1秒获取封面
-      video.currentTime = 0
+      video.currentTime = 5
     })
 
     video.addEventListener('seeked', () => {
@@ -157,7 +157,7 @@ function getVideoThumbnail(path: string) {
       canvas.height = video.videoHeight
 
       // 绘制视频帧到 canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      ctx && ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
       try {
         // 获取 JPEG 格式的 base64 数据
@@ -168,7 +168,7 @@ function getVideoThumbnail(path: string) {
       }
     })
 
-    video.addEventListener('error', (err) => {
+    video.addEventListener('error', () => {
       reject(new Error('Failed to load video.'))
     })
   })
@@ -198,19 +198,19 @@ const setupIntersectionObserver = () => {
   observer.value.observe(cardRef.value)
 }
 const isHover = ref(false)
-const videoRef = ref()
-const timer = ref(null)
+// const videoRef = ref()
+// const timer = ref(null)
 const onMouseenter = async () => {
-  timer.value = setTimeout(async () => {
-    isHover.value = true
-    await nextTick()
-    const video = videoRef.value
-    video.play()
-  }, 500)
+  // timer.value = setTimeout(async () => {
+  //   isHover.value = true
+  //   await nextTick()
+  //   const video = videoRef.value
+  //   video.play()
+  // }, 500)
 }
 const onMouseleave = async () => {
-  timer.value && clearTimeout(timer.value)
-  isHover.value = false
+  // timer.value && clearTimeout(timer.value)
+  // isHover.value = false
 }
 // 组件挂载时设置观察器和检查收藏状态
 onMounted(async () => {

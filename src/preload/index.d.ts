@@ -31,14 +31,14 @@ declare global {
       getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => Promise<FileInfo[]>
     }
     favorite: {
-      getFavorites: () => Promise<any[]>
-      getFavorite: (id: number) => Promise<any | null>
-      isFavorited: (fullPath: string) => Promise<boolean>
-      addFavorite: (fullPath: string) => Promise<{ success: boolean; message: string; id?: number }>
-      deleteFavorite: (id: number) => Promise<{ success: boolean; message: string }>
-      deleteFavoriteByPath: (fullPath: string) => Promise<{ success: boolean; message: string }>
-      toggleFavorite: (fullPath: string) => Promise<boolean>
-      getFavoriteCount: () => Promise<number>
+      getFavorites: (order: string, module: string) => Promise<any[]>
+      getFavorite: (id: number, module: string) => Promise<any | null>
+      isFavorited: (fullPath: string, module: string) => Promise<boolean>
+      addFavorite: (fullPath: string, module: string) => Promise<{ success: boolean; message: string; id?: number }>
+      deleteFavorite: (id: number, module: string) => Promise<{ success: boolean; message: string }>
+      deleteFavoriteByPath: (fullPath: string, module: string) => Promise<{ success: boolean; message: string }>
+      toggleFavorite: (fullPath: string, module: string) => Promise<boolean>
+      getFavoriteCount: (module: string) => Promise<number>
     }
     videoBookmarks: {
       getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>;

@@ -141,21 +141,11 @@ import comicCard from '@renderer/components/comic-card.vue'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import PerformanceMonitor from '@renderer/components/performance-monitor.vue'
 import { useSettingStore } from '@renderer/plugins/store'
-import {
-  Search as searchIcon,
-  SettingsSharp as settingIcon,
-  Grid as GridIcon,
-  List as ListIcon,
-  Sunny as SunIcon,
-  Moon as MoonIcon,
-  ChevronForward as ChevronRightIcon,
-  ChevronBack as ChevronLeftIcon,
-  Bookmark as BookmarkIcon
-} from '@vicons/ionicons5'
-import { NButton, NIcon, DataTableColumns } from 'naive-ui'
+import { Bookmark as BookmarkIcon } from '@vicons/ionicons5'
+import { NButton, NIcon } from 'naive-ui'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import { computed, reactive, onActivated, onDeactivated } from 'vue'
-import { debounce, throttle } from 'lodash'
+import { debounce } from 'lodash'
 const message = useMessage()
 const settingStore = useSettingStore()
 const router = useRouter()

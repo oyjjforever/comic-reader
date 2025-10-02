@@ -1,10 +1,10 @@
 <template>
   <div class="video-player" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
     <!-- 视频播放器 -->
-    <video 
-      ref="videoRef" 
-      controls 
-      autoplay 
+    <video
+      ref="videoRef"
+      controls
+      autoplay
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onVideoLoaded"
     >
@@ -13,12 +13,7 @@
 
     <!-- 时间点收藏按钮 -->
     <div class="bookmark-controls" :class="{ visible: showControls }">
-      <n-button 
-        type="primary" 
-        size="small" 
-        @click="addBookmark"
-        :disabled="!currentTime"
-      >
+      <n-button type="primary" size="small" @click="addBookmark" :disabled="!currentTime">
         <template #icon>
           <n-icon :component="BookmarkIcon" />
         </template>
@@ -32,10 +27,10 @@
         <h3>时间点收藏</h3>
         <span class="bookmark-count">{{ bookmarks.length }}</span>
       </div>
-      
+
       <div class="bookmarks-list">
-        <div 
-          v-for="bookmark in bookmarks" 
+        <div
+          v-for="bookmark in bookmarks"
           :key="bookmark.id"
           class="bookmark-item"
           @click="jumpToBookmark(bookmark)"
@@ -43,22 +38,12 @@
           <div class="bookmark-time">{{ formatTime(bookmark.time_point) }}</div>
           <div class="bookmark-title">{{ bookmark.title || '未命名收藏' }}</div>
           <div class="bookmark-actions">
-            <n-button 
-              text 
-              size="tiny" 
-              @click.stop="editBookmark(bookmark)"
-              class="edit-btn"
-            >
+            <n-button text size="tiny" @click.stop="editBookmark(bookmark)" class="edit-btn">
               <template #icon>
                 <n-icon :component="EditIcon" />
               </template>
             </n-button>
-            <n-button 
-              text 
-              size="tiny" 
-              @click.stop="deleteBookmark(bookmark.id)"
-              class="delete-btn"
-            >
+            <n-button text size="tiny" @click.stop="deleteBookmark(bookmark.id)" class="delete-btn">
               <template #icon>
                 <n-icon :component="TrashIcon" />
               </template>
@@ -83,21 +68,21 @@
             <label>时间点：</label>
             <span class="time-display">{{ formatTime(bookmarkForm.time_point) }}</span>
           </div>
-          
+
           <div class="form-item">
             <label>标题：</label>
-            <n-input 
-              v-model="bookmarkForm.title" 
+            <n-input
+              v-model:value="bookmarkForm.title"
               placeholder="为这个时间点添加标题..."
               maxlength="50"
             />
           </div>
-          
+
           <div class="form-item">
             <label>描述：</label>
-            <n-input 
-              v-model="bookmarkForm.description" 
-              type="textarea" 
+            <n-input
+              v-model:value="bookmarkForm.description"
+              type="textarea"
               placeholder="添加描述（可选）..."
               :rows="3"
               maxlength="200"
@@ -119,11 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { 
-  Bookmark as BookmarkIcon, 
-  Create as EditIcon, 
-  Trash as TrashIcon 
-} from '@vicons/ionicons5'
+import { Bookmark as BookmarkIcon, Create as EditIcon, Trash as TrashIcon } from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
 
 const message = useMessage()
@@ -158,12 +139,12 @@ let mouseTimer: NodeJS.Timeout | null = null
 // 鼠标移动事件
 const onMouseMove = () => {
   showControls.value = true
-  
+
   // 清除之前的定时器
   if (mouseTimer) {
     clearTimeout(mouseTimer)
   }
-  
+
   // 3秒后隐藏控制栏
   mouseTimer = setTimeout(() => {
     showControls.value = false
@@ -197,7 +178,7 @@ const formatTime = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
+
   if (hours > 0) {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   } else {
@@ -234,7 +215,7 @@ const saveBookmark = async () => {
     if (editingBookmark.value) {
       // 更新现有收藏
       await window.videoBookmarks.updateVideoBookmark(
-        editingBookmark.value.id!,
+        editingBookmark.value.id,
         bookmarkForm.value.title,
         bookmarkForm.value.description
       )
@@ -249,9 +230,9 @@ const saveBookmark = async () => {
       )
       message.success('收藏添加成功')
     }
-    
+
     showBookmarkModal.value = false
-    videoRef.value.play()
+    videoRef.value?.play()
     await loadBookmarks()
   } catch (error: any) {
     message.error(`操作失败: ${error.message}`)
@@ -296,7 +277,7 @@ const fetchData = async () => {
     // 根据内容类型设置标题
     let titlePrefix = '视频播放器 - '
     document.title = titlePrefix + folderName
-    
+
     // 加载收藏列表
     await loadBookmarks()
   } catch (error: any) {
@@ -397,17 +378,16 @@ onUnmounted(() => {
 
     .bookmarks-list {
       max-height: 320px;
-      overflow-y: auto;
-      
+
       &::-webkit-scrollbar {
         width: 4px;
       }
-      
+
       &::-webkit-scrollbar-track {
         background: rgba(255, 255, 255, 0.1);
         border-radius: 2px;
       }
-      
+
       &::-webkit-scrollbar-thumb {
         background: rgba(255, 255, 255, 0.3);
         border-radius: 2px;
@@ -430,7 +410,7 @@ onUnmounted(() => {
       }
 
       .bookmark-time {
-        color: #4CAF50;
+        color: #4caf50;
         font-size: 12px;
         font-weight: 600;
         min-width: 60px;
@@ -453,7 +433,7 @@ onUnmounted(() => {
         transition: opacity 0.2s ease;
 
         .edit-btn {
-          color: #2196F3;
+          color: #2196f3;
         }
 
         .delete-btn {
@@ -480,7 +460,7 @@ onUnmounted(() => {
       }
 
       .time-display {
-        color: #4CAF50;
+        color: #4caf50;
         font-weight: 600;
         font-size: 16px;
       }

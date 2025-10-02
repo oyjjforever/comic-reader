@@ -4,44 +4,44 @@
       <h4>性能监控</h4>
       <button @click="toggleMonitor" class="toggle-btn">{{ isExpanded ? '收起' : '展开' }}</button>
     </div>
-    
+
     <div v-if="isExpanded" class="monitor-content">
       <div class="metric-item">
         <span class="metric-label">渲染项目数:</span>
         <span class="metric-value">{{ stats.renderedItems }}</span>
       </div>
-      
+
       <div class="metric-item">
         <span class="metric-label">总项目数:</span>
         <span class="metric-value">{{ stats.totalItems }}</span>
       </div>
-      
+
       <div class="metric-item">
         <span class="metric-label">内存使用:</span>
         <span class="metric-value">{{ memoryUsage }}MB</span>
       </div>
-      
+
       <div class="metric-item">
         <span class="metric-label">FPS:</span>
         <span class="metric-value" :class="{ 'low-fps': fps < 30 }">{{ fps }}</span>
       </div>
-      
+
       <div class="metric-item">
         <span class="metric-label">滚动位置:</span>
         <span class="metric-value">{{ stats.scrollTop }}px</span>
       </div>
-      
+
       <div class="metric-item">
         <span class="metric-label">可见范围:</span>
-        <span class="metric-value">{{ stats.visibleRange.start }} - {{ stats.visibleRange.end }}</span>
+        <span class="metric-value"
+          >{{ stats.visibleRange.start }} - {{ stats.visibleRange.end }}</span
+        >
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-
 interface PerformanceStats {
   renderedItems: number
   totalItems: number
@@ -74,13 +74,13 @@ let animationId: number
 const calculateFPS = () => {
   frameCount++
   const currentTime = performance.now()
-  
+
   if (currentTime - lastTime >= 1000) {
     fps.value = Math.round((frameCount * 1000) / (currentTime - lastTime))
     frameCount = 0
     lastTime = currentTime
   }
-  
+
   animationId = requestAnimationFrame(calculateFPS)
 }
 
@@ -110,9 +110,15 @@ onUnmounted(() => {
 
 // 暴露控制方法
 defineExpose({
-  show: () => { showMonitor.value = true },
-  hide: () => { showMonitor.value = false },
-  toggle: () => { showMonitor.value = !showMonitor.value }
+  show: () => {
+    showMonitor.value = true
+  },
+  hide: () => {
+    showMonitor.value = false
+  },
+  toggle: () => {
+    showMonitor.value = !showMonitor.value
+  }
 })
 </script>
 

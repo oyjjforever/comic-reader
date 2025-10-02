@@ -1,29 +1,11 @@
 <template>
-  <div 
-    ref="containerRef" 
-    class="virtual-grid-container"
-    @scroll="handleScroll"
-  >
+  <div ref="containerRef" class="virtual-grid-container" @scroll="handleScroll">
     <!-- 虚拟滚动区域 - 用于维持正确的滚动条高度 -->
-    <div 
-      class="virtual-scroll-area"
-      :style="{ height: totalHeight + 'px' }"
-    >
+    <div class="virtual-scroll-area" :style="{ height: totalHeight + 'px' }">
       <!-- 实际渲染的内容区域 -->
-      <div 
-        class="virtual-content"
-        :style="contentStyle"
-      >
-        <div 
-          class="virtual-grid"
-          :style="gridStyle"
-        >
-          <div
-            v-for="item in visibleItems"
-            :key="getItemKey(item.data)"
-            class="virtual-grid-item"
-            :style="getItemStyle(item)"
-          >
+      <div class="virtual-content" :style="contentStyle">
+        <div class="virtual-grid" :style="gridStyle">
+          <div v-for="item in visibleItems" :key="getItemKey(item.data)" class="virtual-grid-item">
             <slot :item="item.data" :index="item.index" />
           </div>
         </div>
@@ -33,7 +15,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick } from 'vue'
+import {
+  computed,
+  ref,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  watch,
+  nextTick
+} from 'vue'
 import { throttle, debounce } from 'lodash'
 
 interface VirtualGridProps {
@@ -91,7 +82,7 @@ const visibleRange = computed(() => {
     rowsCount.value - 1,
     Math.ceil((scrollTop.value + containerHeight.value) / itemHeightWithGap) + props.overscan
   )
-  
+
   return {
     startRow,
     endRow,
@@ -104,13 +95,13 @@ const visibleRange = computed(() => {
 const visibleItems = computed((): VirtualItem[] => {
   const { startIndex, endIndex } = visibleRange.value
   const items: VirtualItem[] = []
-  
+
   for (let i = startIndex; i <= endIndex && i < props.items.length; i++) {
     const row = Math.floor(i / columnsCount.value)
     const col = i % columnsCount.value
     const x = col * (props.itemWidth + props.gap)
     const y = row * (props.itemHeight + props.gap)
-    
+
     items.push({
       data: props.items[i],
       index: i,
@@ -120,7 +111,7 @@ const visibleItems = computed((): VirtualItem[] => {
       y
     })
   }
-  
+
   return items
 })
 
@@ -142,11 +133,6 @@ const gridStyle = computed(() => ({
 const getItemKey = (item: any) => {
   return props.keyField ? item[props.keyField] : item
 }
-
-// 获取项目样式（用于绝对定位模式，当前使用grid布局）
-const getItemStyle = (item: VirtualItem) => ({
-  // 在grid模式下不需要额外样式
-})
 
 // 滚动处理
 const handleScroll = throttle((event: Event) => {
@@ -170,13 +156,13 @@ onMounted(async () => {
   await nextTick()
   if (!hasInitialized.value) {
     updateContainerSize()
-    
+
     // 监听容器尺寸变化
     if (containerRef.value && window.ResizeObserver) {
       resizeObserver = new ResizeObserver(updateContainerSize)
       resizeObserver.observe(containerRef.value)
     }
-    
+
     // 监听窗口尺寸变化（备用方案）
     window.addEventListener('resize', updateContainerSize)
     hasInitialized.value = true
@@ -212,53 +198,60 @@ onUnmounted(() => {
 })
 
 // 监听items变化，智能处理滚动位置
-watch(() => props.items.length, (newLength, oldLength) => {
-  // 只在组件激活且数据真正变化时处理
-  if (isActive.value && newLength !== oldLength) {
-    if (newLength === 0) {
-      // 数据清空时重置到顶部
-      if (containerRef.value) {
-        containerRef.value.scrollTop = 0
-        scrollTop.value = 0
-        savedScrollTop.value = 0
-      }
-    } else if (oldLength > 0 && newLength < oldLength) {
-      // 数据减少时，检查当前滚动位置是否仍然有效
-      const maxScrollTop = Math.max(0, totalHeight.value - containerHeight.value)
-      if (scrollTop.value > maxScrollTop) {
-        const newScrollTop = Math.max(0, maxScrollTop)
-        if (containerRef.value) {
-          containerRef.value.scrollTop = newScrollTop
-          scrollTop.value = newScrollTop
-          savedScrollTop.value = newScrollTop
-        }
-      }
-    }
-    // 数据增加时保持当前滚动位置，不做任何处理
-  }
-})
-
-// 监听items引用变化（完全不同的数组）
-watch(() => props.items, (newItems, oldItems) => {
-  // 如果是完全不同的数组引用，说明是新的数据集
-  if (isActive.value && newItems !== oldItems && Array.isArray(newItems)) {
-    // 只有在数据源完全改变时才重置滚动位置
-    if (oldItems && oldItems.length > 0 && newItems.length > 0) {
-      // 检查是否是相同的数据（通过第一个和最后一个元素的key）
-      const oldFirstKey = oldItems[0] && getItemKey(oldItems[0])
-      const newFirstKey = newItems[0] && getItemKey(newItems[0])
-      
-      if (oldFirstKey !== newFirstKey) {
-        // 数据源完全不同，重置滚动位置
+watch(
+  () => props.items.length,
+  (newLength, oldLength) => {
+    // 只在组件激活且数据真正变化时处理
+    if (isActive.value && newLength !== oldLength) {
+      if (newLength === 0) {
+        // 数据清空时重置到顶部
         if (containerRef.value) {
           containerRef.value.scrollTop = 0
           scrollTop.value = 0
           savedScrollTop.value = 0
         }
+      } else if (oldLength > 0 && newLength < oldLength) {
+        // 数据减少时，检查当前滚动位置是否仍然有效
+        const maxScrollTop = Math.max(0, totalHeight.value - containerHeight.value)
+        if (scrollTop.value > maxScrollTop) {
+          const newScrollTop = Math.max(0, maxScrollTop)
+          if (containerRef.value) {
+            containerRef.value.scrollTop = newScrollTop
+            scrollTop.value = newScrollTop
+            savedScrollTop.value = newScrollTop
+          }
+        }
       }
+      // 数据增加时保持当前滚动位置，不做任何处理
     }
   }
-}, { deep: false })
+)
+
+// 监听items引用变化（完全不同的数组）
+watch(
+  () => props.items,
+  (newItems, oldItems) => {
+    // 如果是完全不同的数组引用，说明是新的数据集
+    if (isActive.value && newItems !== oldItems && Array.isArray(newItems)) {
+      // 只有在数据源完全改变时才重置滚动位置
+      if (oldItems && oldItems.length > 0 && newItems.length > 0) {
+        // 检查是否是相同的数据（通过第一个和最后一个元素的key）
+        const oldFirstKey = oldItems[0] && getItemKey(oldItems[0])
+        const newFirstKey = newItems[0] && getItemKey(newItems[0])
+
+        if (oldFirstKey !== newFirstKey) {
+          // 数据源完全不同，重置滚动位置
+          if (containerRef.value) {
+            containerRef.value.scrollTop = 0
+            scrollTop.value = 0
+            savedScrollTop.value = 0
+          }
+        }
+      }
+    }
+  },
+  { deep: false }
+)
 
 // 性能统计
 const performanceStats = computed(() => ({
