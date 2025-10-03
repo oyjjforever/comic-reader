@@ -31,6 +31,7 @@ declare module 'vue' {
     PdfReader: typeof import('./src/components/pdf-reader.vue')['default']
     PerformanceMonitor: typeof import('./src/components/performance-monitor.vue')['default']
     Provider: typeof import('./src/components/setting/provider.vue')['default']
+    ResourceBrowser: typeof import('./src/components/resource-browser.vue')['default']
     ResponsiveVirtualGrid: typeof import('./src/components/responsive-virtual-grid.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
