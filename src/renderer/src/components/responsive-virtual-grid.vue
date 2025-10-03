@@ -52,8 +52,12 @@ const itemWidth = computed(() => {
     return Math.max(props.minItemWidth, 180)
   } else if (screenWidth.value <= 1280) {
     return Math.max(props.minItemWidth, 200)
+  } else if (screenWidth.value <= 1480) {
+    return Math.max(props.minItemWidth, 220)
+  } else if (screenWidth.value <= 1680) {
+    return Math.max(props.minItemWidth, 240)
   } else {
-    return Math.min(props.maxItemWidth, 220)
+    return Math.min(props.maxItemWidth, 250)
   }
 })
 

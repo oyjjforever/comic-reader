@@ -15,10 +15,10 @@
           v-for="(item, index) in menuItems"
           :key="index"
           class="menu-item"
-          :class="{ active: activeIndex === index }"
+          :class="{ active: currentRoute === item.name }"
           @click="handleMenuClick(index, item.name)"
         >
-          <n-icon size="25" :color="activeIndex === index ? '#ffffff' : '#9ca3af'">
+          <n-icon size="25" :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'">
             <component :is="item.icon" />
           </n-icon>
         </div>
@@ -30,10 +30,10 @@
           v-for="(item, index) in bottomMenuItems"
           :key="index"
           class="menu-item"
-          :class="{ active: activeBottomIndex === index }"
-          @click="handleBottomMenuClick(index, item.name)"
+          :class="{ active: currentRoute === item.name }"
+          @click="handleMenuClick(index, item.name)"
         >
-          <n-icon size="20" :color="activeBottomIndex === index ? '#ffffff' : '#9ca3af'">
+          <n-icon size="20" :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'">
             <component :is="item.icon" />
           </n-icon>
         </div>
@@ -60,11 +60,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
 import { VideoClipMultiple24Regular, Book24Regular, AirplaneTakeOff16Regular } from '@vicons/fluent'
+const route = useRoute()
 const router = useRouter()
+const currentRoute = computed(() => route.name)
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
@@ -74,20 +76,8 @@ const menuItems = [
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
 
-// 响应式状态
-const activeIndex = ref(0)
-const activeBottomIndex = ref(-1)
-
 // 事件处理
 const handleMenuClick = (index: number, name: string) => {
-  activeIndex.value = index
-  activeBottomIndex.value = -1
-  router.push({ name })
-}
-
-const handleBottomMenuClick = (index: number, name: string) => {
-  activeBottomIndex.value = index
-  activeIndex.value = -1
   router.push({ name })
 }
 

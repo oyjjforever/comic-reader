@@ -31,12 +31,11 @@
       <!-- 中间：搜索框 -->
       <div class="navbar-center">
         <n-input
-          v-model="search.keyword"
+          v-model:value="search.keyword"
           type="text"
-          placeholder="搜索漫画..."
+          placeholder="请输入关键字进行搜索..."
           clearable
           class="search-input"
-          :loading="isSearching"
           @input="onQuery"
         >
           <template #prefix>
@@ -47,14 +46,17 @@
 
       <!-- 右侧：功能按钮 -->
       <div class="navbar-right">
-        <n-button size="small" @click="toggleDarkMode">
+        <!-- <n-button size="small" @click="toggleDarkMode">
           <template #icon>
             <n-icon :component="isDarkMode ? SunIcon : MoonIcon" />
           </template>
           {{ isDarkMode ? '明亮' : '夜间' }}
-        </n-button>
+        </n-button> -->
         <n-dropdown trigger="click" :options="options" @select="onSort">
-          <n-button size="small">排序</n-button>
+          <n-button size="small"
+            ><template #icon> <n-icon :component="ArrowSortDownLines24Regular" /> </template
+            >排序</n-button
+          >
         </n-dropdown>
       </div>
     </header>
@@ -96,13 +98,13 @@
         <div class="grid-view">
           <responsive-virtual-grid
             ref="virtualGridRef"
-            :items="filteredFolderList"
+            :items="grid.filterRows"
             key-field="fullPath"
             :overscan="2"
             :min-item-width="160"
             :max-item-width="240"
             :aspect-ratio="0.75"
-            :gap="24"
+            :gap="1"
           >
             <template #default="{ item }">
               <comic-card
@@ -125,13 +127,6 @@
         </template>
       </n-empty>
     </div>
-
-    <!-- 性能监控 -->
-    <performance-monitor
-      v-if="showPerformanceMonitor"
-      :stats="performanceStats"
-      :enabled="showPerformanceMonitor"
-    />
   </div>
 </template>
 
@@ -139,9 +134,9 @@
 import type { FolderInfo } from '@/typings/file'
 import comicCard from '@renderer/components/comic-card.vue'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
-import PerformanceMonitor from '@renderer/components/performance-monitor.vue'
 import { useSettingStore } from '@renderer/plugins/store'
-import { Bookmark as BookmarkIcon } from '@vicons/ionicons5'
+import { Bookmark as BookmarkIcon, Search as searchIcon } from '@vicons/ionicons5'
+import { ArrowSortDownLines24Regular } from '@vicons/fluent'
 import { NButton, NIcon } from 'naive-ui'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import { computed, reactive, onActivated, onDeactivated } from 'vue'
@@ -156,9 +151,7 @@ const isSidebarHidden = ref(false)
 
 // 性能优化状态
 const isLoading = ref(false)
-const isSearching = ref(false)
 const virtualGridRef = ref()
-const showPerformanceMonitor = ref(false)
 const resourcePath = computed(() => settingStore.setting.resourcePath)
 
 // keep-alive 数据缓存状态
@@ -166,19 +159,6 @@ const dataCache = reactive({
   currentPath: '',
   isDataLoaded: false,
   lastLoadTime: 0
-})
-
-// 性能统计
-const performanceStats = computed(() => {
-  if (virtualGridRef.value?.getStats) {
-    return virtualGridRef.value.getStats()
-  }
-  return {
-    renderedItems: 0,
-    totalItems: filteredFolderList.value.length,
-    scrollTop: 0,
-    visibleRange: { start: 0, end: 0 }
-  }
 })
 
 const options = [
@@ -191,38 +171,6 @@ const options = [
 const tree = reactive({ data: [], currentNode: {}, currentKey: '' })
 const grid = reactive({ rows: [], filterRows: [] })
 const search = reactive({ keyword: '', sort: 'name_asc' })
-
-// 优化后的过滤和排序逻辑
-const filteredFolderList = computed(() => {
-  if (isSearching.value) {
-    return grid.filterRows
-  }
-
-  let list = [...grid.rows] // 浅拷贝避免修改原数组
-
-  // 搜索过滤
-  if (search.keyword) {
-    const searchTerm = search.keyword.toLowerCase()
-    list = list.filter((folder) => folder.name.toLowerCase().includes(searchTerm))
-  }
-
-  // 排序 - 使用更高效的排序算法
-  const sortFunctions = {
-    name_asc: (a: FolderInfo, b: FolderInfo) => a.name.localeCompare(b.name),
-    name_desc: (a: FolderInfo, b: FolderInfo) => b.name.localeCompare(a.name),
-    createTime_asc: (a: FolderInfo, b: FolderInfo) =>
-      a.createdTime.getTime() - b.createdTime.getTime(),
-    createTime_desc: (a: FolderInfo, b: FolderInfo) =>
-      b.createdTime.getTime() - a.createdTime.getTime()
-  }
-
-  const sortFn = sortFunctions[search.sort as keyof typeof sortFunctions]
-  if (sortFn) {
-    list.sort(sortFn)
-  }
-
-  return list
-})
 
 // 方法
 const toggleDarkMode = () => {
@@ -267,7 +215,6 @@ const fetchTreeData = async () => {
   try {
     // 并行加载树形数据和平铺数据
     const treeData = await window.book.getFolderTree(resourcePath.value)
-    console.log(treeData)
     tree.data = [
       {
         name: '我的收藏',
@@ -290,7 +237,7 @@ function onSort(key: string | number) {
 }
 // 防抖搜索函数
 const onQuery = debounce(async (keyword?: string) => {
-  isSearching.value = true
+  isLoading.value = true
 
   try {
     let list = [...grid.rows]
@@ -318,7 +265,7 @@ const onQuery = debounce(async (keyword?: string) => {
   } catch (error) {
     console.error('搜索失败:', error)
   } finally {
-    isSearching.value = false
+    isLoading.value = false
   }
 }, 300) // 300ms 防抖延迟
 
@@ -352,7 +299,7 @@ const getFavoriteBooks = async () => {
       }
     }
 
-    grid.rows = favoriteBooks
+    grid.filterRows = grid.rows = favoriteBooks
 
     // 更新缓存状态
     dataCache.currentPath = favoritesPath
@@ -407,7 +354,7 @@ const onTreeNodeClick = async (folderPath: string) => {
   tree.currentKey = folderPath
 
   try {
-    grid.rows = await window.book.getFolderList(folderPath)
+    grid.filterRows = grid.rows = await window.book.getFolderList(folderPath)
 
     // 更新缓存状态
     dataCache.currentPath = folderPath
@@ -455,33 +402,18 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
     ]
   })
 }
-// 切换性能监控
-const togglePerformanceMonitor = () => {
-  showPerformanceMonitor.value = !showPerformanceMonitor.value
-}
-
-// 键盘快捷键处理
-const handleKeydown = (event: KeyboardEvent) => {
-  // Ctrl/Cmd + Shift + P 切换性能监控
-  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'P') {
-    event.preventDefault()
-    togglePerformanceMonitor()
-  }
-}
 
 // 页面挂载时加载数据
 onMounted(async () => {
-  console.log('onMounted')
   await settingStore.updateSetting()
   fetchTreeData()
-
-  // 添加键盘事件监听
-  document.addEventListener('keydown', handleKeydown)
 })
 
 // keep-alive 组件激活时
-onActivated(() => {
-  console.log('onActivated - 组件被激活')
+onActivated(async () => {
+  if (!tree.data?.length) {
+    fetchTreeData()
+  }
   // 恢复虚拟网格的滚动位置
   if (virtualGridRef.value) {
     virtualGridRef.value.restoreScrollPosition()
@@ -490,17 +422,13 @@ onActivated(() => {
 
 // keep-alive 组件失活时
 onDeactivated(() => {
-  console.log('onDeactivated - 组件被缓存')
   // 保存虚拟网格的滚动位置
   if (virtualGridRef.value) {
     virtualGridRef.value.saveScrollPosition()
   }
 })
 
-onUnmounted(() => {
-  // 清理键盘事件监听
-  document.removeEventListener('keydown', handleKeydown)
-})
+onUnmounted(() => {})
 </script>
 
 <style lang="scss">

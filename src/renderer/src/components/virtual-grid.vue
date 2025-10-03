@@ -114,7 +114,8 @@ const contentStyle = computed(() => ({
 // 网格样式
 const gridStyle = computed(() => ({
   display: 'grid',
-  gridTemplateColumns: `repeat(auto-fill, minmax(200px, 1fr))`,
+  gridTemplateColumns: `repeat(${columnsCount.value}, ${props.itemWidth}px)`,
+  gridAutoRows: `${props.itemHeight}px`,
   gap: `${props.gap}px`,
   justifyContent: 'start'
 }))
