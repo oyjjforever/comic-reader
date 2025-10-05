@@ -1,6 +1,8 @@
 import sqlite3 from 'sqlite3'
 import { Database, open } from 'sqlite'
 import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 let db: Database<sqlite3.Database, sqlite3.Statement> | null = null
 
@@ -10,14 +12,21 @@ let db: Database<sqlite3.Database, sqlite3.Statement> | null = null
  */
 const openDatabase = (): Promise<Database<sqlite3.Database, sqlite3.Statement>> => {
     return new Promise(async (resolve, reject) => {
-        // 创建data目录
-        if (!fs.existsSync('./data')) {
-            fs.mkdirSync('./data')
+        // 计算用户数据目录，并确保存在（优先使用 Windows 的 %APPDATA%/漫画阅读器；其它平台使用 ~/<.comic-reader>）
+        const productName = '漫画阅读器'
+        const appDataDir =
+            process.platform === 'win32'
+                ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), productName)
+                : path.join(os.homedir(), '.comic-reader')
+
+        if (!fs.existsSync(appDataDir)) {
+            fs.mkdirSync(appDataDir, { recursive: true })
         }
+        const dbPath = path.join(appDataDir, 'database.db')
 
         try {
             db = await open({
-                filename: './data/database.db',
+                filename: dbPath,
                 driver: sqlite3.Database
             })
 
