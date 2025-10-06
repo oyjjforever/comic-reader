@@ -160,7 +160,7 @@ app.whenReady().then(() => {
 
   ipcMain.on('download:start', async (_e, payload) => {
     try {
-      const { url, fileName, savePath, autoExtract = true } = payload || {}
+      const { url, fileName, savePath, autoExtract = true, headers = {} } = payload || {}
       if (!url || !fileName || !savePath) {
         mainWindow?.webContents.send('download:failed', { state: 'error', message: '缺少必要参数' })
         return
@@ -174,6 +174,12 @@ app.whenReady().then(() => {
       if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true })
 
       const request = net.request(url)
+      // 设置可选请求头（例如 Referer）
+      if (headers && typeof headers === 'object') {
+        for (const [k, v] of Object.entries(headers)) {
+          if (typeof v === 'string') request.setHeader(k, v)
+        }
+      }
       request.on('response', (response: any) => {
         const fileStream = fs.createWriteStream(fullPath)
         const lenHeader = response.headers?.['content-length']
@@ -215,10 +221,10 @@ app.whenReady().then(() => {
                 extracted: false
               })
             }
-          } catch (extractErr) {
+          } catch (extractErr: any) {
             mainWindow?.webContents.send('download:failed', {
               state: 'error',
-              message: `下载完成但解压失败: ${extractErr.message}`
+              message: `下载完成但解压失败: ${extractErr?.message || String(extractErr)}`
             })
           }
         })
@@ -244,8 +250,8 @@ app.whenReady().then(() => {
       })
 
       request.end()
-    } catch (err) {
-      mainWindow?.webContents.send('download:failed', { state: 'error', message: `未知错误: ${err.message}` })
+    } catch (err: any) {
+      mainWindow?.webContents.send('download:failed', { state: 'error', message: `未知错误: ${err?.message || String(err)}` })
     }
   })
   // 在 persist:thirdparty 分区拦截下载

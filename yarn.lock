@@ -584,6 +584,11 @@
   dependencies:
     "@types/node" "*"
 
+"@vicons/antd@^0.13.0":
+  version "0.13.0"
+  resolved "https://registry.npmmirror.com/@vicons/antd/-/antd-0.13.0.tgz"
+  integrity sha512-yrUGoUSz2BbGupk9ghQOahc04n5H3MwUDM9pVPsLh9U1uqB47oRWZvYRiZaT1JKPqgTgSE6BXcVw4i9MOF4M+g==
+
 "@vicons/fluent@^0.12.0":
   version "0.12.0"
   resolved "https://registry.npmjs.org/@vicons/fluent/-/fluent-0.12.0.tgz"

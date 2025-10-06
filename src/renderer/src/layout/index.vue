@@ -18,9 +18,14 @@
           :class="{ active: currentRoute === item.name }"
           @click="handleMenuClick(index, item.name)"
         >
-          <n-icon size="25" :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'">
+          <n-icon
+            v-if="item.icon"
+            size="25"
+            :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'"
+          >
             <component :is="item.icon" />
           </n-icon>
+          <img v-if="item.image" :src="item.image" width="30" height="30" />
         </div>
       </div>
 
@@ -43,15 +48,41 @@
     <!-- 右侧内容区域 -->
     <div class="main-content-wrapper">
       <div class="main-content-header">
-        <div class="wb-min" @click="onMin" />
-        <div v-if="isScreenFull" class="wb-unmax" @click="onUnMax" />
-        <div v-else class="wb-max" @click="onMax" />
-        <div class="wb-close" @click="onClose" />
+        <div class="main-content-header__left">
+          <template v-if="route.path.includes('site')">
+            <div class="wb-site" @click="onBack">
+              <n-icon :component="CaretLeft16Filled" size="16" />
+            </div>
+            <div class="wb-site" @click="onForward">
+              <n-icon :component="CaretRight16Filled" size="16" />
+            </div>
+            <div class="wb-site" @click="onRefresh">
+              <n-icon :component="ArrowClockwise16Filled" size="12" />
+            </div>
+            <div class="wb-site" @click="onDownload">
+              <n-icon :component="ArrowDownload16Filled" size="12" />
+            </div>
+          </template>
+        </div>
+        <div class="main-content-header__right">
+          <div class="wb-min" @click="onMin">
+            <n-icon :component="MinusOutlined" size="12" />
+          </div>
+          <div v-if="isScreenFull" class="wb-unmax" @click="onUnMax">
+            <n-icon :component="ArrowMinimize16Filled" size="12" />
+          </div>
+          <div v-else class="wb-max" @click="onMax">
+            <n-icon :component="ArrowMaximize16Filled" size="12" />
+          </div>
+          <div class="wb-close" @click="onClose">
+            <n-icon :component="CloseOutlined" size="12" />
+          </div>
+        </div>
       </div>
       <div class="main-content">
         <router-view v-slot="{ Component }">
           <keep-alive include="book">
-            <component :is="Component" />
+            <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>
       </div>
@@ -63,24 +94,51 @@
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
-import { VideoClipMultiple24Regular, Book24Regular, AirplaneTakeOff16Regular } from '@vicons/fluent'
+import {
+  VideoClipMultiple24Regular,
+  Book24Regular,
+  AirplaneTakeOff16Regular,
+  ArrowMaximize16Filled,
+  ArrowMinimize16Filled,
+  CaretLeft16Filled,
+  CaretRight16Filled,
+  ArrowClockwise16Filled,
+  ArrowDownload16Filled
+} from '@vicons/fluent'
+import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
+const childComponentRef = ref()
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  { icon: AirplaneTakeOff16Regular, name: 'site' }
+  { image: '/src/assets/jmtt.jpg', name: 'jmtt' },
+  { image: '/src/assets/pixiv.jpg', name: 'pixiv' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
 
 // 事件处理
-const handleMenuClick = (index: number, name: string) => {
+function handleMenuClick(index: number, name: string) {
   router.push({ name })
 }
-
+function onDownload() {
+  childComponentRef.value?.download()
+}
+function onBack() {
+  const webview = document.querySelector('webview')
+  webview?.goBack()
+}
+function onForward() {
+  const webview = document.querySelector('webview')
+  webview?.goForward()
+}
+function onRefresh() {
+  const webview = document.querySelector('webview')
+  webview?.reload()
+}
 function onMin() {
   window.electron.ipcRenderer.invoke('window-min')
 }
@@ -99,13 +157,6 @@ const isScreenFull = ref(false)
 onMounted(() => {
   // 渲染进程加载完成后，主动发起请求获取窗口大小
   isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
-  // 主进程ready时发送的通信，渲染进程无法获取到，需要上面主动发送
-  // window.electron.ipcRenderer.on('main-window-max', (event) => {
-  //   isScreenFull.value = true
-  // })
-  // window.electron.ipcRenderer.on('main-window-unmax', (event) => {
-  //   isScreenFull.value = false
-  // })
 })
 </script>
 
@@ -248,53 +299,57 @@ $background-color: #322f3b;
   border-radius: 0 24px 24px 0;
   // overflow: hidden;
   position: relative;
-  padding: 30px 6px 6px 0px;
-
+  padding: 0px 6px 6px 0px;
+  overflow: hidden;
   .main-content-header {
+    width: 100%;
+    height: 30px;
+    padding-left: 20px;
+    padding-right: 4px;
     display: flex;
+    flex-direction: row;
+    justify-content: space-between;
     align-items: center;
-    margin-right: 13px;
-    gap: 4px;
-    float: right;
-    position: absolute;
-    top: 2px;
-    right: 0px;
+    -webkit-app-region: drag;
     [class*='wb-'] {
-      width: 26px;
-      height: 26px;
+      width: 16px;
+      height: 16px;
       cursor: pointer;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: cover;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       z-index: 999999;
+      border-radius: 10px;
+      -webkit-app-region: no-drag !important;
+      i {
+        opacity: 0;
+        color: #1f1f1f;
+        transition-duration: 0.3s;
+      }
+    }
+    .wb-site {
+      background: #ccc;
     }
     .wb-min {
-      background-image: url('@renderer/assets/win-btn-min-normal.svg');
+      background: #ff9205;
     }
     .wb-unmax,
     .wb-max {
-      background-image: url('@renderer/assets/win-btn-max-normal.svg');
+      background: #57dc04;
     }
     .wb-close {
-      background-image: url('@renderer/assets/win-btn-close-normal.svg');
+      background: #f20808;
     }
-
-    &:hover {
-      .wb-min {
-        background-image: url('@renderer/assets/win-btn-min-hover.svg');
-        transition: background-image 0.3s ease;
-      }
-      .wb-max {
-        background-image: url('@renderer/assets/win-btn-max-hover.svg');
-        transition: background-image 0.3s ease;
-      }
-      .wb-unmax {
-        background-image: url('@renderer/assets/win-btn-max-full.svg');
-        transition: background-image 0.3s ease;
-      }
-      .wb-close {
-        background-image: url('@renderer/assets/win-btn-close-hover.svg');
-        transition: background-image 0.3s ease;
+    &__left,
+    &__right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      &:hover {
+        i {
+          opacity: 1;
+          transition-duration: 0.3s;
+        }
       }
     }
   }
@@ -306,15 +361,6 @@ $background-color: #322f3b;
     background: #fff;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100'  fill='white'/%3E%3C/svg%3E");
     mask-size: 100%;
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: calc(100% - 100px);
-      height: 30px;
-      -webkit-app-region: drag;
-    }
   }
 }
 

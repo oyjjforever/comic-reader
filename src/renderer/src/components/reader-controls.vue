@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-controls" @mousemove="onMouseMove">
+  <div class="reader-controls" @mousemove="onMouseMove" @wheel.prevent="onWheel">
     <!-- 顶部控制栏 -->
     <div
       class="top-controls"
@@ -170,7 +170,7 @@ export default defineComponent({
     showKeyboardHints: { type: Boolean, default: true },
     keyboardHints: {
       type: Array as () => string[],
-      default: () => ['← → 切换', '滚轮缩放', 'ESC 退出']
+      default: () => ['滚轮翻页', 'ESC 退出']
     }
   },
   emits: [
@@ -218,6 +218,18 @@ export default defineComponent({
 
     const onMouseMove = () => {
       showControlsTemporarily()
+    }
+    const onWheel = (ev: WheelEvent) => {
+      // 显示控件并根据滚轮方向翻页
+      showControlsTemporarily()
+      const dy = ev.deltaY
+      if (dy === 0) return
+      if (dy > 0) {
+        if (!disabledNextComputed.value) emit('next')
+      } else {
+        if (!disabledPrevComputed.value) emit('prev')
+      }
+      ev.preventDefault()
     }
     const onControlsEnter = () => {
       isHoveringControls.value = true
@@ -291,6 +303,7 @@ export default defineComponent({
     return {
       effectiveShowControls,
       onMouseMove,
+      onWheel,
       disabledPrevComputed,
       disabledNextComputed,
       progressInputRef,

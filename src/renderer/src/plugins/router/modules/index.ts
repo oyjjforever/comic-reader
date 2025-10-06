@@ -34,7 +34,22 @@ export default [
             {
                 path: '/site',
                 name: "site",
-                component: () => import('@renderer/views/site/index.vue'),
+                children: [
+                    {
+                        path: 'jmtt',
+                        name: "jmtt",
+                        component: () => import('@renderer/views/site/jmtt.vue'),
+                        meta: {
+                            title: "jmtt"
+                        }
+                    }, {
+                        path: 'pixiv',
+                        name: "pixiv",
+                        component: () => import('@renderer/views/site/pixiv.vue'),
+                        meta: {
+                            title: "pixiv"
+                        }
+                    },]
             }
         ],
     },
