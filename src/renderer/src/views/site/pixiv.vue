@@ -17,7 +17,18 @@ const { ipcRenderer } = (window as any).electron || require('electron')
 
 const url = ref('https://www.pixiv.net/')
 const webviewRef = ref<any>(null)
-
+// 解析作者ID：从 https://www.pixiv.net/users/113801960/illustrations 中提取 113801960
+function extractUserId(currentUrl: string): string | null {
+  try {
+    const u = new URL(currentUrl)
+    const parts = u.pathname.split('/').filter(Boolean)
+    const idx = parts.findIndex((p) => p === 'users')
+    if (idx !== -1 && parts[idx + 1]) return parts[idx + 1]
+    return null
+  } catch {
+    return null
+  }
+}
 // 解析作品ID：从 https://www.pixiv.net/artworks/135869669#1 中提取 135869669
 function extractArtworkId(currentUrl: string): string | null {
   try {
@@ -31,27 +42,78 @@ function extractArtworkId(currentUrl: string): string | null {
   }
 }
 let msgReactive = null
+let artworks = { current: 1, total: 1 }
 // 简单进度提示（当前页/总页）
 function showPageProgress(current: number, total: number) {
-  msgReactive.content = `下载进度：${current} / ${total}`
+  msgReactive.content = `下载进度：第${artworks.current}/${artworks.total}篇：${current} / ${total}`
 }
-
-// 主下载方法：按需调用，无需参数，从 webview 当前页面解析
 async function download() {
-  try {
-    const wv = webviewRef.value
-    if (!wv) {
-      message.error('webview 未准备好')
+  const wv = webviewRef.value
+  if (!wv) {
+    message.error('webview 未准备好')
+    return
+  }
+  const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+  if (currentUrl.includes('illustrations')) {
+    const userId = extractUserId(currentUrl)
+    const data = await wv.executeJavaScript(`(async () => {
+      try {
+        const res = await fetch('https://www.pixiv.net/ajax/user/${userId}/profile/all?sensitiveFilterMode=userSetting&lang=zh', { credentials: 'include' });
+        if (!res.ok) return { error: true, message: 'HTTP ' + res.status, body: [] };
+        return await res.json();
+      } catch (e) {
+        return { error: true, message: String(e), body: [] };
+      }
+    })()`)
+    if (data.error) {
+      message.error(`接口返回异常：${data?.message || '无内容'}`)
       return
     }
-    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+    const illusts = Object.keys(data.body.illusts).reverse()
+    artworks.total = illusts.length
+    msgReactive = message.create(`共${illusts.length}篇作品，开始下载...`, {
+      type: 'loading',
+      duration: 0
+    })
+    for (let i = 0; i < illusts.length; i++) {
+      const artworkId = illusts[i]
+      artworks.current = i + 1
+      const artworkInfoResponse = await wv.executeJavaScript(`(async () => {
+      try {
+        const res = await fetch('https://www.pixiv.net/ajax/user/113801960/profile/illusts?ids%5B%5D=${artworkId}&work_category=illust&is_first_page=1&sensitiveFilterMode=userSetting&lang=zh', { credentials: 'include' });
+        if (!res.ok) return { error: true, message: 'HTTP ' + res.status, body: [] };
+        return await res.json();
+      } catch (e) {
+        return { error: true, message: String(e), body: [] };
+      }
+    })()`)
+      const artworkInfo = artworkInfoResponse.body.works[artworkId]
+      // 只下载图片
+      if (artworkInfo.illustType === 0) {
+        setTimeout(async () => {
+          await downloadArtWork(artworkId, artworkInfo.userName, artworkInfo.title)
+        }, Math.random() * 1000)
+      }
+    }
+  } else if (currentUrl.includes('artworks')) {
     const artworkId = extractArtworkId(currentUrl)
+    const author = await wv.executeJavaScript('document.querySelector("h2 > div > div").innerText')
+    let artworkName = await wv.executeJavaScript('document.querySelector("h1").innerText')
+    msgReactive = message.create(`共1篇作品，开始下载...`, {
+      type: 'loading',
+      duration: 0
+    })
+    await downloadArtWork(artworkId, author, artworkName)
+  }
+}
+// 主下载方法：按需调用，无需参数，从 webview 当前页面解析
+async function downloadArtWork(artworkId: string, author: string, artworkName: string) {
+  try {
     if (!artworkId) {
-      message.error('未从当前地址解析到作品ID')
+      message.error('未解析到作品ID')
       return
     }
 
-    const api = `https://www.pixiv.net/ajax/illust/${artworkId}/pages?lang=zh`
     const data = await webviewRef.value.executeJavaScript(`(async () => {
       try {
         const res = await fetch('https://www.pixiv.net/ajax/illust/${artworkId}/pages?lang=zh', { credentials: 'include' });
@@ -62,7 +124,7 @@ async function download() {
       }
     })()`)
     if (data.error || !Array.isArray(data.body)) {
-      message.error(`接口返回异常：\${data?.message || '无内容'}`)
+      message.error(`接口返回异常：${data?.message || '无内容'}`)
       return
     }
     const pages: Array<{ urls: { original: string } }> = data.body
@@ -71,21 +133,14 @@ async function download() {
       message.warning('无可下载的页')
       return
     }
-    msgReactive = message.create(`开始下载，共 ${total} 页`, {
-      type: 'loading',
-      duration: 0
-    })
     let current = 0
     const onCompleted = () => {
       // 单个文件完成后更新页计数并提示
       current += 1
       showPageProgress(current, total)
-      if (current === total) {
-        msgReactive.type = 'success'
-        msgReactive.content = '全部下载成功'
-        setTimeout(() => {
-          msgReactive?.destroy()
-        }, 1000)
+      if (current === total && artworks.current === artworks.total) {
+        msgReactive?.destroy()
+        message.success('全部下载成功')
         // 清理监听
         ipcRenderer.removeListener('download:completed', onCompleted)
         ipcRenderer.removeListener('download:failed', onFailed)
@@ -93,13 +148,10 @@ async function download() {
     }
     const onFailed = (_e: any, info: any) => {
       current += 1
-      msgReactive.type = 'error'
-      msgReactive.content = `下载失败：${info?.message || '未知错误'}`
+      message.error(`下载失败：${info?.message || '未知错误'}`)
       showPageProgress(current, total)
-      if (current === total) {
-        setTimeout(() => {
-          msgReactive?.destroy()
-        }, 1000)
+      if (current === total && artworks.current === artworks.total) {
+        msgReactive?.destroy()
         ipcRenderer.removeListener('download:completed', onCompleted)
         ipcRenderer.removeListener('download:failed', onFailed)
       }
@@ -108,9 +160,6 @@ async function download() {
     ipcRenderer.on('download:completed', onCompleted)
     ipcRenderer.on('download:failed', onFailed)
 
-    // 保存路径写死为 test（主进程会确保目录存在）
-    const webview = document.querySelector('webview')
-    const name = await webview.executeJavaScript('document.querySelector("h1").innerText')
     // 判断是否存在默认路径
     let defaultDownloadPath = settingStore.setting?.defaultDownloadPath
     if (!defaultDownloadPath) {
@@ -131,15 +180,15 @@ async function download() {
         onFailed(null, { message: `第 ${idx} 页无 original 链接` })
         return
       }
-      // 生成文件名：{artworkId}_p{index}.{ext}
+      // 生成文件名：p{index}.{ext}
       const ext = originalUrl.split('.').pop() || 'jpg'
-      const fileName = `${artworkId}_p${idx}.${ext}`
+      const fileName = `p${idx}.${ext}`
 
       // 通过主进程下载；主进程会将数据流保存为文件
       ipcRenderer.send('download:start', {
         url: originalUrl,
         fileName,
-        savePath: `${defaultDownloadPath}/${name}`,
+        savePath: `${defaultDownloadPath}/${author || '未分类'}/${artworkName}`,
         autoExtract: false,
         headers: {
           Referer: 'https://www.pixiv.net/'

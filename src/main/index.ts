@@ -5,6 +5,18 @@ import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
 
+/**
+ * 目录存在性缓存，避免重复 IO 检查
+ */
+const ensuredDirs = new Set<string>()
+function ensureDir(dirPath: string) {
+  if (ensuredDirs.has(dirPath)) return
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+  ensuredDirs.add(dirPath)
+}
+
 let mainWindow;
 function createWindow(): void {
   // Create the browser window.
@@ -171,7 +183,7 @@ app.whenReady().then(() => {
       const fullPath = path.join(savePath, safeName)
 
       // 确保目录存在
-      if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true })
+      ensureDir(savePath)
 
       const request = net.request(url)
       // 设置可选请求头（例如 Referer）
@@ -202,7 +214,7 @@ app.whenReady().then(() => {
 
               // 创建解压目录
               const extractDir = path.join(savePath, path.basename(fullPath, ext))
-              if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true })
+              ensureDir(extractDir)
 
               // 解压文件
               await extractFile(fullPath, extractDir)
@@ -246,7 +258,7 @@ app.whenReady().then(() => {
       })
 
       request.on('error', (err: any) => {
-        mainWindow?.webContents.send('download:failed', { state: 'error', message: `请求失败: ${err.message}` })
+        mainWindow?.webContents.send('download:failed', { state: 'error', message: `${url} 请求失败: ${err.message}` })
       })
 
       request.end()
