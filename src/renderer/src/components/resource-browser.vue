@@ -118,7 +118,7 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
     { label: '创建时间降序', key: 'createTime_desc' }
   ],
   minItemWidth: 160,
-  maxItemWidth: 240,
+  maxItemWidth: 250,
   aspectRatio: 0.75,
   gridGap: 1
 })
@@ -184,7 +184,7 @@ const onQuery = debounce(async (keyword?: string) => {
   } finally {
     isLoading.value = false
   }
-},300)
+}, 300)
 
 const refresh = async () => {
   if (!props.resourcePath) return

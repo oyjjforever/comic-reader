@@ -242,7 +242,7 @@ onUnmounted(() => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   position: relative;
-  width: 200px;
+  width: 94%;
   aspect-ratio: 3/4;
   display: flex;
   flex-direction: column;

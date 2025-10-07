@@ -110,19 +110,24 @@ import {
   WindowConsole20Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
+import jmttImg from '@renderer/assets/jmtt.jpg'
+import pixivImg from '@renderer/assets/pixiv.jpg'
+import twitterImg from '@renderer/assets/twitter.jpg'
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
 const childComponentRef = ref()
-const canDownload = computed(() => !!(childComponentRef.value && (childComponentRef.value as any).canDownload))
+const canDownload = computed(
+  () => !!(childComponentRef.value && (childComponentRef.value as any).canDownload)
+)
 const isDev = import.meta.env.DEV
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  { image: '/src/assets/jmtt.jpg', name: 'jmtt' },
-  { image: '/src/assets/pixiv.jpg', name: 'pixiv' },
-  { image: '/src/assets/twitter.jpg', name: 'twitter' }
+  // { image: jmttImg, name: 'jmtt' },
+  { image: pixivImg, name: 'pixiv' },
+  { image: twitterImg, name: 'twitter' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
@@ -316,7 +321,7 @@ $background-color: #322f3b;
     width: 100%;
     height: 30px;
     padding-left: 20px;
-    padding-right: 4px;
+    padding-right: 10px;
     display: flex;
     flex-direction: row;
     justify-content: space-between;

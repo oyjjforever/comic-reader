@@ -33,7 +33,7 @@ function getLogDirByDate(d = new Date()) {
   return path.join(getLogBaseDir(), dateStr(d))
 }
 // 配置按日期输出日志到 YYYY-MM-DD/main.log
-;(log.transports.file as any).resolvePath = (variables: any) => {
+(log.transports.file as any).resolvePath = (variables: any) => {
   const dt = variables?.date instanceof Date ? variables.date : new Date()
   const dir = getLogDirByDate(dt)
   ensureDir(dir)
@@ -73,8 +73,10 @@ let mainWindow;
 function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 1290,
+    width: 1280,
     height: 720,
+    minWidth: 1024,
+    minHeight: 720,
     show: false,
     autoHideMenuBar: true,
     frame: false,
@@ -155,7 +157,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("window-unmax", () => {
     mainWindow.setFullScreen(false)
-    mainWindow.setSize(1290, 720);
+    mainWindow.setSize(1280, 720);
     mainWindow.center();
     // mainWindow.webContents.send("main-window-unmax");
   });

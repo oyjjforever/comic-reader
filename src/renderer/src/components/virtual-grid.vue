@@ -321,7 +321,9 @@ defineExpose({
 }
 
 .virtual-grid-item {
-  /* 项目样式由父组件通过slot控制 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 优化滚动性能 */
