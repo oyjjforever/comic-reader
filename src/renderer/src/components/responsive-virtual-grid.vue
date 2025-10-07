@@ -44,17 +44,17 @@ const screenWidth = ref(window.innerWidth)
 // 响应式计算项目尺寸
 const itemWidth = computed(() => {
   // 根据屏幕宽度计算合适的项目宽度
-  if (screenWidth.value <= 640) {
+  if (screenWidth.value < 640) {
     return Math.max(props.minItemWidth, 140)
-  } else if (screenWidth.value <= 768) {
+  } else if (screenWidth.value < 768) {
     return Math.max(props.minItemWidth, 160)
-  } else if (screenWidth.value <= 1024) {
+  } else if (screenWidth.value < 1024) {
     return Math.max(props.minItemWidth, 180)
-  } else if (screenWidth.value <= 1280) {
+  } else if (screenWidth.value < 1280) {
     return Math.max(props.minItemWidth, 200)
-  } else if (screenWidth.value <= 1480) {
+  } else if (screenWidth.value < 1480) {
     return Math.max(props.minItemWidth, 220)
-  } else if (screenWidth.value <= 1680) {
+  } else if (screenWidth.value < 1680) {
     return Math.max(props.minItemWidth, 240)
   } else {
     return Math.min(props.maxItemWidth, 250)
@@ -67,9 +67,9 @@ const itemHeight = computed(() => {
 
 const gap = computed(() => {
   // 在小屏幕上减少间距
-  if (screenWidth.value <= 640) {
+  if (screenWidth.value < 640) {
     return Math.max(12, props.gap - 12)
-  } else if (screenWidth.value <= 768) {
+  } else if (screenWidth.value < 768) {
     return Math.max(16, props.gap - 8)
   }
   return props.gap

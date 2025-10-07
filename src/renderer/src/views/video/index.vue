@@ -74,13 +74,13 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
           window.systemInterface.openExplorer(folder.fullPath)
         }
       },
-      {
-        label: '解压',
-        onClick: () => {
-          window.systemInterface.unzip(folder.fullPath)
-        }
-      },
-      { label: 'A submenu', children: [{ label: 'Item1' }, { label: 'Item2' }, { label: 'Item3' }] }
+      // {
+      //   label: '解压',
+      //   onClick: () => {
+      //     window.systemInterface.unzip(folder.fullPath)
+      //   }
+      // },
+      // { label: 'A submenu', children: [{ label: 'Item1' }, { label: 'Item2' }, { label: 'Item3' }] }
     ]
   })
 }

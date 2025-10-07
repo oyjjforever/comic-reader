@@ -233,143 +233,134 @@ app.whenReady().then(() => {
   }
 
   ipcMain.handle('download:start', async (_e, payload) => {
-    return new Promise((resolve, reject) => {
-      // 生成本次下载的唯一ID，便于日志串联
-      const downloadId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      let isSettled = false
-      const safeReject = (reason: any) => {
-        if (!isSettled) {
-          isSettled = true
-          reject(reason)
-        }
-      }
-      const safeResolve = (value: any) => {
-        if (!isSettled) {
-          isSettled = true
-          resolve(value)
-        }
-      }
-      try {
-        const { url, fileName, savePath, autoExtract = true, headers = {} } = payload || {}
-        if (!url || !fileName || !savePath) {
-          log.warn('download:invalid-params', { downloadId, url, fileName, savePath })
+    // 生成本次下载的唯一ID，便于日志串联
+    const downloadId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const maxRetries = 3
+    const baseDelayMs = 1000
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-          return safeReject(new Error('缺少必要参数'))
-        }
-        log.info('download:start', { downloadId, url, fileName, savePath, autoExtract, headers: Object.keys(headers || {}) })
+    const { url, fileName, savePath, autoExtract = true, headers = {} } = payload || {}
+    if (!url || !fileName || !savePath) {
+      log.warn('download:invalid-params', { downloadId, url, fileName, savePath })
+      throw new Error('缺少必要参数')
+    }
+    log.info('download:start', { downloadId, url, fileName, savePath, autoExtract, headers: Object.keys(headers || {}) })
 
-        // 清理文件名，拼接保存路径
-        const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_')
-        const fullPath = path.join(savePath, safeName)
-        log.info('download:path-prepared', { downloadId, fullPath })
+    // 清理文件名，拼接保存路径
+    const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_')
+    const fullPath = path.join(savePath, safeName)
+    log.info('download:path-prepared', { downloadId, fullPath })
+    ensureDir(savePath)
 
-        // 确保目录存在
-        ensureDir(savePath)
-
-        const request = net.request(url)
-        // 设置可选请求头（例如 Referer）
-        if (headers && typeof headers === 'object') {
-          for (const [k, v] of Object.entries(headers)) {
-            if (typeof v === 'string') request.setHeader(k, v)
-          }
-        }
-        request.on('response', (response: any) => {
-          const fileStream = fs.createWriteStream(fullPath)
-          const lenHeader = response.headers?.['content-length']
-          const total = Array.isArray(lenHeader) ? parseInt(lenHeader[0] || '0', 10) : parseInt(lenHeader || '0', 10)
-          let received = 0
-
-          // 添加文件流错误处理
-          fileStream.on('error', (err) => {
-            log.error('download:file-error', { downloadId, error: err?.message })
-
-            safeReject(new Error(`文件写入失败: ${err.message}`))
-          })
-
-          fileStream.on('finish', async () => {
-            try {
-              // 下载完成，检查是否需要解压
-              const ext = path.extname(fullPath).toLowerCase()
-              const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
-              
-              if (autoExtract && supportedExts.includes(ext)) {
-                log.info('download:extract:start', { downloadId, archive: fullPath, ext })
-
-                // 创建解压目录
-                const extractDir = path.join(savePath, path.basename(fullPath, ext))
-                ensureDir(extractDir)
-
-                // 解压文件
-                await extractFile(fullPath, extractDir)
-                log.info('download:extract:success', { downloadId, extractDir })
-
-                // 解压成功后删除原始压缩文件
-                fs.unlinkSync(fullPath)
-                log.info('download:archive-removed', { downloadId, archive: fullPath })
-
-                const result = {
-                  savePath: extractDir,
-                  extractedPath: extractDir,
-                  extracted: true
-                }
-
-                log.info('download:completed', { downloadId, path: extractDir, extracted: true })
-                safeResolve(result)
-              } else {
-                const result = {
-                  savePath: fullPath,
-                  extracted: false
-                }
-
-                log.info('download:completed', { downloadId, path: fullPath, extracted: false })
-                safeResolve(result)
-              }
-            } catch (extractErr: any) {
-              log.error('download:extract:error', { downloadId, error: extractErr?.message || String(extractErr) })
-
-              safeReject(new Error(`下载完成但解压失败: ${extractErr?.message || String(extractErr)}`))
+    // 单次尝试：返回 Promise
+    const attemptOnce = () => {
+      return new Promise((resolve, reject) => {
+        try {
+          const request = net.request(url)
+          if (headers && typeof headers === 'object') {
+            for (const [k, v] of Object.entries(headers)) {
+              if (typeof v === 'string') request.setHeader(k, v)
             }
+          }
+          request.on('response', (response: any) => {
+            const fileStream = fs.createWriteStream(fullPath)
+            const lenHeader = response.headers?.['content-length']
+            const total = Array.isArray(lenHeader) ? parseInt(lenHeader[0] || '0', 10) : parseInt(lenHeader || '0', 10)
+            let received = 0
+
+            fileStream.on('error', (err) => {
+              log.error('download:file-error', { downloadId, error: err?.message })
+              reject(new Error(`文件写入失败: ${err.message}`))
+            })
+
+            fileStream.on('finish', async () => {
+              try {
+                const ext = path.extname(fullPath).toLowerCase()
+                const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
+
+                if (autoExtract && supportedExts.includes(ext)) {
+                  log.info('download:extract:start', { downloadId, archive: fullPath, ext })
+                  const extractDir = path.join(savePath, path.basename(fullPath, ext))
+                  ensureDir(extractDir)
+                  await extractFile(fullPath, extractDir)
+                  log.info('download:extract:success', { downloadId, extractDir })
+                  fs.unlinkSync(fullPath)
+                  log.info('download:archive-removed', { downloadId, archive: fullPath })
+                  resolve({
+                    savePath: extractDir,
+                    extractedPath: extractDir,
+                    extracted: true
+                  })
+                } else {
+                  resolve({
+                    savePath: fullPath,
+                    extracted: false
+                  })
+                }
+              } catch (extractErr: any) {
+                log.error('download:extract:error', { downloadId, error: extractErr?.message || String(extractErr) })
+                reject(new Error(`下载完成但解压失败: ${extractErr?.message || String(extractErr)}`))
+              }
+            })
+
+            response.on('data', (chunk: Buffer) => {
+              received += chunk.length
+              fileStream.write(chunk)
+            })
+
+            response.on('end', () => {
+              log.info('download:response-end', { downloadId, received, total })
+              fileStream.end()
+            })
+
+            response.on('error', (err: any) => {
+              log.error('download:response-error', { downloadId, error: err?.message })
+              fileStream.destroy()
+              reject(new Error(`响应错误: ${err.message}`))
+            })
           })
 
-          response.on('data', (chunk: Buffer) => {
-            received += chunk.length
-            fileStream.write(chunk)
+          request.on('error', (err: any) => {
+            log.error('download:request-error', { downloadId, error: err?.message })
+            reject(new Error(`${url} 请求失败: ${err.message}`))
           })
 
-          response.on('end', () => {
-            log.info('download:response-end', { downloadId, received, total })
-            fileStream.end()
-          })
+          request.end()
+          log.info('download:request-ended', { downloadId })
+        } catch (err: any) {
+          log.error('download:unhandled-error', { downloadId, error: err?.message || String(err) })
+          reject(new Error(`未知错误: ${err?.message || String(err)}`))
+        }
+      })
+    }
 
-          response.on('error', (err: any) => {
-            log.error('download:response-error', { downloadId, error: err?.message })
-            fileStream.destroy()
-
-            safeReject(new Error(`响应错误: ${err.message}`))
-          })
-        })
-
-        request.on('error', (err: any) => {
-          log.error('download:request-error', { downloadId, error: err?.message })
-  
-          safeReject(new Error(`${url} 请求失败: ${err.message}`))
-        })
-
-        request.end()
-        // 发出请求已结束
-        log.info('download:request-ended', { downloadId })
-      } catch (err: any) {
-        log.error('download:unhandled-error', { downloadId, error: err?.message || String(err) })
-
-        safeReject(new Error(`未知错误: ${err?.message || String(err)}`))
+    // 重试循环
+    let lastErr: any = null
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        log.info('download:attempt', { downloadId, attempt })
+        const res: any = await attemptOnce()
+        log.info('download:completed', { downloadId, path: res.extracted ? res.extractedPath : res.savePath, extracted: !!res.extracted })
+        return res
+      } catch (e: any) {
+        lastErr = e
+        log.warn('download:attempt-failed', { downloadId, attempt, error: e?.message || String(e) })
+        if (attempt < maxRetries) {
+          const wait = baseDelayMs * Math.pow(2, attempt - 1)
+          log.info('download:retry-wait', { downloadId, waitMs: wait })
+          await delay(wait)
+        }
       }
-    })
+    }
+    // 用最后一次错误作为拒绝原因
+    throw lastErr || new Error('下载失败')
   })
   // 在 persist:thirdparty 分区拦截下载
   const { session } = require('electron')
   const thirdPartySession = session.fromPartition('persist:thirdparty')
   thirdPartySession.on('will-download', (event, item, webContents) => {
-   item.setSavePath('C:/')
+    item.setSavePath('C:/')
+    mainWindow.webContents.send("download:prepare", { url: item.getURL(), fileName: item.getFilename() });
     return
   })
 

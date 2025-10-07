@@ -51,19 +51,19 @@
         <div class="main-content-header__left">
           <template v-if="route.path.includes('site')">
             <div class="wb-site" @click="onBack">
-              <n-icon :component="CaretLeft16Filled" size="16" />
+              <n-icon :component="ArrowLeft16Filled" size="12" />
             </div>
             <div class="wb-site" @click="onForward">
-              <n-icon :component="CaretRight16Filled" size="16" />
+              <n-icon :component="ArrowRight16Filled" size="12" />
             </div>
             <div class="wb-site" @click="onRefresh">
               <n-icon :component="ArrowClockwise16Filled" size="12" />
             </div>
-            <div class="wb-site" @click="onDownload">
+            <div class="wb-max" v-if="canDownload" @click="onDownload">
               <n-icon :component="ArrowDownload16Filled" size="12" />
             </div>
-            <div class="wb-site" @click="onDebug">
-              <n-icon :component="ArrowDownload16Filled" size="12" />
+            <div class="wb-site" v-if="isDev" @click="onDebug">
+              <n-icon :component="WindowConsole20Regular" size="12" />
             </div>
           </template>
         </div>
@@ -103,16 +103,19 @@ import {
   AirplaneTakeOff16Regular,
   ArrowMaximize16Filled,
   ArrowMinimize16Filled,
-  CaretLeft16Filled,
-  CaretRight16Filled,
+  ArrowLeft16Filled,
+  ArrowRight16Filled,
   ArrowClockwise16Filled,
-  ArrowDownload16Filled
+  ArrowDownload16Filled,
+  WindowConsole20Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
 const childComponentRef = ref()
+const canDownload = computed(() => !!(childComponentRef.value && (childComponentRef.value as any).canDownload))
+const isDev = import.meta.env.DEV
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
@@ -144,7 +147,7 @@ function onRefresh() {
   webview?.reload()
 }
 function onDebug() {
- const webview = document.querySelector('webview')
+  const webview = document.querySelector('webview')
   webview?.openDevTools()
 }
 function onMin() {
@@ -307,7 +310,7 @@ $background-color: #322f3b;
   border-radius: 0 24px 24px 0;
   // overflow: hidden;
   position: relative;
-  padding: 0px 6px 6px 0px;
+  padding: 0px 6px 35px 0px;
   overflow: hidden;
   .main-content-header {
     width: 100%;

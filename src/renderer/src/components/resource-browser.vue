@@ -16,6 +16,7 @@
         </n-input>
       </div>
       <div class="navbar-right">
+        <n-button size="small" @click="refresh">刷新</n-button>
         <n-dropdown trigger="click" :options="sortOptions" @select="onSort">
           <n-button size="small">
             <template #icon><n-icon :component="ArrowSortDownLines24Regular" /></template>
@@ -183,7 +184,17 @@ const onQuery = debounce(async (keyword?: string) => {
   } finally {
     isLoading.value = false
   }
-}, 300)
+},300)
+
+const refresh = async () => {
+  if (!props.resourcePath) return
+  isLoading.value = true
+  try {
+    fetchTreeData()
+  } finally {
+    isLoading.value = false
+  }
+}
 
 // 树节点属性
 const nodeProps = ({ option }: { option: any }) => {
@@ -367,7 +378,7 @@ defineExpose({
   @apply flex-1 flex flex-col overflow-hidden;
 }
 .grid-view {
-  @apply flex-1 overflow-hidden p-6;
+  @apply flex-1 overflow-hidden p-3;
 }
 .empty-state {
   @apply flex-1 flex items-center justify-center;
