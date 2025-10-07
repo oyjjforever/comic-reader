@@ -49,6 +49,13 @@ export default [
                         meta: {
                             title: "pixiv"
                         }
+                    },{
+                        path: 'twitter',
+                        name: "twitter",
+                        component: () => import('@renderer/views/site/twitter.vue'),
+                        meta: {
+                            title: "twitter"
+                        }
                     },]
             }
         ],

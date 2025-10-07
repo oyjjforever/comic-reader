@@ -134,31 +134,6 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
       return
     }
     let current = 0
-    const onCompleted = () => {
-      // 单个文件完成后更新页计数并提示
-      current += 1
-      showPageProgress(current, total)
-      if (current === total && artworks.current === artworks.total) {
-        msgReactive?.destroy()
-        message.success('全部下载成功')
-        // 清理监听
-        ipcRenderer.removeListener('download:completed', onCompleted)
-        ipcRenderer.removeListener('download:failed', onFailed)
-      }
-    }
-    const onFailed = (_e: any, info: any) => {
-      current += 1
-      message.error(`下载失败：${info?.message || '未知错误'}`)
-      showPageProgress(current, total)
-      if (current === total && artworks.current === artworks.total) {
-        msgReactive?.destroy()
-        ipcRenderer.removeListener('download:completed', onCompleted)
-        ipcRenderer.removeListener('download:failed', onFailed)
-      }
-    }
-
-    ipcRenderer.on('download:completed', onCompleted)
-    ipcRenderer.on('download:failed', onFailed)
 
     // 判断是否存在默认路径
     let defaultDownloadPath = settingStore.setting?.defaultDownloadPath
@@ -172,29 +147,39 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
       message.error('未选择下载路径')
       return
     }
-    // 逐页触发主进程下载
-    pages.forEach((page, idx) => {
+    // 逐页触发主进程下载：使用 invoke，按顺序等待完成并更新进度
+    for (let idx = 0; idx < pages.length; idx++) {
+      const page = pages[idx]
       const originalUrl = page?.urls?.original
       if (!originalUrl) {
-        // 没有 original 时也推进进度
-        onFailed(null, { message: `第 ${idx} 页无 original 链接` })
-        return
+        current += 1
+        message.error(`第 ${idx} 页无 original 链接`)
+        showPageProgress(current, total)
+        continue
       }
       // 生成文件名：p{index}.{ext}
       const ext = originalUrl.split('.').pop() || 'jpg'
       const fileName = `p${idx}.${ext}`
-
-      // 通过主进程下载；主进程会将数据流保存为文件
-      ipcRenderer.send('download:start', {
-        url: originalUrl,
-        fileName,
-        savePath: `${defaultDownloadPath}/${author || '未分类'}/${artworkName}`,
-        autoExtract: false,
-        headers: {
-          Referer: 'https://www.pixiv.net/'
-        }
-      })
-    })
+      try {
+        await ipcRenderer.invoke('download:start', {
+          url: originalUrl,
+          fileName,
+          savePath: `${defaultDownloadPath}/${author || '未分类'}/${artworkName}`,
+          autoExtract: false,
+          headers: { Referer: 'https://www.pixiv.net/' }
+        })
+        current += 1
+        showPageProgress(current, total)
+      } catch (e: any) {
+        current += 1
+        message.error(`下载失败：${e?.message || '未知错误'}`)
+        showPageProgress(current, total)
+      }
+    }
+    if (current === total && artworks.current === artworks.total) {
+      msgReactive?.destroy()
+      message.success('全部下载成功')
+    }
   } catch (e: any) {
     message.error(`下载异常：${e?.message || e}`)
   }

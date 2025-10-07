@@ -4,6 +4,7 @@ import fs from 'fs'
 import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
+import log from 'electron-log'
 
 /**
  * 目录存在性缓存，避免重复 IO 检查
@@ -15,6 +16,57 @@ function ensureDir(dirPath: string) {
     fs.mkdirSync(dirPath, { recursive: true })
   }
   ensuredDirs.add(dirPath)
+}
+
+/**
+ * 日志路径与清理工具（按日期分文件夹）
+ */
+const LOG_BASE_DIR_NAME = 'logs'
+function dateStr(d = new Date()) {
+  // 生成 YYYY-MM-DD
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10)
+}
+function getLogBaseDir() {
+  return path.join(app.getPath('userData'), LOG_BASE_DIR_NAME)
+}
+function getLogDirByDate(d = new Date()) {
+  return path.join(getLogBaseDir(), dateStr(d))
+}
+// 配置按日期输出日志到 YYYY-MM-DD/main.log
+;(log.transports.file as any).resolvePath = (variables: any) => {
+  const dt = variables?.date instanceof Date ? variables.date : new Date()
+  const dir = getLogDirByDate(dt)
+  ensureDir(dir)
+  return path.join(dir, 'main.log')
+}
+log.transports.file.level = 'info'
+
+/**
+ * 清理 N 天前的日志目录（按文件夹名 YYYY-MM-DD 判断）
+ */
+function cleanOldLogs(keepDays = 7) {
+  try {
+    const base = getLogBaseDir()
+    if (!fs.existsSync(base)) return
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - keepDays)
+    const entries = fs.readdirSync(base, { withFileTypes: true })
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue
+      const dirName = ent.name
+      const dirDate = new Date(dirName)
+      if (isNaN(dirDate.getTime())) continue
+      if (dirDate < cutoff) {
+        try {
+          fs.rmSync(path.join(base, dirName), { recursive: true, force: true })
+        } catch (e) {
+          log.warn('清理日志目录失败', { dir: dirName, error: (e as any)?.message })
+        }
+      }
+    }
+  } catch (err) {
+    log.warn('执行日志清理时出错', (err as any)?.message || String(err))
+  }
 }
 
 let mainWindow;
@@ -66,6 +118,16 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
+  // 初始化日志系统：创建目录、立即清理一次，并设定每日清理任务
+  try {
+    ensureDir(path.join(app.getPath('userData'), LOG_BASE_DIR_NAME))
+    cleanOldLogs(7)
+    const ONE_DAY = 24 * 60 * 60 * 1000
+    setInterval(() => cleanOldLogs(7), ONE_DAY)
+    log.info('应用启动，日志系统已初始化', { userData: app.getPath('userData') })
+  } catch (e) {
+    console.warn('初始化日志系统失败', (e as any)?.message || String(e))
+  }
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
@@ -170,108 +232,144 @@ app.whenReady().then(() => {
     })
   }
 
-  ipcMain.on('download:start', async (_e, payload) => {
-    try {
-      const { url, fileName, savePath, autoExtract = true, headers = {} } = payload || {}
-      if (!url || !fileName || !savePath) {
-        mainWindow?.webContents.send('download:failed', { state: 'error', message: '缺少必要参数' })
-        return
-      }
-
-      // 清理文件名，拼接保存路径
-      const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_')
-      const fullPath = path.join(savePath, safeName)
-
-      // 确保目录存在
-      ensureDir(savePath)
-
-      const request = net.request(url)
-      // 设置可选请求头（例如 Referer）
-      if (headers && typeof headers === 'object') {
-        for (const [k, v] of Object.entries(headers)) {
-          if (typeof v === 'string') request.setHeader(k, v)
+  ipcMain.handle('download:start', async (_e, payload) => {
+    return new Promise((resolve, reject) => {
+      // 生成本次下载的唯一ID，便于日志串联
+      const downloadId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      let isSettled = false
+      const safeReject = (reason: any) => {
+        if (!isSettled) {
+          isSettled = true
+          reject(reason)
         }
       }
-      request.on('response', (response: any) => {
-        const fileStream = fs.createWriteStream(fullPath)
-        const lenHeader = response.headers?.['content-length']
-        const total = Array.isArray(lenHeader) ? parseInt(lenHeader[0] || '0', 10) : parseInt(lenHeader || '0', 10)
-        let received = 0
+      const safeResolve = (value: any) => {
+        if (!isSettled) {
+          isSettled = true
+          resolve(value)
+        }
+      }
+      try {
+        const { url, fileName, savePath, autoExtract = true, headers = {} } = payload || {}
+        if (!url || !fileName || !savePath) {
+          log.warn('download:invalid-params', { downloadId, url, fileName, savePath })
 
-        // 添加文件流错误处理
-        fileStream.on('error', (err) => {
-          mainWindow?.webContents.send('download:failed', { state: 'error', message: `文件写入失败: ${err.message}` })
-        })
+          return safeReject(new Error('缺少必要参数'))
+        }
+        log.info('download:start', { downloadId, url, fileName, savePath, autoExtract, headers: Object.keys(headers || {}) })
 
-        fileStream.on('finish', async () => {
-          try {
-            // 下载完成，检查是否需要解压
-            const ext = path.extname(fullPath).toLowerCase()
-            const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
+        // 清理文件名，拼接保存路径
+        const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_')
+        const fullPath = path.join(savePath, safeName)
+        log.info('download:path-prepared', { downloadId, fullPath })
 
-            if (autoExtract && supportedExts.includes(ext)) {
-              mainWindow?.webContents.send('download:extracting', { filePath: fullPath })
+        // 确保目录存在
+        ensureDir(savePath)
 
-              // 创建解压目录
-              const extractDir = path.join(savePath, path.basename(fullPath, ext))
-              ensureDir(extractDir)
-
-              // 解压文件
-              await extractFile(fullPath, extractDir)
-
-              // 解压成功后删除原始压缩文件
-              fs.unlinkSync(fullPath)
-
-              mainWindow?.webContents.send('download:completed', {
-                savePath: extractDir,
-                extractedPath: extractDir,
-                extracted: true
-              })
-            } else {
-              mainWindow?.webContents.send('download:completed', {
-                savePath: fullPath,
-                extracted: false
-              })
-            }
-          } catch (extractErr: any) {
-            mainWindow?.webContents.send('download:failed', {
-              state: 'error',
-              message: `下载完成但解压失败: ${extractErr?.message || String(extractErr)}`
-            })
+        const request = net.request(url)
+        // 设置可选请求头（例如 Referer）
+        if (headers && typeof headers === 'object') {
+          for (const [k, v] of Object.entries(headers)) {
+            if (typeof v === 'string') request.setHeader(k, v)
           }
+        }
+        request.on('response', (response: any) => {
+          const fileStream = fs.createWriteStream(fullPath)
+          const lenHeader = response.headers?.['content-length']
+          const total = Array.isArray(lenHeader) ? parseInt(lenHeader[0] || '0', 10) : parseInt(lenHeader || '0', 10)
+          let received = 0
+
+          // 添加文件流错误处理
+          fileStream.on('error', (err) => {
+            log.error('download:file-error', { downloadId, error: err?.message })
+
+            safeReject(new Error(`文件写入失败: ${err.message}`))
+          })
+
+          fileStream.on('finish', async () => {
+            try {
+              // 下载完成，检查是否需要解压
+              const ext = path.extname(fullPath).toLowerCase()
+              const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
+              
+              if (autoExtract && supportedExts.includes(ext)) {
+                log.info('download:extract:start', { downloadId, archive: fullPath, ext })
+
+                // 创建解压目录
+                const extractDir = path.join(savePath, path.basename(fullPath, ext))
+                ensureDir(extractDir)
+
+                // 解压文件
+                await extractFile(fullPath, extractDir)
+                log.info('download:extract:success', { downloadId, extractDir })
+
+                // 解压成功后删除原始压缩文件
+                fs.unlinkSync(fullPath)
+                log.info('download:archive-removed', { downloadId, archive: fullPath })
+
+                const result = {
+                  savePath: extractDir,
+                  extractedPath: extractDir,
+                  extracted: true
+                }
+
+                log.info('download:completed', { downloadId, path: extractDir, extracted: true })
+                safeResolve(result)
+              } else {
+                const result = {
+                  savePath: fullPath,
+                  extracted: false
+                }
+
+                log.info('download:completed', { downloadId, path: fullPath, extracted: false })
+                safeResolve(result)
+              }
+            } catch (extractErr: any) {
+              log.error('download:extract:error', { downloadId, error: extractErr?.message || String(extractErr) })
+
+              safeReject(new Error(`下载完成但解压失败: ${extractErr?.message || String(extractErr)}`))
+            }
+          })
+
+          response.on('data', (chunk: Buffer) => {
+            received += chunk.length
+            fileStream.write(chunk)
+          })
+
+          response.on('end', () => {
+            log.info('download:response-end', { downloadId, received, total })
+            fileStream.end()
+          })
+
+          response.on('error', (err: any) => {
+            log.error('download:response-error', { downloadId, error: err?.message })
+            fileStream.destroy()
+
+            safeReject(new Error(`响应错误: ${err.message}`))
+          })
         })
 
-        response.on('data', (chunk: Buffer) => {
-          received += chunk.length
-          fileStream.write(chunk)
-          mainWindow?.webContents.send('download:progress', { received, total })
+        request.on('error', (err: any) => {
+          log.error('download:request-error', { downloadId, error: err?.message })
+  
+          safeReject(new Error(`${url} 请求失败: ${err.message}`))
         })
 
-        response.on('end', () => {
-          fileStream.end()
-        })
+        request.end()
+        // 发出请求已结束
+        log.info('download:request-ended', { downloadId })
+      } catch (err: any) {
+        log.error('download:unhandled-error', { downloadId, error: err?.message || String(err) })
 
-        response.on('error', (err: any) => {
-          fileStream.destroy()
-          mainWindow?.webContents.send('download:failed', { state: 'error', message: `响应错误: ${err.message}` })
-        })
-      })
-
-      request.on('error', (err: any) => {
-        mainWindow?.webContents.send('download:failed', { state: 'error', message: `${url} 请求失败: ${err.message}` })
-      })
-
-      request.end()
-    } catch (err: any) {
-      mainWindow?.webContents.send('download:failed', { state: 'error', message: `未知错误: ${err?.message || String(err)}` })
-    }
+        safeReject(new Error(`未知错误: ${err?.message || String(err)}`))
+      }
+    })
   })
   // 在 persist:thirdparty 分区拦截下载
   const { session } = require('electron')
   const thirdPartySession = session.fromPartition('persist:thirdparty')
   thirdPartySession.on('will-download', (event, item, webContents) => {
-    item.setSavePath('C:/')
-    mainWindow.webContents.send("download:prepare", { url: item.getURL(), fileName: item.getFilename() });
+   item.setSavePath('C:/')
     return
   })
 

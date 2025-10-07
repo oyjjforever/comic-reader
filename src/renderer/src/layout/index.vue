@@ -62,6 +62,9 @@
             <div class="wb-site" @click="onDownload">
               <n-icon :component="ArrowDownload16Filled" size="12" />
             </div>
+            <div class="wb-site" @click="onDebug">
+              <n-icon :component="ArrowDownload16Filled" size="12" />
+            </div>
           </template>
         </div>
         <div class="main-content-header__right">
@@ -115,7 +118,8 @@ const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { image: '/src/assets/jmtt.jpg', name: 'jmtt' },
-  { image: '/src/assets/pixiv.jpg', name: 'pixiv' }
+  { image: '/src/assets/pixiv.jpg', name: 'pixiv' },
+  { image: '/src/assets/twitter.jpg', name: 'twitter' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
@@ -138,6 +142,10 @@ function onForward() {
 function onRefresh() {
   const webview = document.querySelector('webview')
   webview?.reload()
+}
+function onDebug() {
+ const webview = document.querySelector('webview')
+  webview?.openDevTools()
 }
 function onMin() {
   window.electron.ipcRenderer.invoke('window-min')
@@ -321,9 +329,14 @@ $background-color: #322f3b;
       z-index: 999999;
       border-radius: 10px;
       -webkit-app-region: no-drag !important;
+      transition-duration: 0.3s;
       i {
         opacity: 0;
         color: #1f1f1f;
+        transition-duration: 0.3s;
+      }
+      &:hover {
+        scale: 1.1;
         transition-duration: 0.3s;
       }
     }
@@ -339,6 +352,11 @@ $background-color: #322f3b;
     }
     .wb-close {
       background: #f20808;
+    }
+    &__left {
+      i {
+        opacity: 1 !important;
+      }
     }
     &__left,
     &__right {
