@@ -4,7 +4,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" name="jmtt">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useSettingStore } from '@renderer/plugins/store'
@@ -14,8 +14,9 @@ const settingStore = useSettingStore()
 const url = ref('https://jmcomic-zzz.one/')
 const webviewRef = ref<any>(null)
 const onDownloadPrepare = async (event: any, data: any) => {
-  // 判断是否存在默认路径
-  let defaultDownloadPath = settingStore.setting?.defaultDownloadPath
+  // 判断是否存在默认路径（jmtt优先）
+  let defaultDownloadPath =
+    settingStore.setting?.downloadPathJmtt || settingStore.setting?.defaultDownloadPath
   const ext = data.fileName.split('.').pop()
   if (!defaultDownloadPath) {
     const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')

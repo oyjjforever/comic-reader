@@ -4,7 +4,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" name="pixiv">
 import { ref, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useSettingStore } from '@renderer/plugins/store'
@@ -23,7 +23,8 @@ function updateCanDownload() {
     const wv = webviewRef.value
     if (!wv) return
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    canDownload.value = !!currentUrl && (currentUrl.includes('illustrations') || currentUrl.includes('artworks'))
+    canDownload.value =
+      !!currentUrl && (currentUrl.includes('illustrations') || currentUrl.includes('artworks'))
   } catch {
     canDownload.value = false
   }
@@ -147,7 +148,11 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
     let current = 0
     const CONCURRENCY = 4
     // 简易并发池
-    async function runPool(items: any[], worker: (item: any, idx: number) => Promise<any>, limit = CONCURRENCY) {
+    async function runPool(
+      items: any[],
+      worker: (item: any, idx: number) => Promise<any>,
+      limit = CONCURRENCY
+    ) {
       return new Promise((resolve) => {
         const results: any[] = new Array(items.length)
         let i = 0
@@ -157,8 +162,12 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
             const idx = i++
             active++
             Promise.resolve(worker(items[idx], idx))
-              .then((val) => { results[idx] = val })
-              .catch((err) => { results[idx] = err })
+              .then((val) => {
+                results[idx] = val
+              })
+              .catch((err) => {
+                results[idx] = err
+              })
               .finally(() => {
                 active--
                 if (i === items.length && active === 0) resolve(results)
@@ -170,8 +179,9 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
       })
     }
 
-    // 判断是否存在默认路径
-    let defaultDownloadPath = settingStore.setting?.defaultDownloadPath
+    // 判断是否存在默认路径（pixiv优先）
+    let defaultDownloadPath =
+      settingStore.setting?.downloadPathPixiv || settingStore.setting?.defaultDownloadPath
     if (!defaultDownloadPath) {
       const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')
       if (result && !result.canceled && result.filePaths.length > 0) {
@@ -183,32 +193,36 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
       return
     }
     // 逐页触发主进程下载：使用 invoke，并发受限执行
-    await runPool(pages, async (page, idx) => {
-      const originalUrl = page?.urls?.original
-      if (!originalUrl) {
-        current += 1
-        message.error(`第 ${idx} 页无 original 链接`)
-        showPageProgress(current, total)
-        return
-      }
-      const ext = originalUrl.split('.').pop() || 'jpg'
-      const fileName = `p${idx}.${ext}`
-      try {
-        await ipcRenderer.invoke('download:start', {
-          url: originalUrl,
-          fileName,
-          savePath: `${defaultDownloadPath}/${author || '未分类'}/${artworkName}`,
-          autoExtract: false,
-          headers: { Referer: 'https://www.pixiv.net/' }
-        })
-        current += 1
-        showPageProgress(current, total)
-      } catch (e: any) {
-        current += 1
-        message.error(`下载失败：${e?.message || '未知错误'}`)
-        showPageProgress(current, total)
-      }
-    }, CONCURRENCY)
+    await runPool(
+      pages,
+      async (page, idx) => {
+        const originalUrl = page?.urls?.original
+        if (!originalUrl) {
+          current += 1
+          message.error(`第 ${idx} 页无 original 链接`)
+          showPageProgress(current, total)
+          return
+        }
+        const ext = originalUrl.split('.').pop() || 'jpg'
+        const fileName = `p${idx}.${ext}`
+        try {
+          await ipcRenderer.invoke('download:start', {
+            url: originalUrl,
+            fileName,
+            savePath: `${defaultDownloadPath}/${author || '未分类'}/${artworkName}`,
+            autoExtract: false,
+            headers: { Referer: 'https://www.pixiv.net/' }
+          })
+          current += 1
+          showPageProgress(current, total)
+        } catch (e: any) {
+          current += 1
+          message.error(`下载失败：${e?.message || '未知错误'}`)
+          showPageProgress(current, total)
+        }
+      },
+      CONCURRENCY
+    )
     if (current === total && artworks.current === artworks.total) {
       msgReactive?.destroy()
       message.success('全部下载成功')

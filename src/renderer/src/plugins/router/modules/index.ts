@@ -8,7 +8,8 @@ export default [
                 name: "book",
                 component: () => import('@renderer/views/book/index.vue'),
                 meta: {
-                    title: "书架"
+                    title: "书架",
+                    keepAlive: true
                 }
             },
             {
@@ -40,21 +41,24 @@ export default [
                         name: "jmtt",
                         component: () => import('@renderer/views/site/jmtt.vue'),
                         meta: {
-                            title: "jmtt"
+                            title: "jmtt",
+                            keepAlive: true
                         }
                     }, {
                         path: 'pixiv',
                         name: "pixiv",
                         component: () => import('@renderer/views/site/pixiv.vue'),
                         meta: {
-                            title: "pixiv"
+                            title: "pixiv",
+                            keepAlive: true
                         }
-                    },{
+                    }, {
                         path: 'twitter',
                         name: "twitter",
                         component: () => import('@renderer/views/site/twitter.vue'),
                         meta: {
-                            title: "twitter"
+                            title: "twitter",
+                            keepAlive: true
                         }
                     },]
             }

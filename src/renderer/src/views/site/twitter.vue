@@ -4,7 +4,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" name="twitter">
 import { ref, onMounted, defineExpose } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useSettingStore } from '@renderer/plugins/store'
@@ -291,7 +291,9 @@ async function download() {
       return
     }
     msgReactive.content = `获取分页结束，共${urls.length}个文件，开始下载...`
-    let defaultDownloadPath = settingStore.setting?.defaultDownloadPath
+    // 判断是否存在默认路径（twitter优先）
+    let defaultDownloadPath =
+      settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
     if (!defaultDownloadPath) {
       const result = await (window as any).electron?.ipcRenderer?.invoke('dialog:openDirectory')
       if (result && !result.canceled && result.filePaths?.length > 0) {

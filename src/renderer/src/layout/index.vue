@@ -84,7 +84,7 @@
       </div>
       <div class="main-content">
         <router-view v-slot="{ Component }">
-          <keep-alive include="book">
+          <keep-alive include="book,jmtt,pixiv,twitter">
             <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>

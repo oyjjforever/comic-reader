@@ -53,6 +53,51 @@
           </n-button>
         </n-input-group>
       </n-form-item>
+      <div class="more-toggle">
+        <n-button text type="primary" @click="showMore = !showMore">
+          {{ showMore ? '收起更多下载路径' : '更多下载路径设置' }}
+        </n-button>
+      </div>
+      <div v-if="showMore">
+        <n-form-item path="downloadPathJmtt" label="jmtt 下载路径">
+          <n-input-group>
+            <n-input
+              v-model:value="formData.downloadPathJmtt"
+              placeholder="可选，未设置则使用默认下载路径"
+              readonly
+            />
+            <n-button type="primary" @click="selectResourcePath('downloadPathJmtt')">
+              选择文件夹
+            </n-button>
+          </n-input-group>
+        </n-form-item>
+
+        <n-form-item path="downloadPathPixiv" label="pixiv 下载路径">
+          <n-input-group>
+            <n-input
+              v-model:value="formData.downloadPathPixiv"
+              placeholder="可选，未设置则使用默认下载路径"
+              readonly
+            />
+            <n-button type="primary" @click="selectResourcePath('downloadPathPixiv')">
+              选择文件夹
+            </n-button>
+          </n-input-group>
+        </n-form-item>
+
+        <n-form-item path="downloadPathTwitter" label="twitter 下载路径">
+          <n-input-group>
+            <n-input
+              v-model:value="formData.downloadPathTwitter"
+              placeholder="可选，未设置则使用默认下载路径"
+              readonly
+            />
+            <n-button type="primary" @click="selectResourcePath('downloadPathTwitter')">
+              选择文件夹
+            </n-button>
+          </n-input-group>
+        </n-form-item>
+      </div>
     </n-form>
   </div>
 </template>
@@ -65,9 +110,10 @@ let settingStore = useSettingStore()
 const message = useMessage()
 
 const formData = ref<setting>(settingStore.setting)
+const showMore = ref(false)
 
 // 选择资源路径
-const selectResourcePath = async (key: string) => {
+const selectResourcePath = async (key: keyof setting) => {
   try {
     // 调用 Electron 的文件选择器
     const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')

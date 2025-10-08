@@ -12,6 +12,10 @@ export type setting = {
     folderStructureType: 'flat' | 'tree'
     // 默认下载路径（可选）
     defaultDownloadPath?: string
+    // 站点专属下载路径（可选）
+    downloadPathJmtt?: string
+    downloadPathPixiv?: string
+    downloadPathTwitter?: string
     // 第三方网页地址（可选）
     thirdPartyUrl?: string
 }
