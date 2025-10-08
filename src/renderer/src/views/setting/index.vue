@@ -98,6 +98,9 @@
           </n-input-group>
         </n-form-item>
       </div>
+      <!-- <n-form-item label="应用更新">
+        <n-button type="primary" @click="checkUpdate">立即检查更新</n-button>
+      </n-form-item> -->
     </n-form>
   </div>
 </template>
@@ -105,6 +108,17 @@
 <script setup lang="ts">
 import { useSettingStore } from '@renderer/plugins/store'
 import { setting } from '@/typings/setting'
+
+// 立即检查更新
+const checkUpdate = async () => {
+  try {
+    await window.electron.ipcRenderer.invoke('update:check')
+    // 具体提示由主进程 MessageBox 处理，这里可选地给出轻提示
+    message.info('正在检查更新…')
+  } catch (e: any) {
+    message.error(e?.message || '检查更新失败')
+  }
+}
 
 let settingStore = useSettingStore()
 const message = useMessage()

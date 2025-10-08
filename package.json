@@ -1,6 +1,6 @@
 {
   "name": "comic-reader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "本地漫画阅读器",
   "main": "./out/main/index.cjs",
   "author": "oyjj",
