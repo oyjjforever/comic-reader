@@ -9,7 +9,6 @@ import {
   registerAutoUpdate,
   checkUpdate
 } from '../utils/update'
-import DLNAManager from '../utils/dlna'
 /**
  * 目录存在性缓存，避免重复 IO 检查
  */
@@ -47,7 +46,6 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     setTimeout(() => {
       mainWindow.show()
-      const dlnaManager = new DLNAManager();
     }, 100)
   })
 

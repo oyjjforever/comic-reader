@@ -13,12 +13,17 @@
 
     <!-- 时间点收藏按钮 -->
     <div class="bookmark-controls" :class="{ visible: showControls }">
-      <n-button type="primary" size="small" @click="addBookmark" :disabled="!currentTime">
-        <template #icon>
-          <n-icon :component="BookmarkIcon" />
-        </template>
-        收藏当前时间点
-      </n-button>
+      <n-space>
+        <n-button type="primary" size="small" @click="addBookmark" :disabled="!currentTime">
+          <template #icon>
+            <n-icon :component="BookmarkIcon" />
+          </template>
+          收藏当前时间点
+        </n-button>
+        <n-button size="small" @click="openCast">
+          投屏
+        </n-button>
+      </n-space>
     </div>
 
     <!-- 时间点收藏列表 -->
@@ -52,6 +57,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 投屏设备选择 -->
+    <dlna-cast ref="castModalRef" :videoUrl="video.fullPath" contentType="video/mp4" @played="onCastPlayed" />
 
     <!-- 添加/编辑收藏对话框 -->
     <n-modal v-model:show="showBookmarkModal">
@@ -106,6 +114,7 @@
 <script setup lang="ts">
 import { Bookmark as BookmarkIcon, Create as EditIcon, Trash as TrashIcon } from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
+import dlnaCast from './dlna-cast.vue'
 
 const message = useMessage()
 const router = useRouter()
@@ -121,6 +130,7 @@ const video = ref({
 // UI 状态
 const showControls = ref(false)
 const showBookmarkModal = ref(false)
+const showCastModal = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 
@@ -133,8 +143,15 @@ const bookmarkForm = ref({
   description: ''
 })
 
-// 鼠标控制相关
-let mouseTimer: NodeJS.Timeout | null = null
+const castModalRef =ref(null)
+function openCast() {
+  castModalRef.value.open()
+}
+function onCastPlayed() {
+  message.success('投屏播放已启动')
+}
+  // 鼠标控制相关
+  let mouseTimer: NodeJS.Timeout | null = null
 
 // 鼠标移动事件
 const onMouseMove = () => {
