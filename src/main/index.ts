@@ -4,9 +4,12 @@ import fs from 'fs'
 import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
-import log from 'electron-log'
-import { autoUpdater } from 'electron-updater'
-
+import log from '../utils/log'
+import {
+  registerAutoUpdate,
+  checkUpdate
+} from '../utils/update'
+import DLNAManager from '../utils/dlna'
 /**
  * 目录存在性缓存，避免重复 IO 检查
  */
@@ -19,206 +22,8 @@ function ensureDir(dirPath: string) {
   ensuredDirs.add(dirPath)
 }
 
-/**
- * 日志路径与清理工具（按日期分文件夹）
- */
-const LOG_BASE_DIR_NAME = 'logs'
-function dateStr(d = new Date()) {
-  // 生成 YYYY-MM-DD
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10)
-}
-function getLogBaseDir() {
-  return path.join(app.getPath('userData'), LOG_BASE_DIR_NAME)
-}
-function getLogDirByDate(d = new Date()) {
-  return path.join(getLogBaseDir(), dateStr(d))
-}
-// 配置按日期输出日志到 YYYY-MM-DD/main.log
-(log.transports.file as any).resolvePath = (variables: any) => {
-  const dt = variables?.date instanceof Date ? variables.date : new Date()
-  const dir = getLogDirByDate(dt)
-  ensureDir(dir)
-  return path.join(dir, 'main.log')
-}
-log.transports.file.level = 'info'
-
-/**
- * 清理 N 天前的日志目录（按文件夹名 YYYY-MM-DD 判断）
- */
-function cleanOldLogs(keepDays = 7) {
-  try {
-    const base = getLogBaseDir()
-    if (!fs.existsSync(base)) return
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - keepDays)
-    const entries = fs.readdirSync(base, { withFileTypes: true })
-    for (const ent of entries) {
-      if (!ent.isDirectory()) continue
-      const dirName = ent.name
-      const dirDate = new Date(dirName)
-      if (isNaN(dirDate.getTime())) continue
-      if (dirDate < cutoff) {
-        try {
-          fs.rmSync(path.join(base, dirName), { recursive: true, force: true })
-        } catch (e) {
-          log.warn('清理日志目录失败', { dir: dirName, error: (e as any)?.message })
-        }
-      }
-    }
-  } catch (err) {
-    log.warn('执行日志清理时出错', (err as any)?.message || String(err))
-  }
-}
-
-/**
- * 自动更新偏好存储（忽略版本）
- */
-const UPDATER_STORE_FILE = 'updater.json'
-function getUpdaterStorePath() {
-  const dir = app.getPath('userData')
-  ensureDir(dir)
-  return path.join(dir, UPDATER_STORE_FILE)
-}
-function readUpdaterStore(): { ignoredVersion?: string } {
-  try {
-    const p = getUpdaterStorePath()
-    if (!fs.existsSync(p)) return {}
-    const txt = fs.readFileSync(p, 'utf-8')
-    return (JSON.parse(txt) || {}) as { ignoredVersion?: string }
-  } catch (e: any) {
-    log.warn('读取更新偏好失败', e?.message || String(e))
-    return {}
-  }
-}
-function writeUpdaterStore(data: { ignoredVersion?: string }) {
-  try {
-    const p = getUpdaterStorePath()
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf-8')
-  } catch (e: any) {
-    log.warn('写入更新偏好失败', e?.message || String(e))
-  }
-}
-
-let __manualUpdateCheck = false
-
-function registerAutoUpdate() {
-  if (is.dev) {
-    log.info('跳过自动更新（开发环境）')
-    return
-  }
-  try {
-    autoUpdater.logger = log as any
-    autoUpdater.autoDownload = false
-
-    autoUpdater.on('error', (err: any) => {
-      log.error('autoUpdater:error', err?.stack || err?.message || String(err))
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1)
-    })
-
-    autoUpdater.on('update-available', async (info) => {
-      // 手动检查时一旦有可用更新，就不再显示“已是最新版本”的提示
-      __manualUpdateCheck = false
-      log.info('autoUpdater:update-available', info)
-
-      const currentVersion = info?.version ?? ''
-      const { ignoredVersion } = readUpdaterStore()
-      if (ignoredVersion && currentVersion && ignoredVersion === currentVersion) {
-        log.info('autoUpdater:version-ignored', { ignoredVersion })
-        return
-      }
-
-      const { response } = await dialog.showMessageBox(mainWindow ?? null, {
-        type: 'info',
-        title: '发现新版本',
-        message: `检测到新版本 ${currentVersion}，是否下载并安装？`,
-        buttons: ['稍后', '忽略此版本', '确定'],
-        defaultId: 2,
-        cancelId: 0,
-        noLink: true
-      })
-
-      // 忽略此版本
-      if (response === 1) {
-        writeUpdaterStore({ ignoredVersion: currentVersion })
-        log.info('autoUpdater:ignored-version-set', { ignoredVersion: currentVersion })
-        return
-      }
-
-      // 确定下载
-      if (response === 2) {
-        try {
-          await autoUpdater.downloadUpdate()
-        } catch (e: any) {
-          log.error('downloadUpdate:error', e?.message || String(e))
-          dialog.showMessageBox(mainWindow ?? null, {
-            type: 'error',
-            title: '下载失败',
-            message: `更新包下载失败：${e?.message || String(e)}`
-          })
-          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1)
-        }
-      }
-    })
-
-    autoUpdater.on('update-not-available', () => {
-      if (__manualUpdateCheck) {
-        __manualUpdateCheck = false
-        dialog.showMessageBox(mainWindow ?? null, {
-          type: 'info',
-          title: '检查更新',
-          message: '当前已是最新版本'
-        })
-      }
-    })
-
-    autoUpdater.on('download-progress', (p) => {
-      const percent = Math.max(0, Math.min(100, p.percent || 0))
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setProgressBar(percent / 100)
-      }
-      // log.info('autoUpdater:download-progress', {
-      //   bytesPerSecond: p.bytesPerSecond,
-      //   percent,
-      //   transferred: p.transferred,
-      //   total: p.total
-      // })
-    })
-
-    autoUpdater.on('update-downloaded', async (info) => {
-      log.info('autoUpdater:update-downloaded', info)
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1)
-      const { response } = await dialog.showMessageBox(mainWindow ?? null, {
-        type: 'question',
-        title: '更新就绪',
-        message: '更新已下载，是否立即重启安装？',
-        buttons: ['稍后', '立即重启'],
-        defaultId: 1,
-        cancelId: 0,
-        noLink: true
-      })
-      if (response === 1) {
-        setImmediate(() => {
-          try {
-            autoUpdater.quitAndInstall()
-          } catch (e: any) {
-            log.error('quitAndInstall:error', e?.message || String(e))
-          }
-        })
-      }
-    })
-
-    // 触发检查
-    autoUpdater.checkForUpdates().catch((e: any) => {
-      log.error('checkForUpdates:error', e?.message || String(e))
-    })
-  } catch (e: any) {
-    log.error('初始化自动更新失败', e?.message || String(e))
-  }
-}
-
 let mainWindow;
 function createWindow(): void {
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
@@ -242,6 +47,7 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     setTimeout(() => {
       mainWindow.show()
+      const dlnaManager = new DLNAManager();
     }, 100)
   })
 
@@ -250,8 +56,6 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
     mainWindow.webContents.openDevTools({ mode: "detach" });
@@ -260,59 +64,17 @@ function createWindow(): void {
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
-
-  // 初始化日志系统：创建目录、立即清理一次，并设定每日清理任务
-  try {
-    ensureDir(path.join(app.getPath('userData'), LOG_BASE_DIR_NAME))
-    cleanOldLogs(7)
-    const ONE_DAY = 24 * 60 * 60 * 1000
-    setInterval(() => cleanOldLogs(7), ONE_DAY)
-    log.info('应用启动，日志系统已初始化', { userData: app.getPath('userData') })
-  } catch (e) {
-    console.warn('初始化日志系统失败', (e as any)?.message || String(e))
-  }
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
   createWindow()
-
-  // 初始化自动更新（仅生产）
+  // 初始化自动更新
   registerAutoUpdate()
-  // 注册IPC处理器
-
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
-    if (is.dev) {
-      dialog.showMessageBox(mainWindow ?? null, {
-        type: 'info',
-        title: '检查更新',
-        message: '开发环境下已跳过自动更新'
-      })
-      return { ok: true, dev: true }
-    }
-    __manualUpdateCheck = true
-    try {
-      await autoUpdater.checkForUpdates()
-      return { ok: true }
-    } catch (e: any) {
-      __manualUpdateCheck = false
-      dialog.showMessageBox(mainWindow ?? null, {
-        type: 'error',
-        title: '检查更新失败',
-        message: e?.message || String(e)
-      })
-      return { ok: false, error: e?.message || String(e) }
-    }
+    checkUpdate()
   })
   // 文件夹选择对话框（支持 defaultPath）
   ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: string }) => {
@@ -333,11 +95,9 @@ app.whenReady().then(() => {
     mainWindow.setFullScreen(false)
     mainWindow.setSize(1280, 720);
     mainWindow.center();
-    // mainWindow.webContents.send("main-window-unmax");
   });
   ipcMain.handle("window-max", () => {
     mainWindow.setFullScreen(true)
-    // mainWindow.webContents.send("main-window-max")
   });
   ipcMain.handle("window-close", () => {
     app.exit();
@@ -540,16 +300,10 @@ app.whenReady().then(() => {
     return
   })
 
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
 })
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+app.on('activate', function () {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+})
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
