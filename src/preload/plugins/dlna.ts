@@ -108,8 +108,25 @@ function createRangeServer(filePath: string, contentType: string) {
       return
     }
 
+    // 优化 TCP：关闭 Nagle，降低延迟
+    if (req.socket && typeof req.socket.setNoDelay === 'function') {
+      req.socket.setNoDelay(true)
+    }
     res.setHeader('Content-Type', contentType)
     res.setHeader('Accept-Ranges', 'bytes')
+    // 启用 keep-alive，减少连接握手
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('Keep-Alive', 'timeout=15, max=1000')
+    // DLNA 兼容性与性能相关头
+    res.setHeader('transferMode.dlna.org', 'Streaming')
+    res.setHeader(
+      'contentFeatures.dlna.org',
+      'DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000'
+    )
+    // 基本缓存与条件请求，降低重复验证
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    res.setHeader('Last-Modified', stat.mtime.toUTCString())
+    res.setHeader('ETag', `${total}-${stat.mtimeMs}`)
 
     const range = req.headers.range
     if (range) {
@@ -120,7 +137,8 @@ function createRangeServer(filePath: string, contentType: string) {
       if (match) {
         if (match[1]) start = parseInt(match[1], 10)
         if (match[2]) end = parseInt(match[2], 10)
-        if (!match[2]) end = Math.min(start + 1024 * 1024 - 1, total - 1) // 默认块大小 1MB
+        // 默认块大小提高到 8MB，减少请求轮次以提升吞吐
+        if (!match[2]) end = Math.min(start + 8 * 1024 * 1024 - 1, total - 1)
       }
       start = Math.max(0, start)
       end = Math.min(end, total - 1)
@@ -130,7 +148,7 @@ function createRangeServer(filePath: string, contentType: string) {
       res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`)
       res.setHeader('Content-Length', String(chunkSize))
 
-      const stream = fs.createReadStream(filePath, { start, end })
+      const stream = fs.createReadStream(filePath, { start, end, highWaterMark: 1024 * 1024 })
       stream.on('error', (e: any) => {
         res.statusCode = 500
         res.end(String(e?.message || e))
@@ -139,7 +157,7 @@ function createRangeServer(filePath: string, contentType: string) {
     } else {
       res.statusCode = 200
       res.setHeader('Content-Length', String(total))
-      const stream = fs.createReadStream(filePath)
+      const stream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 })
       stream.on('error', (e: any) => {
         res.statusCode = 500
         res.end(String(e?.message || e))
@@ -148,6 +166,7 @@ function createRangeServer(filePath: string, contentType: string) {
     }
   })
 
+  ;(server as any).keepAliveTimeout = 15000
   return { server }
 }
 
