@@ -27,8 +27,8 @@ class DLNAManager {
     this.dlnacasts = DLNACasts()
 
     // 主动触发一次扫描
-      this.dlnacasts.update()
-    }
+    this.dlnacasts.update()
+  }
 
   // 根据名称获取设备对象
   getDeviceByName(name: string) {
@@ -37,8 +37,8 @@ class DLNAManager {
 
   // 开始搜索设备
   startSearch() {
-      this.dlnacasts.update()
-    }
+    this.dlnacasts.update()
+  }
 
   /**
    * 投屏到指定设备
@@ -166,7 +166,7 @@ function createRangeServer(filePath: string, contentType: string) {
     }
   })
 
-  ;(server as any).keepAliveTimeout = 15000
+    ; (server as any).keepAliveTimeout = 15000
   return { server }
 }
 

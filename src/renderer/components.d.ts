@@ -9,7 +9,6 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     ComicCard: typeof import('./src/components/comic-card.vue')['default']
-    DlnaCastModal: typeof import('./src/components/DlnaCastModal.vue')['default']
     EpubReader: typeof import('./src/components/epub-reader.vue')['default']
     ImageReader: typeof import('./src/components/image-reader.vue')['default']
     NButton: typeof import('naive-ui')['NButton']
@@ -30,6 +29,7 @@ declare module 'vue' {
     NModal: typeof import('naive-ui')['NModal']
     NSpace: typeof import('naive-ui')['NSpace']
     NSpin: typeof import('naive-ui')['NSpin']
+    NTag: typeof import('naive-ui')['NTag']
     NTree: typeof import('naive-ui')['NTree']
     PdfReader: typeof import('./src/components/pdf-reader.vue')['default']
     Provider: typeof import('./src/components/setting/provider.vue')['default']

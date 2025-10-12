@@ -33,6 +33,7 @@
     "electron-updater": "^6.1.7",
     "epubjs": "^0.3.93",
     "lodash": "^4.17.21",
+    "mime-types": "^3.0.1",
     "naive-ui": "^2.37.3",
     "pinia": "^2.1.7",
     "postcss": "^8.4.33",

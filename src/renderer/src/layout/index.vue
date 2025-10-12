@@ -125,7 +125,7 @@ const isDev = import.meta.env.DEV
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  // { image: jmttImg, name: 'jmtt' },
+  { image: jmttImg, name: 'jmtt' },
   { image: pixivImg, name: 'pixiv' },
   { image: twitterImg, name: 'twitter' }
 ]

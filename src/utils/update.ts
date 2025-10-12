@@ -3,6 +3,8 @@ import path from 'path'
 import fs from 'fs'
 import { autoUpdater } from 'electron-updater'
 import { is } from '@electron-toolkit/utils'
+import { app, dialog } from 'electron'
+
 /**
  * 目录存在性缓存，避免重复 IO 检查
  */

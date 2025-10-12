@@ -1,4 +1,4 @@
-import { app, net, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, net, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { spawn, execSync } from 'child_process'
@@ -60,6 +60,9 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
+  globalShortcut.register("CommandOrControl+alt+shift+l", () => {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  });
 }
 
 app.whenReady().then(() => {

@@ -13,6 +13,7 @@ const settingStore = useSettingStore()
 
 const url = ref('https://jmcomic-zzz.one/')
 const webviewRef = ref<any>(null)
+let _author = null
 const onDownloadPrepare = async (event: any, data: any) => {
   // 判断是否存在默认路径（jmtt优先）
   let defaultDownloadPath =
@@ -25,13 +26,16 @@ const onDownloadPrepare = async (event: any, data: any) => {
     }
   }
   // 获取文件名称
-  const webview = document.querySelector('webview')
-  const name = await webview.executeJavaScript(
+  const wv = webviewRef.value
+  if (!wv) return
+  const name = await wv.executeJavaScript(
     'document.querySelector(".panel-heading").children[0].innerText'
   )
-  const author = await webview.executeJavaScript(
-    'document.querySelector(".web-author-tag").innerText'
-  )
+  const match = name?.match(/\[(.*?)\]/)
+  const author = _author || match[1]
+  // const author = await webview.executeJavaScript(
+  //   'document.querySelector(".web-author-tag").innerText'
+  // )
   try {
     const result = await window.electron.ipcRenderer.invoke('download:start', {
       fileName: `${name}.${ext}`,
@@ -44,8 +48,23 @@ const onDownloadPrepare = async (event: any, data: any) => {
     message.error(`下载失败：${e?.message || e}`)
   }
 }
+async function onUrlChange() {
+  const wv = webviewRef.value
+  if (!wv) return
+  const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+  if (currentUrl.includes('album/')) {
+    _author = await wv.executeJavaScript('document.querySelector(".web-author-tag").innerText')
+    message.success(`已成功获取作者：${_author}`)
+  }
+}
 onMounted(() => {
   window.electron.ipcRenderer.on('download:prepare', onDownloadPrepare)
+  const wv = webviewRef.value
+  if (!wv) return
+  // 监听导航事件以动态更新可下载状态
+  wv.addEventListener('did-navigate', onUrlChange)
+  // wv.addEventListener('did-navigate-in-page', onUrlChange)
+  // wv.addEventListener('dom-ready', onUrlChange)
 })
 onUnmounted(() => {
   window.electron.ipcRenderer.removeListener('download:prepare', onDownloadPrepare)
