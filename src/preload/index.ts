@@ -8,7 +8,7 @@ import appData from './plugins/appData'
 import favorite from './plugins/favorite'
 import videoBookmarks from './plugins/video-bookmarks'
 import dlna from './plugins/dlna'
-
+import jmDownloader from './plugins/jm-downloader/index.ts'
 // Custom APIs for renderer
 const api = {}
 
@@ -27,6 +27,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('dlna', dlna)
     contextBridge.exposeInMainWorld('book', book)
     contextBridge.exposeInMainWorld('video', video)
+    contextBridge.exposeInMainWorld('jmDownloader', jmDownloader)
   } catch (error) {
     console.error(error)
   }
