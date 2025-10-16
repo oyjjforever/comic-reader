@@ -2,6 +2,7 @@
 import axios from 'axios'
 import crypto from 'crypto'
 import fsp from 'fs/promises'
+import fs from 'fs'
 import sharp from 'sharp'
 import path from 'path'
 const IMAGE_DOMAIN = 'cdn-msp2.jmapiproxy2.cc'
@@ -23,7 +24,14 @@ const ApiPath = {
   GetWeeklyInfo: '/week',
   GetWeekly: '/week/filter'
 }
-
+const ensuredDirs = new Set()
+function ensureDir(dirPath) {
+    if (ensuredDirs.has(dirPath)) return
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true })
+    }
+    ensuredDirs.add(dirPath)
+}
 function md5_hex(s) {
   return crypto.createHash('md5').update(s).digest('hex')
 }
@@ -359,6 +367,8 @@ class JmClient {
    * @param {'gif'|'jpeg'|'png'|'webp'} srcFormat - 源图片格式
    */
   async saveImg(savePath, downloadFormat, blockNum, srcImgData, srcFormat) {
+    const folderPath = path.dirname(savePath)
+    ensureDir(folderPath)
     // 优化：webp->webp 且无需拼接，直接保存
     if (srcFormat === 'webp' && downloadFormat === 'webp' && blockNum === 0) {
       fsp.writeFile(savePath, srcImgData)

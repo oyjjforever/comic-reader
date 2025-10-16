@@ -347,6 +347,11 @@
   resolved "https://registry.npmmirror.com/@img/colour/-/colour-1.0.0.tgz"
   integrity sha512-A5P/LfWGFSl6nsckYtjw9da+19jB8hkJ6ACTGcDfEJ0aE+l2n2El7dsVM7UVHZQ9s2lmYMWlrS21YLy2IR1LUw==
 
+"@img/sharp-win32-ia32@^0.34.4", "@img/sharp-win32-ia32@0.34.4":
+  version "0.34.4"
+  resolved "https://registry.npmmirror.com/@img/sharp-win32-ia32/-/sharp-win32-ia32-0.34.4.tgz"
+  integrity sha512-3ZeLue5V82dT92CNL6rsal6I2weKw1cYu+rGKm8fOCCtJTR2gYeUfY3FqUnIJsMUPIH68oS5jmZ0NiJ508YpEw==
+
 "@img/sharp-win32-x64@^0.34.4", "@img/sharp-win32-x64@0.34.4":
   version "0.34.4"
   resolved "https://registry.npmmirror.com/@img/sharp-win32-x64/-/sharp-win32-x64-0.34.4.tgz"
