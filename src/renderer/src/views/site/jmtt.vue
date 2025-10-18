@@ -1,18 +1,26 @@
 <template>
   <div class="site">
     <webview ref="webviewRef" :src="url" partition="persist:thirdparty" />
-    <NModal v-model:show="showChapterDialog" preset="card" title="选择章节" style="max-width: 640px; width: 90%;">
-      <NScrollbar style="max-height: 50vh; width: 100%;">
-        <NCheckboxGroup v-model:value="selected" style="display: grid;grid-template-columns: repeat(6,100px);">
+    <NModal
+      v-model:show="showChapterDialog"
+      preset="card"
+      title="选择章节"
+      style="max-width: 640px; width: 90%"
+    >
+      <NScrollbar style="max-height: 50vh; width: 100%">
+        <NCheckboxGroup
+          v-model:value="selected"
+          style="display: grid; grid-template-columns: repeat(6, 100px)"
+        >
           <template v-for="c in comicInfoRef?.chapter_infos || []" :key="c.id">
-            <NCheckbox :value="c.id" >
-             {{ c.name || '未命名' }}
+            <NCheckbox :value="c.id" :disabled="downloadedChapterIds.has(c.id)">
+              {{ c.name || '未命名' }}
             </NCheckbox>
           </template>
         </NCheckboxGroup>
       </NScrollbar>
       <template #action>
-        <div style="display:flex; justify-content:flex-end; gap:12px;">
+        <div style="display: flex; justify-content: flex-end; gap: 12px">
           <NButton @click="onChapterDialogCancel">取消</NButton>
           <NButton type="primary" @click="onChapterDialogConfirm">开始下载</NButton>
         </div>
@@ -34,6 +42,7 @@ const url = ref('https://jmcomic-zzz.one/')
 const showChapterDialog = ref(false)
 const comicInfoRef = ref<any>(null)
 const selected = ref<Array<number | string>>([])
+const downloadedChapterIds = ref<Set<number | string>>(new Set())
 let resolveChapterDialog: ((ok: boolean) => void) | null = null
 
 function onChapterDialogConfirm() {
@@ -65,8 +74,35 @@ function updateCanDownload() {
 }
 
 let msgReactive: any = null
-function showChapterProgress(current: number, total: number) {
-  if (msgReactive) msgReactive.content = `下载进度：第 ${current} / ${total} 章`
+function showChapterProgress(
+  currentChapter: number,
+  totalChapter: number,
+  currentImage: number,
+  totalImage: number
+) {
+  if (msgReactive)
+    msgReactive.content = `下载进度：[第 ${currentChapter} / ${totalChapter} 章] ${currentImage} / ${totalImage} 张`
+}
+
+async function refreshDownloadedChapters(comicFolderPath: string) {
+  downloadedChapterIds.value.clear()
+  const chapters = comicInfoRef.value?.chapter_infos || []
+  if (!chapters.length) return
+  try {
+    const folders = await window.file.getDirectChildrenFolders(comicFolderPath)
+    const folderNames = new Set(folders.map((f: any) => f.name))
+    if (chapters.length === 1) {
+      // 单章：没有章节文件夹也视为已下载
+      downloadedChapterIds.value.add(chapters[0].id)
+    } else {
+      chapters.forEach((c: any) => {
+        const folderName = `第${c.index}章`
+        if (folderNames.has(folderName)) downloadedChapterIds.value.add(c.id)
+      })
+    }
+  } catch (e) {
+    console.warn('读取已下载章节失败', e)
+  }
 }
 
 async function download() {
@@ -91,7 +127,7 @@ async function download() {
   }
   // 获取漫画详情
   let comicInfo
-    try {
+  try {
     comicInfo = await window.jmDownloader.getComicInfo(comicId.value)
     console.log(comicInfo)
   } catch (e: any) {
@@ -102,6 +138,8 @@ async function download() {
   // 选择需要下载的章节（模板弹窗）
   comicInfoRef.value = comicInfo
   selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
+  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${comicInfo.name}`
+  await refreshDownloadedChapters(comicFolder)
   showChapterDialog.value = true
   const confirmed = await new Promise<boolean>((resolve) => {
     resolveChapterDialog = resolve
@@ -112,7 +150,6 @@ async function download() {
   }
 
   const toDownload = comicInfo.chapter_infos.filter((c) => selected.value.includes(c.id))
-  console.log('toDownload',toDownload)
   if (toDownload.length === 0) {
     message.warning('未选择任何章节')
     return
@@ -122,22 +159,28 @@ async function download() {
     type: 'loading',
     duration: 0
   })
-
-  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${comicInfo.name}`
-  if(toDownload.length===1){
-    await window.jmDownloader.downloadChapter(comicFolder, toDownload[0].id)
+  if (toDownload.length === 1) {
+    const chapterImages = await window.jmDownloader.getChapterImages(toDownload[0].id)
+    for (let i = 0; i < chapterImages.length; i++) {
+      const savePath = `${comicFolder}/${i.toString().padStart(5, '0')}.webp`
+      showChapterProgress(1, 1, i + 1, chapterImages.length)
+      await window.jmDownloader.downloadImage(savePath, chapterImages[i])
+    }
   } else {
-    let current = 0
-    for (const c of toDownload) {
-      current += 1
-      showChapterProgress(current, toDownload.length)
-      const chapterFolder = `${comicFolder}/第${c.index}章`
+    console.log(toDownload.length)
+    for (const chapter of toDownload) {
       try {
-        await window.jmDownloader.downloadChapter(chapterFolder, c.id)
+        const chapterFolder = `${comicFolder}/第${chapter.index}章`
+        const chapterImages = await window.jmDownloader.getChapterImages(chapter.id)
+        for (let i = 0; i < chapterImages.length; i++) {
+          const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
+          showChapterProgress(chapter.index, toDownload.length, i + 1, chapterImages.length)
+          await window.jmDownloader.downloadImage(savePath, chapterImages[i])
+        }
         // 每章下载后暂停 5 秒，避免请求过于频繁
         await new Promise((r) => setTimeout(r, 5000))
       } catch (e: any) {
-        message.error(`章节 ${c.index} 下载失败：${e?.message || '未知错误'}`)
+        message.error(`章节 ${chapter.index} 下载失败：${e?.message || '未知错误'}`)
         // 失败也稍作暂停，避免持续高频请求
         await new Promise((r) => setTimeout(r, 5000))
       }

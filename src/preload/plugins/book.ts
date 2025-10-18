@@ -1,4 +1,4 @@
-import FileUtils from '../../utils/file'
+import File from './file'
 import { FolderInfo, FileInfo, SortOptions } from '@/typings/file'
 
 /**
@@ -9,7 +9,7 @@ const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.sv
 async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<FolderInfo> {
   try {
     // 先获取文件夹信息
-    const folder = await FileUtils.getFolderInfo(path)
+    const folder = await File.getFolderInfo(path)
     // 在获取内部文件列表
     let files = await getFiles(path, sortOptions)
     // 判断文件夹类型
@@ -45,7 +45,7 @@ async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    return await FileUtils.getAllChildrenFolders(dirPath, 0, dirPath, false)
+    return await File.getAllChildrenFolders(dirPath, 0, dirPath, false)
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -55,7 +55,7 @@ async function getFolderList(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    const folders = (await FileUtils.getDirectChildrenFolders(dirPath)).filter(_ => _.isLeaf)
+    const folders = (await File.getDirectChildrenFolders(dirPath)).filter(_ => _.isLeaf)
     // 为每个文件夹分析内容类型
     const folderInfo = await Promise.all(
       folders.map(async (folder) => {
@@ -83,12 +83,12 @@ async function getFiles(
   },
 ): Promise<FileInfo[]> {
   try {
-    let files = await FileUtils.getFilesInfo(dirPath, false)
+    let files = await File.getFilesInfo(dirPath, false)
     // 如果指定了排序选项，进行排序
     if (sortOptions) {
       files = sortFiles(files, sortOptions)
     }
-
+    console.log(files)
     return files
   } catch (error) {
     throw new Error(`获取文件列表失败: ${error instanceof Error ? error.message : String(error)}`)

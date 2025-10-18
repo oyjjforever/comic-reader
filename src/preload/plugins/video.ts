@@ -1,4 +1,4 @@
-import FileUtils from '../../utils/file'
+import File from './file'
 import { FolderInfo, FileInfo, SortOptions } from '@/typings/file'
 
 /**
@@ -10,7 +10,7 @@ async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    return await FileUtils.getAllChildrenFolders(dirPath, 0, dirPath, true)
+    return await File.getAllChildrenFolders(dirPath, 0, dirPath, true)
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -20,7 +20,7 @@ async function getFileInfo(
   dirPath: string,
 ): Promise<FileInfo> {
   try {
-    return await FileUtils.getFileInfo(dirPath)
+    return await File.getFileInfo(dirPath)
   } catch (error) {
     throw new Error(`获取文件信息: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -42,7 +42,7 @@ async function getFiles(
   },
 ): Promise<FileInfo[]> {
   try {
-    let files = await FileUtils.getFilesInfo(dirPath, false)
+    let files = await File.getFilesInfo(dirPath, false)
     // 过滤非视频文件
     files = files.filter((file) => {
       return VIDEO_EXTENSIONS.includes(file.extension.toLowerCase())

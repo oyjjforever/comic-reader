@@ -1,14 +1,12 @@
 import { JmClient } from './jm_client.js'
 import path from 'path'
-import fs from 'fs'
-import { ipcRenderer } from 'electron'
 
 const jm = new JmClient({ proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 }) // 或 { proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 }
 // await jm.login('odoj', '83212789')
 
 async function getComicInfo(comicId) {
   const comic_resp_data = await jm.get_comic(comicId)
-   const comic = jm.from_comic_resp_data(comic_resp_data)
+  const comic = jm.from_comic_resp_data(comic_resp_data)
   comic.chapter_infos = comic.chapter_infos.map((c, idx) => ({
     index: idx + 1,
     id: c.chapter_id,
@@ -17,17 +15,21 @@ async function getComicInfo(comicId) {
   }))
   return comic
 }
-
-async function downloadChapter(savePath, chapter_id) {
-  const scramble_id = jm.get_scramble_id(chapter_id)
+async function getChapterImages(chapter_id) {
+  try {
+     const scramble_id = jm.get_scramble_id(chapter_id)
   const chapter_resp_data = await jm.get_chapter(chapter_id)
   const urls_with_block_num = jm.get_urls_with_block_num(chapter_id, scramble_id, chapter_resp_data)
-  let index = 0
-  for (const [url, block_num] of urls_with_block_num) {
-    const [img_data, format] = await jm.get_img_data_and_format(url)
-    const user_format_path = path.join(savePath, `${index++}.jpeg`)
-    await jm.saveImg(user_format_path, 'jpeg', block_num, img_data, format)
+  return urls_with_block_num
+  } catch (error) {
+    console.log(error)
+    return []
   }
+ 
+}
+async function downloadImage(savePath, [url, block_num]) {
+  const [img_data, format] = await jm.get_img_data_and_format(url)
+  await jm.saveImg(savePath, savePath.split('.').pop(), block_num, img_data, format)
 }
 
 // async function download(savePath, comicId) {
@@ -62,5 +64,6 @@ async function downloadChapter(savePath, chapter_id) {
 export default {
   // download,
   getComicInfo,
-  downloadChapter
+  getChapterImages,
+  downloadImage
 }

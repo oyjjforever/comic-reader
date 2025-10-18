@@ -8,6 +8,7 @@ import appData from './plugins/appData'
 import favorite from './plugins/favorite'
 import videoBookmarks from './plugins/video-bookmarks'
 import dlna from './plugins/dlna'
+import file from './plugins/file'
 import jmDownloader from './plugins/jm-downloader/index.ts'
 // Custom APIs for renderer
 const api = {}
@@ -19,7 +20,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
-    contextBridge.exposeInMainWorld('fs', fs)
+    contextBridge.exposeInMainWorld('file', file)
     contextBridge.exposeInMainWorld('systemInterface', systemInterface)
     contextBridge.exposeInMainWorld('appData', appData)
     contextBridge.exposeInMainWorld('favorite', favorite)

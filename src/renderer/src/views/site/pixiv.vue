@@ -204,7 +204,7 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
           return
         }
         const ext = originalUrl.split('.').pop() || 'jpg'
-        const fileName = `p${idx}.${ext}`
+        const fileName = `${idx.toString().padStart(5,'0')}.${ext}`
         try {
           await ipcRenderer.invoke('download:start', {
             url: originalUrl,

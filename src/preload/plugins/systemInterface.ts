@@ -1,5 +1,5 @@
 import { exec } from 'child_process'
-import FileUtils from '../../utils/file'
+import FileUtils from './file'
 
 function openExplorer(path: string) {
     exec(`explorer /select,"${path}"`);
