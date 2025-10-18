@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-controls" @mousemove="onMouseMove" @wheel.prevent="onWheel">
+  <div class="reader-controls" @click="onClickShowControls" @wheel.prevent="onWheel">
     <!-- 顶部控制栏 -->
     <div
       class="top-controls"
@@ -79,33 +79,20 @@
       :class="{ 'controls-hidden': !effectiveShowControls }"
       @mouseenter="onControlsEnter"
       @mouseleave="onControlsLeave"
+      @click.stop
     >
       <div class="progress-bar">
-        <div
-          class="progress-fill"
-          :style="{ width: totalPages > 0 ? `${(currentPage / totalPages) * 100}%` : '0%' }"
-        ></div>
-        <input
-          ref="progressInputRef"
-          type="range"
-          class="progress-slider"
+        <n-slider
           :min="1"
           :max="Math.max(totalPages, 1)"
           :value="Math.min(Math.max(currentPage, 1), Math.max(totalPages, 1))"
-          @input="onProgressInput"
-          @mousedown="onProgressMouseDown"
-          @mousemove="onProgressMouseMove"
-          @mouseup="onProgressMouseUp"
-          @mouseleave="onProgressMouseLeave"
+          :step="1"
+          :show-tooltip="effectiveShowControls"
+          :format-tooltip="p => `${p} / ${totalPages}`"
+          @update:value="onNaiveSliderUpdate"
         />
       </div>
-      <div
-        v-if="progressTooltip.show"
-        class="progress-tooltip"
-        :style="{ left: `${progressTooltip.x}px`, top: `${progressTooltip.y}px` }"
-      >
-        {{ Math.max(1, Math.min(totalPages, progressTooltip.page)) }} / {{ totalPages }}
-      </div>
+
     </div>
 
     <!-- 左右切换按钮 -->
@@ -216,12 +203,26 @@ export default defineComponent({
       resetAutoHideTimer()
     }
 
-    const onMouseMove = () => {
-      showControlsTemporarily()
+    const onClickShowControls = () => {
+      // 仅在未传入 props.showControls 时，使用内部状态进行切换
+      if (typeof props.showControls !== 'boolean') {
+        if (showControlsInternal.value) {
+          // 当前可见：点击后隐藏，并清除自动隐藏定时器
+          showControlsInternal.value = false
+          if (autoHideTimer.value) {
+            clearTimeout(autoHideTimer.value)
+            autoHideTimer.value = null
+          }
+        } else {
+          // 当前隐藏：点击后显示，并启动/重置自动隐藏
+          showControlsInternal.value = true
+          resetAutoHideTimer()
+        }
+      }
     }
     const onWheel = (ev: WheelEvent) => {
       // 显示控件并根据滚轮方向翻页
-      showControlsTemporarily()
+      // showControlsTemporarily()
       const dy = ev.deltaY
       if (dy === 0) return
       if (dy > 0) {
@@ -266,54 +267,31 @@ export default defineComponent({
       page: 1
     })
 
-    const computeTooltip = (ev: MouseEvent) => {
-      const target = (ev.target as HTMLInputElement) || progressInputRef.value
-      if (!target) return
-      const rect = target.getBoundingClientRect()
-      const percentage = (ev.clientX - rect.left) / rect.width
-      const clamped = Math.max(0, Math.min(1, percentage))
-      const page = Math.round(clamped * (Math.max(props.totalPages, 1) - 1)) + 1
-      progressTooltip.value = {
-        show: true,
-        x: ev.clientX,
-        y: rect.top - 40,
-        page
-      }
-    }
+
 
     const onProgressInput = (ev: Event) => {
       emit('progress-input', ev)
     }
-    const onProgressMouseDown = (ev: MouseEvent) => {
-      isDraggingProgress.value = true
-      computeTooltip(ev)
+    const onNaiveSliderUpdate = (val: number) => {
+      emit('progress-input', { target: { value: val } } as unknown as Event)
     }
-    const onProgressMouseMove = (ev: MouseEvent) => {
-      if (isDraggingProgress.value) computeTooltip(ev)
-    }
-    const onProgressMouseUp = () => {
-      isDraggingProgress.value = false
-      progressTooltip.value.show = false
-    }
-    const onProgressMouseLeave = () => {
-      isDraggingProgress.value = false
-      progressTooltip.value.show = false
-    }
+
+
+
+
 
     return {
       effectiveShowControls,
-      onMouseMove,
+      onClickShowControls,
       onWheel,
+      onNaiveSliderUpdate,
       disabledPrevComputed,
       disabledNextComputed,
       progressInputRef,
       isDraggingProgress,
       progressTooltip,
       onProgressInput,
-      onProgressMouseDown,
-      onProgressMouseMove,
-      onProgressMouseUp,
-      onProgressMouseLeave,
+      
       onControlsEnter,
       onControlsLeave
     }
@@ -377,50 +355,11 @@ export default defineComponent({
 
   /* 底部进度条（通用） */
   .bottom-progress {
-    @apply absolute bottom-0 left-0 right-0 z-10;
-    padding: 3rem 1.5rem;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
-    transition:
-      opacity 0.3s ease,
-      transform 0.3s ease;
-
+    @apply absolute bottom-14 left-2 right-2 z-10;
     &.controls-hidden {
       opacity: 0;
       transform: translateY(100%);
       pointer-events: none;
-    }
-
-    .progress-bar {
-      @apply relative mb-3;
-    }
-
-    .progress-fill {
-      @apply h-1 bg-blue-500 rounded-full transition-all duration-300;
-      background: #4a90e2;
-    }
-
-    .progress-slider {
-      @apply absolute inset-0 w-full h-1 opacity-0 cursor-pointer;
-    }
-
-    /* 进度提示框（通用） */
-    .progress-tooltip {
-      @apply fixed z-50 px-3 py-2 text-white text-sm font-medium rounded-lg pointer-events-none;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(10px);
-      transform: translateX(-50%);
-      white-space: nowrap;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-
-      &::after {
-        content: '';
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        border: 6px solid transparent;
-        border-top-color: rgba(0, 0, 0, 0.8);
-      }
     }
   }
 
