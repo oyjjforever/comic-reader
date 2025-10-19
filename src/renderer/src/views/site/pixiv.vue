@@ -18,6 +18,12 @@ const { ipcRenderer } = (window as any).electron || require('electron')
 const url = ref('https://www.pixiv.net/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
+function simpleSanitize(filename, replacement = '') {
+  if (typeof filename !== 'string') return ''
+  return filename
+    .replace(/[<>:"/\\|?*]/g, replacement) // 移除非法字符
+    .replace(/^[\s.]+|[\s.]+$/g, '') // 移除首尾空格和点
+}
 function updateCanDownload() {
   try {
     const wv = webviewRef.value
@@ -102,9 +108,7 @@ async function download() {
       const artworkInfo = artworkInfoResponse.body.works[artworkId]
       // 只下载图片
       if (artworkInfo.illustType === 0) {
-        setTimeout(async () => {
-          await downloadArtWork(artworkId, artworkInfo.userName, artworkInfo.title)
-        }, Math.random() * 1000)
+        await downloadArtWork(artworkId, artworkInfo.userName, artworkInfo.title)
       }
     }
   } else if (currentUrl.includes('artworks')) {
@@ -146,7 +150,7 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
       return
     }
     let current = 0
-    const CONCURRENCY = 4
+    const CONCURRENCY = 1
     // 简易并发池
     async function runPool(
       items: any[],
@@ -204,12 +208,12 @@ async function downloadArtWork(artworkId: string, author: string, artworkName: s
           return
         }
         const ext = originalUrl.split('.').pop() || 'jpg'
-        const fileName = `${idx.toString().padStart(5,'0')}.${ext}`
+        const fileName = `${idx.toString().padStart(5, '0')}.${ext}`
         try {
           await ipcRenderer.invoke('download:start', {
             url: originalUrl,
             fileName,
-            savePath: `${defaultDownloadPath}/${author || '未分类'}/${artworkName}`,
+            savePath: `${defaultDownloadPath}/${author || '未分类'}/${simpleSanitize(artworkName)}`,
             autoExtract: false,
             headers: { Referer: 'https://www.pixiv.net/' }
           })

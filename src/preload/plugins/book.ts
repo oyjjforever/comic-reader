@@ -88,7 +88,6 @@ async function getFiles(
     if (sortOptions) {
       files = sortFiles(files, sortOptions)
     }
-    console.log(files)
     return files
   } catch (error) {
     throw new Error(`获取文件列表失败: ${error instanceof Error ? error.message : String(error)}`)

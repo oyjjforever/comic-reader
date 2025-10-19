@@ -14,7 +14,7 @@ let msgReactive: any = null
 function showPageProgress(current: number, total: number) {
   if (msgReactive) msgReactive.content = `下载进度：${current} / ${total}`
 }
-const CONCURRENCY = 4
+const CONCURRENCY = 1
 async function runPool<T>(
   items: T[],
   worker: (item: T, idx: number) => Promise<any>,

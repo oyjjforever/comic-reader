@@ -72,10 +72,10 @@ app.whenReady().then(() => {
   })
   createWindow()
   // 初始化自动更新
-  registerAutoUpdate()
+  registerAutoUpdate(mainWindow)
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
-    checkUpdate()
+    checkUpdate(mainWindow)
   })
   // 文件夹选择对话框（支持 defaultPath）
   ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: string }) => {

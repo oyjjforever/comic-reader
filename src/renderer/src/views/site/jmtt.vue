@@ -44,6 +44,12 @@ const comicInfoRef = ref<any>(null)
 const selected = ref<Array<number | string>>([])
 const downloadedChapterIds = ref<Set<number | string>>(new Set())
 let resolveChapterDialog: ((ok: boolean) => void) | null = null
+function simpleSanitize(filename, replacement = '') {
+  if (typeof filename !== 'string') return ''
+  return filename
+    .replace(/[<>:"/\\|?*]/g, replacement) // 移除非法字符
+    .replace(/^[\s.]+|[\s.]+$/g, '') // 移除首尾空格和点
+}
 
 function onChapterDialogConfirm() {
   showChapterDialog.value = false
@@ -129,7 +135,6 @@ async function download() {
   let comicInfo
   try {
     comicInfo = await window.jmDownloader.getComicInfo(comicId.value)
-    console.log(comicInfo)
   } catch (e: any) {
     message.error(`获取章节失败：${e?.message || e}`)
     return
@@ -138,7 +143,7 @@ async function download() {
   // 选择需要下载的章节（模板弹窗）
   comicInfoRef.value = comicInfo
   selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
-  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${comicInfo.name}`
+  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${simpleSanitize(comicInfo.name)}`
   await refreshDownloadedChapters(comicFolder)
   showChapterDialog.value = true
   const confirmed = await new Promise<boolean>((resolve) => {
@@ -189,18 +194,50 @@ async function download() {
   msgReactive?.destroy()
   message.success('下载完成')
 }
-
+const onDownloadPrepare = async (event: any, data: any) => {
+  // 判断是否存在默认路径（jmtt优先）
+  let defaultDownloadPath =
+    settingStore.setting?.downloadPathJmtt || settingStore.setting?.defaultDownloadPath
+  const ext = data.fileName.split('.').pop()
+  if (!defaultDownloadPath) {
+    const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')
+    if (result && !result.canceled && result.filePaths.length > 0) {
+      defaultDownloadPath = result.filePaths[0]
+    }
+  }
+  // 获取文件名称
+  const wv = webviewRef.value
+  if (!wv) return
+  const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+  const match = currentUrl.match(/\/album_download\/(\d+)/)
+  const comicId = match ? match[1] : null
+  const comicInfo = await window.jmDownloader.getComicInfo(comicId)
+  try {
+    await window.electron.ipcRenderer.invoke('download:start', {
+      fileName: `${simpleSanitize(comicInfo.name)}.${ext}`,
+      url: data.url,
+      savePath: `${defaultDownloadPath}/${comicInfo.author[0] || '未分类'}`,
+      autoExtract: true
+    })
+    message.success(`下载完成`)
+  } catch (e: any) {
+    message.error(`下载失败：${e?.message || e}`)
+  }
+}
 onMounted(() => {
   const wv = webviewRef.value
   if (!wv) return
   updateCanDownload()
+  window.electron.ipcRenderer.on('download:prepare', onDownloadPrepare)
   // 监听导航事件以动态更新可下载状态
   wv.addEventListener('did-navigate', updateCanDownload)
   wv.addEventListener('did-navigate-in-page', updateCanDownload)
   wv.addEventListener('dom-ready', updateCanDownload)
 })
 
-onUnmounted(() => {})
+onUnmounted(() => {
+  window.electron.ipcRenderer.removeListener('download:prepare', onDownloadPrepare)
+})
 
 // 暴露方法
 defineExpose({

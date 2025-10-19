@@ -47,7 +47,7 @@ function writeUpdaterStore(data: { ignoredVersion?: string }) {
 
 let __manualUpdateCheck = false
 
-function registerAutoUpdate() {
+function registerAutoUpdate(mainWindow) {
     if (is.dev) {
         log.info('跳过自动更新（开发环境）')
         return
@@ -162,7 +162,7 @@ function registerAutoUpdate() {
     }
 }
 
-async function checkUpdate() {
+async function checkUpdate(mainWindow) {
     if (is.dev) {
         dialog.showMessageBox(mainWindow ?? null, {
             type: 'info',

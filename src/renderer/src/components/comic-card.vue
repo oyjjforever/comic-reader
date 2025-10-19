@@ -29,15 +29,6 @@
       >
         <n-icon :component="isBookmarked ? BookmarkIcon : BookmarkOutlineIcon" size="16" />
       </button>
-
-      <!-- 文件夹类型标识 -->
-      <div
-        v-if="folder.contentType"
-        class="folder-type-badge"
-        :class="`type-${folder.contentType}`"
-      >
-        {{ getFolderTypeText(folder.contentType) }}
-      </div>
     </div>
 
     <!-- 信息展示区 -->
@@ -45,7 +36,17 @@
       <h3 class="comic-title" :title="folder.name">
         {{ folder.name }}
       </h3>
-      <p class="page-count">{{ folder.fileCount }} 个文件</p>
+      <div class="comic-info">
+        <p class="page-count">{{ folder.fileCount }} 个文件</p>
+        <!-- 文件夹类型标识 -->
+        <div
+          v-if="folder.contentType"
+          class="folder-type-badge"
+          :class="`type-${folder.contentType}`"
+        >
+          {{ getFolderTypeText(folder.contentType) }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -307,9 +308,9 @@ onUnmounted(() => {
 
 /* 文件夹类型标识 */
 .folder-type-badge {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  // position: absolute;
+  // top: 16px;
+  // right: 16px;
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 10px;
@@ -370,7 +371,11 @@ onUnmounted(() => {
   min-height: 2.6em; /* 确保双行高度 */
   word-break: break-all;
 }
-
+.comic-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 /* 页数信息 */
 .page-count {
   font-size: 12px;
