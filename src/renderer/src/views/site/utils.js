@@ -19,7 +19,7 @@ export async function getDefaultDownloadPath(key) {
 const { message } = createDiscreteApi(['message'])
 export class Tip {
   constructor() {
-    this.instance = {}
+    this.instance = null
   }
   info(data) {
     if (!this.instance) {

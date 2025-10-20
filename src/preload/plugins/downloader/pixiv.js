@@ -1,7 +1,6 @@
-import fsp from 'fs/promises'
-import file from '../file.ts'
 import Api from './api.js'
-
+import path from 'path'
+import { ipcRenderer } from 'electron'
 const api = new Api({
   proxyMode: 'Custom',
   proxyHost: '127.0.0.1',
@@ -34,14 +33,15 @@ async function getArtworkImages(artworkId) {
 }
 
 async function downloadImage(url, savePath) {
-  const res = await api.get({
+  const dir = path.dirname(savePath)
+  const fileName = path.basename(savePath)
+  await ipcRenderer.invoke('download:start', {
     url,
-    responseType: 'arraybuffer',
+    fileName,
+    savePath: dir,
+    autoExtract: false,
     headers: { Referer: 'https://www.pixiv.net/' }
   })
-  let imageData = Buffer.from(res)
-  file.ensureDir(savePath)
-  fsp.writeFile(savePath, imageData)
 }
 
 export default {

@@ -1,5 +1,5 @@
 import fsp from 'fs/promises'
-import file from '../file.ts'
+// import file from '../file.ts'
 import Api from './api.js'
 
 const api = new Api({
@@ -174,6 +174,9 @@ async function downloadImage(url, savePath) {
   file.ensureDir(savePath)
   fsp.writeFile(savePath, imageData)
 }
+const cookies =
+  'guest_id=v1%3A173113047100843998; night_mode=2; guest_id_marketing=v1%3A173113047100843998; guest_id_ads=v1%3A173113047100843998; ct0=0782208e498f559465b767cc06e3beffda83613f47ac1451c9cb6e224dc7df1f08b93d93376e63387b7a0ae43e8663ddc0ce5c44b363c9ed9261fd48b0181b068ea4d109402bafaf0ba645ba1a407181; twid=u%3D1446370960647475204; personalization_id="v1_6vV1Aj8S+qNydk2XHznQuw=="; dnt=1; __cuid=437e7bea44d74e01b632fef568c4b7bd; lang=zh-cn'
+getUserIdByName('tanabejyuukou_9', cookies)
 export default {
   getUserIdByName,
   getUserIdByName,
