@@ -6,11 +6,7 @@
 
 <script setup lang="ts" name="pixiv">
 import { ref, onMounted } from 'vue'
-import { useMessage } from 'naive-ui'
-import { useSettingStore } from '@renderer/plugins/store'
 import { getDefaultDownloadPath, Tip } from './utils'
-const settingStore = useSettingStore()
-const message = useMessage()
 const { pixiv, file } = window as any
 const url = ref('https://www.pixiv.net/')
 const webviewRef = ref<any>(null)
@@ -51,56 +47,57 @@ function extractArtworkId(currentUrl: string): string | null {
   }
 }
 async function download() {
-  const wv = webviewRef.value
-  const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-  let illusts = []
-  // 如果是单作品下载
-  if (currentUrl.includes('artworks')) {
-    const artworkId = extractArtworkId(currentUrl)
-    illusts = [artworkId]
-  }
-  // 如果是作品集下载
-  else if (currentUrl.includes('illustrations')) {
-    const userId = extractUserId(currentUrl)
-    if (!userId) {
-      message.error('未解析到作者ID')
-      return
-    }
-    const profile = await pixiv.getArtworksByUserId(userId)
-    illusts = Object.keys(profile.illusts || {}).reverse()
-  }
   const tip = new Tip()
-  tip.create(illusts.length)
-  let defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
-  // 作品逐个下载
-  for (let currentArtwork = 0; currentArtwork < illusts.length; currentArtwork++) {
-    const artworkId = illusts[currentArtwork]
-    const artworkInfo = await pixiv.getArtworkInfo(artworkId)
-    const images: string[] = await pixiv.getArtworkImages(artworkId)
-    // 作品中的图片逐页下载
-    for (let curentImage = 0; curentImage < images.length; curentImage++) {
-      const url = images[curentImage]
-      const fileName = `${curentImage.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
-      const baseDir = `${defaultDownloadPath}/${artworkInfo.author}/${file.simpleSanitize(artworkInfo.title)}`
-      const savePath = `${baseDir}/${fileName}`
-      try {
-        await pixiv.downloadImage(url, savePath)
-      } finally {
-        tip.update({
-          title: artworkInfo.title,
-          chapter: {
-            index: currentArtwork + 1,
-            total: illusts.length
-          },
-          image: {
-            index: curentImage + 1,
-            total: images.length
-          }
-        })
+  try {
+    const wv = webviewRef.value
+    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+    let illusts = []
+    // 如果是单作品下载
+    if (currentUrl.includes('artworks')) {
+      const artworkId = extractArtworkId(currentUrl)
+      illusts = [artworkId]
+    }
+    // 如果是作品集下载
+    else if (currentUrl.includes('illustrations')) {
+      const userId = extractUserId(currentUrl)
+      if (!userId) throw new Error('无法从当前URL解析 未解析到作者ID')
+      const profile = await pixiv.getArtworksByUserId(userId)
+      illusts = Object.keys(profile.illusts || {}).reverse()
+    }
+    tip.info(`共${illusts.length}篇作品，开始下载...`)
+    let defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
+    // 作品逐个下载
+    for (let currentArtwork = 0; currentArtwork < illusts.length; currentArtwork++) {
+      const artworkId = illusts[currentArtwork]
+      const artworkInfo = await pixiv.getArtworkInfo(artworkId)
+      const images: string[] = await pixiv.getArtworkImages(artworkId)
+      // 作品中的图片逐页下载
+      for (let curentImage = 0; curentImage < images.length; curentImage++) {
+        const url = images[curentImage]
+        const fileName = `${curentImage.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
+        const baseDir = `${defaultDownloadPath}/${artworkInfo.author}/${file.simpleSanitize(artworkInfo.title)}`
+        const savePath = `${baseDir}/${fileName}`
+        try {
+          await pixiv.downloadImage(url, savePath)
+        } finally {
+          tip.progress({
+            title: artworkInfo.title,
+            chapter: {
+              index: currentArtwork + 1,
+              total: illusts.length
+            },
+            image: {
+              index: curentImage + 1,
+              total: images.length
+            }
+          })
+        }
       }
     }
+    tip.success()
+  } catch (error) {
+    tip.error(error)
   }
-  tip.success()
 }
 
 onMounted(async () => {

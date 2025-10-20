@@ -1,6 +1,7 @@
-import { useMessage } from 'naive-ui'
-const message = useMessage()
+import { createDiscreteApi } from 'naive-ui'
+import { useSettingStore, pinia } from '@renderer/plugins/store'
 export async function getDefaultDownloadPath(key) {
+  const settingStore = useSettingStore(pinia)
   let savePath = settingStore.setting?.[key] || settingStore.setting?.defaultDownloadPath
   if (!savePath) {
     const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')
@@ -15,18 +16,25 @@ export async function getDefaultDownloadPath(key) {
   return savePath
 }
 
+const { message } = createDiscreteApi(['message'])
 export class Tip {
   constructor() {
     this.instance = {}
   }
-  create(total) {
-    this.instance = message.create(`共${total}篇作品，开始下载...`, {
-      type: 'loading',
-      duration: 0
-    })
+  info(data) {
+    if (!this.instance) {
+      this.instance = message.create(data, {
+        type: 'loading',
+        duration: 0
+      })
+    }
+    this.instance.content = data
   }
-  update(data) {
-    this.instance.content = `正在下载:${data.title}\n[第 ${data.chapter.index} / ${data.chapter.total} 章] ${data.image.index} / ${data.image.total} 张`
+  progress(data) {
+    let content = `正在下载：${data.title}\n`
+    if (data.chapter.total) content += `[第${data.chapter.index}/${data.chapter.total}章]`
+    if (data.image.total) content += `[第${data.image.index}/${data.image.total}张]`
+    this.instance.content = content
   }
   success() {
     this.instance.content = `下载完成`
@@ -34,5 +42,9 @@ export class Tip {
     setTimeout(() => {
       this.instance.destroy()
     }, 1000)
+  }
+  error(err) {
+    this.instance.content = `下载失败：${err}`
+    this.instance.type = 'error'
   }
 }

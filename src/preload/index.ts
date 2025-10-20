@@ -11,6 +11,7 @@ import dlna from './plugins/dlna'
 import file from './plugins/file'
 import jmDownloader from './plugins/jm-downloader/index.ts'
 import pixiv from './plugins/downloader/pixiv'
+import twitter from './plugins/downloader/twitter'
 // Custom APIs for renderer
 const api = {}
 
@@ -31,6 +32,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('video', video)
     contextBridge.exposeInMainWorld('jmDownloader', jmDownloader)
     contextBridge.exposeInMainWorld('pixiv', pixiv)
+    contextBridge.exposeInMainWorld('twitter', twitter)
   } catch (error) {
     console.error(error)
   }

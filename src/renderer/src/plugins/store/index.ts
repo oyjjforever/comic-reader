@@ -3,6 +3,7 @@ import { useSettingStore } from "@renderer/plugins/store/setting";
 
 export {
     useSettingStore,
+    pinia
 }
 
 const pinia = createPinia();
