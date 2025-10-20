@@ -10,6 +10,7 @@ import videoBookmarks from './plugins/video-bookmarks'
 import dlna from './plugins/dlna'
 import file from './plugins/file'
 import jmDownloader from './plugins/jm-downloader/index.ts'
+import pixiv from './plugins/downloader/pixiv'
 // Custom APIs for renderer
 const api = {}
 
@@ -29,6 +30,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('book', book)
     contextBridge.exposeInMainWorld('video', video)
     contextBridge.exposeInMainWorld('jmDownloader', jmDownloader)
+    contextBridge.exposeInMainWorld('pixiv', pixiv)
   } catch (error) {
     console.error(error)
   }

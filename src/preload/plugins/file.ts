@@ -2,6 +2,21 @@ import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
 import { FolderInfo, FileInfo } from '@/typings/file'
+const ensuredDirs = new Set()
+function ensureDir(filePath) {
+  const dirPath = path.dirname(filePath)
+  if (ensuredDirs.has(dirPath)) return
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+  ensuredDirs.add(dirPath)
+}
+function simpleSanitize(filename, replacement = '') {
+  if (typeof filename !== 'string') return ''
+  return filename
+    .replace(/[<>:"/\\|?*]/g, replacement) // 移除非法字符
+    .replace(/^[\s.]+|[\s.]+$/g, '') // 移除首尾空格和点
+}
 /**
  * 格式化文件大小
  * @param bytes 字节数
@@ -222,7 +237,7 @@ async function getFilesInfo(dirPath: string, includeSubfolders: boolean = false)
 
         if (itemStat.isFile()) {
           const fileInfo: FileInfo = {
-            name: item.padStart(10,'0'),
+            name: item.padStart(10, '0'),
             fullPath: itemPath,
             extension: path.extname(item).toLowerCase(),
             createdTime: itemStat.birthtime,
@@ -294,6 +309,8 @@ function getFileNameWithoutExtension(filePath: string): string {
 }
 
 export default {
+  ensureDir,
+  simpleSanitize,
   formatFileSize,
   pathExists,
   getFolderInfo,
