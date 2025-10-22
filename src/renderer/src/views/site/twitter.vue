@@ -7,6 +7,7 @@
 <script setup lang="ts" name="twitter">
 import { ref, onMounted, defineExpose } from 'vue'
 import { getDefaultDownloadPath, Tip } from './utils'
+import { queue } from '@renderer/plugins/store/downloadQueue'
 const { twitter, file } = window as any
 const url = ref('https://x.com/')
 const webviewRef = ref<any>(null)
@@ -59,25 +60,18 @@ async function download() {
     tip.info('正在获取作品分页...')
     const userId = await twitter.getUserIdByName(author, cookies)
     if (!userId) throw new Error('未获取到用户ID')
-    const urls = await twitter.getAllMedia(userId, cookies)
-    if (!urls || urls.length === 0) throw new Error('未解析到可下载的媒体')
-    tip.info(`共${urls.length}篇作品，开始下载...`)
-    let defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
-    for (let idx = 0; idx < urls.length; idx++) {
-      const url = urls[idx]
-      const fileName = url.split('/').pop()
-      const baseDir = `${defaultDownloadPath}/${file.simpleSanitize(author)}`
-      const savePath = `${baseDir}/${file.simpleSanitize(fileName)}`
-      try {
-        await twitter.downloadImage(url, savePath)
-      } finally {
-        tip.progress({
-          title: fileName,
-          image: { index: idx + 1, total: urls.length }
-        })
+    const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
+    // 将媒体页作为一个任务加入队列
+    queue.addTask({
+      site: 'twitter',
+      title: author,
+      payload: {
+        author,
+        userId,
+        cookies,
+        baseDir: `${defaultDownloadPath}/${file.simpleSanitize(author)}`
       }
-    }
-    tip.success()
+    })
   } catch (error) {
     tip.error(error)
   }

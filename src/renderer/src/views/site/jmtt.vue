@@ -34,6 +34,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useMessage, NCheckbox, NCheckboxGroup, NScrollbar, NModal, NButton } from 'naive-ui'
 const message = useMessage()
 import { getDefaultDownloadPath, Tip } from './utils'
+import { queue } from '@renderer/plugins/store/downloadQueue'
 const { jmtt, file } = window as any
 
 const url = ref('https://jmcomic-zzz.one/')
@@ -97,7 +98,7 @@ async function download() {
     tip.error('webview 未准备好或未定位到漫画详情页')
     return
   }
-  let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
+  const defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
   // 获取漫画详情
   let comicInfo
   try {
@@ -121,42 +122,24 @@ async function download() {
     return
   }
 
-  const toDownload = comicInfo.chapter_infos.filter((c) => selected.value.includes(c.id))
+  const toDownload = comicInfo.chapter_infos.filter((c: any) => selected.value.includes(c.id))
   if (toDownload.length === 0) {
     tip.error('未选择任何章节')
     return
   }
 
-  // 逐章顺序下载，并显示进度
-  tip.info(`开始下载，共 ${toDownload.length} 章...`)
-  if (toDownload.length === 1) {
-    const chapterImages = await jmtt.getChapterImages(toDownload[0].id)
-    for (let i = 0; i < chapterImages.length; i++) {
-      const savePath = `${comicFolder}/${i.toString().padStart(5, '0')}.webp`
-      tip.progress(1, 1, i + 1, chapterImages.length)
-      await jmtt.downloadImage(savePath, chapterImages[i])
-    }
-  } else {
-    console.log(toDownload.length)
-    for (const chapter of toDownload) {
-      try {
-        const chapterFolder = `${comicFolder}/第${chapter.index}章`
-        const chapterImages = await jmtt.getChapterImages(chapter.id)
-        for (let i = 0; i < chapterImages.length; i++) {
-          const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
-          tip.progress(chapter.index, toDownload.length, i + 1, chapterImages.length)
-          await jmtt.downloadImage(savePath, chapterImages[i])
-        }
-        // 每章下载后暂停 5 秒，避免请求过于频繁
-        await new Promise((r) => setTimeout(r, 5000))
-      } catch (e: any) {
-        message.error(`章节 ${chapter.index} 下载失败：${e?.message || '未知错误'}`)
-        // 失败也稍作暂停，避免持续高频请求
-        await new Promise((r) => setTimeout(r, 5000))
+  // 每个章节加入为一个独立任务
+  for (const chapter of toDownload) {
+    queue.addTask({
+      site: 'jmtt',
+      title: `${comicInfo.name} - 第${chapter.index}章`,
+      payload: {
+        chapter,
+        comicInfo,
+        baseDir: comicFolder
       }
-    }
+    })
   }
-  tip.success('下载完成')
 }
 const onDownloadPrepare = async (event: any, data: any) => {
   let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')

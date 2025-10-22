@@ -51,10 +51,10 @@
         <div class="main-content-header__left">
           <template v-if="route.path.includes('site')">
             <div class="wb-site" @click="onBack">
-              <n-icon :component="ArrowLeft16Filled" size="12" />
+              <n-icon :component="CaretLeft16Filled" size="16" />
             </div>
             <div class="wb-site" @click="onForward">
-              <n-icon :component="ArrowRight16Filled" size="12" />
+              <n-icon :component="CaretRight16Filled" size="16" />
             </div>
             <div class="wb-site" @click="onRefresh">
               <n-icon :component="ArrowClockwise16Filled" size="12" />
@@ -66,6 +66,24 @@
               <n-icon :component="WindowConsole20Regular" size="12" />
             </div>
           </template>
+          <!-- 队列入口 -->
+          <div
+            @click="onOpenQueue"
+            class="queue-entry-wrapper"
+            :class="{ 'queue-entry-wrapper--active': totalCount > 0 }"
+          >
+            <div class="wb-site queue-entry" :class="{ breathing: hasActiveDownloads }">
+              <n-icon :component="Cart16Filled" size="12" />
+            </div>
+            <span v-if="totalCount > 0" class="queue-count"
+              ><span class="queue-count-simple">{{ completedCount }} / {{ totalCount }}</span
+              ><span class="queue-count-full"
+                >正在下载：{{ runningCount }}，已完成：{{ completedCount }}，总任务：{{
+                  totalCount
+                }}</span
+              ></span
+            >
+          </div>
         </div>
         <div class="main-content-header__right">
           <div class="wb-min" @click="onMin">
@@ -83,6 +101,8 @@
         </div>
       </div>
       <div class="main-content">
+        <!-- 下载队列面板 -->
+        <DownloadQueuePanel v-model:show="queueVisible" />
         <router-view v-slot="{ Component }">
           <keep-alive include="book,jmtt,pixiv,twitter">
             <component ref="childComponentRef" :is="Component" />
@@ -94,7 +114,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
 import {
@@ -103,16 +124,19 @@ import {
   AirplaneTakeOff16Regular,
   ArrowMaximize16Filled,
   ArrowMinimize16Filled,
-  ArrowLeft16Filled,
-  ArrowRight16Filled,
+  CaretLeft16Filled,
+  CaretRight16Filled,
   ArrowClockwise16Filled,
   ArrowDownload16Filled,
-  WindowConsole20Regular
+  WindowConsole20Regular,
+  Cart16Filled
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
+import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
+import { queue } from '@renderer/plugins/store/downloadQueue'
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
@@ -121,13 +145,23 @@ const canDownload = computed(
   () => !!(childComponentRef.value && (childComponentRef.value as any).canDownload)
 )
 const isDev = import.meta.env.DEV
+const hasActiveDownloads = computed(() => {
+  return queue.tasks.some((t: any) => t.status === 'running' || t.status === 'pending')
+})
+const totalCount = computed(() => queue.tasks.length || 0)
+const completedCount = computed(
+  () => queue.tasks.filter((t: any) => t.status === 'success').length || 0
+)
+const runningCount = computed(
+  () => queue.tasks.filter((t: any) => t.status === 'running').length || 0
+)
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  { image: jmttImg, name: 'jmtt' },
-  { image: pixivImg, name: 'pixiv' },
-  { image: twitterImg, name: 'twitter' }
+  // { image: jmttImg, name: 'jmtt' },
+  { image: pixivImg, name: 'pixiv' }
+  // { image: twitterImg, name: 'twitter' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
@@ -154,6 +188,10 @@ function onRefresh() {
 function onDebug() {
   const webview = document.querySelector('webview')
   webview?.openDevTools()
+}
+const queueVisible = ref(false)
+function onOpenQueue() {
+  queueVisible.value = !queueVisible.value
 }
 function onMin() {
   window.electron.ipcRenderer.invoke('window-min')
@@ -351,6 +389,61 @@ $background-color: #322f3b;
     .wb-site {
       background: #ccc;
     }
+    .queue-entry-wrapper {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      -webkit-app-region: no-drag !important;
+      cursor: pointer;
+      &--active {
+        background: #fff;
+        border-radius: 10px;
+        padding: 2px;
+      }
+      /* 悬浮：显示详细，隐藏简略 */
+      &:hover {
+        .queue-count-simple {
+          opacity: 0;
+          max-width: 0; /* 收起 */
+        }
+        .queue-count-full {
+          opacity: 1;
+          max-width: 400px; /* 依据你的文案长度调大/调小 */
+        }
+      }
+    }
+    .queue-count {
+      font-size: 10px;
+      color: #1f1f1f;
+      user-select: none;
+      line-height: 1;
+      padding: 0 5px;
+      white-space: nowrap; /* 防止换行抖动 */
+    }
+    .queue-count-simple,
+    .queue-count-full {
+      display: inline-block;
+      transition:
+        opacity 200ms ease,
+        max-width 200ms ease;
+      will-change: opacity, transform, max-width;
+      white-space: nowrap;
+    }
+
+    /* 默认：仅显示简略 */
+    .queue-count-simple {
+      opacity: 1;
+      max-width: 100px; /* 收起 */
+    }
+    .queue-count-full {
+      opacity: 0;
+      max-width: 0; /* 收起 */
+    }
+    .wb-site.breathing {
+      background: #57dc04;
+      animation: breatheGlow 1.6s ease-in-out infinite;
+      box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+    }
     .wb-min {
       background: #ff9205;
     }
@@ -470,6 +563,21 @@ $background-color: #322f3b;
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes breatheGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(96, 165, 250, 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px #57dc04;
+    transform: scale(1.06);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(96, 165, 250, 0);
+    transform: scale(1);
   }
 }
 </style>
