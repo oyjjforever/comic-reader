@@ -32,11 +32,9 @@
 <script setup lang="ts" name="jmtt">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useMessage, NCheckbox, NCheckboxGroup, NScrollbar, NModal, NButton } from 'naive-ui'
-import { useSettingStore } from '@renderer/plugins/store'
-
 const message = useMessage()
-
-const settingStore = useSettingStore()
+import { getDefaultDownloadPath, Tip } from './utils'
+const { jmtt, file } = window as any
 
 const url = ref('https://jmcomic-zzz.one/')
 const showChapterDialog = ref(false)
@@ -44,13 +42,6 @@ const comicInfoRef = ref<any>(null)
 const selected = ref<Array<number | string>>([])
 const downloadedChapterIds = ref<Set<number | string>>(new Set())
 let resolveChapterDialog: ((ok: boolean) => void) | null = null
-function simpleSanitize(filename, replacement = '') {
-  if (typeof filename !== 'string') return ''
-  return filename
-    .replace(/[<>:"/\\|?*]/g, replacement) // 移除非法字符
-    .replace(/^[\s.]+|[\s.]+$/g, '') // 移除首尾空格和点
-}
-
 function onChapterDialogConfirm() {
   showChapterDialog.value = false
   resolveChapterDialog?.(true)
@@ -78,18 +69,6 @@ function updateCanDownload() {
     canDownload.value = false
   }
 }
-
-let msgReactive: any = null
-function showChapterProgress(
-  currentChapter: number,
-  totalChapter: number,
-  currentImage: number,
-  totalImage: number
-) {
-  if (msgReactive)
-    msgReactive.content = `下载进度：[第 ${currentChapter} / ${totalChapter} 章] ${currentImage} / ${totalImage} 张`
-}
-
 async function refreshDownloadedChapters(comicFolderPath: string) {
   downloadedChapterIds.value.clear()
   const chapters = comicInfoRef.value?.chapter_infos || []
@@ -112,75 +91,61 @@ async function refreshDownloadedChapters(comicFolderPath: string) {
 }
 
 async function download() {
+  const tip = new Tip()
   const wv = webviewRef.value
   if (!wv || !comicId.value) {
-    message.error('webview 未准备好或未定位到漫画详情页')
+    tip.error('webview 未准备好或未定位到漫画详情页')
     return
   }
-
-  // 选择下载目录（jmtt 优先）
-  let defaultDownloadPath =
-    settingStore.setting?.downloadPathJmtt || settingStore.setting?.defaultDownloadPath
-  if (!defaultDownloadPath) {
-    const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')
-    if (result && !result.canceled && result.filePaths.length > 0) {
-      defaultDownloadPath = result.filePaths[0]
-    }
-  }
-  if (!defaultDownloadPath) {
-    message.error('未选择下载路径')
-    return
-  }
+  let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
   // 获取漫画详情
   let comicInfo
   try {
-    comicInfo = await window.jmDownloader.getComicInfo(comicId.value)
+    comicInfo = await jmtt.getComicInfo(comicId.value)
   } catch (e: any) {
-    message.error(`获取章节失败：${e?.message || e}`)
+    tip.error(`获取章节失败：${e?.message || e}`)
     return
   }
 
   // 选择需要下载的章节（模板弹窗）
   comicInfoRef.value = comicInfo
   selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
-  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${simpleSanitize(comicInfo.name)}`
+  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
   await refreshDownloadedChapters(comicFolder)
   showChapterDialog.value = true
   const confirmed = await new Promise<boolean>((resolve) => {
     resolveChapterDialog = resolve
   })
   if (!confirmed) {
-    message.warning('已取消下载')
+    tip.error('已取消下载')
     return
   }
 
   const toDownload = comicInfo.chapter_infos.filter((c) => selected.value.includes(c.id))
   if (toDownload.length === 0) {
-    message.warning('未选择任何章节')
+    tip.error('未选择任何章节')
     return
   }
+
   // 逐章顺序下载，并显示进度
-  msgReactive = message.create(`开始下载，共 ${toDownload.length} 章...`, {
-    type: 'loading',
-    duration: 0
-  })
+  tip.info(`开始下载，共 ${toDownload.length} 章...`)
   if (toDownload.length === 1) {
-    const chapterImages = await window.jmDownloader.getChapterImages(toDownload[0].id)
+    const chapterImages = await jmtt.getChapterImages(toDownload[0].id)
     for (let i = 0; i < chapterImages.length; i++) {
       const savePath = `${comicFolder}/${i.toString().padStart(5, '0')}.webp`
-      showChapterProgress(1, 1, i + 1, chapterImages.length)
-      await window.jmDownloader.downloadImage(savePath, chapterImages[i])
+      tip.progress(1, 1, i + 1, chapterImages.length)
+      await jmtt.downloadImage(savePath, chapterImages[i])
     }
   } else {
     console.log(toDownload.length)
     for (const chapter of toDownload) {
       try {
         const chapterFolder = `${comicFolder}/第${chapter.index}章`
-        const chapterImages = await window.jmDownloader.getChapterImages(chapter.id)
+        const chapterImages = await jmtt.getChapterImages(chapter.id)
         for (let i = 0; i < chapterImages.length; i++) {
           const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
-          showChapterProgress(chapter.index, toDownload.length, i + 1, chapterImages.length)
-          await window.jmDownloader.downloadImage(savePath, chapterImages[i])
+          tip.progress(chapter.index, toDownload.length, i + 1, chapterImages.length)
+          await jmtt.downloadImage(savePath, chapterImages[i])
         }
         // 每章下载后暂停 5 秒，避免请求过于频繁
         await new Promise((r) => setTimeout(r, 5000))
@@ -191,30 +156,20 @@ async function download() {
       }
     }
   }
-  msgReactive?.destroy()
-  message.success('下载完成')
+  tip.success('下载完成')
 }
 const onDownloadPrepare = async (event: any, data: any) => {
-  // 判断是否存在默认路径（jmtt优先）
-  let defaultDownloadPath =
-    settingStore.setting?.downloadPathJmtt || settingStore.setting?.defaultDownloadPath
-  const ext = data.fileName.split('.').pop()
-  if (!defaultDownloadPath) {
-    const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')
-    if (result && !result.canceled && result.filePaths.length > 0) {
-      defaultDownloadPath = result.filePaths[0]
-    }
-  }
+  let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
   // 获取文件名称
   const wv = webviewRef.value
   if (!wv) return
   const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
   const match = currentUrl.match(/\/album_download\/(\d+)/)
   const comicId = match ? match[1] : null
-  const comicInfo = await window.jmDownloader.getComicInfo(comicId)
+  const comicInfo = await jmtt.getComicInfo(comicId)
   try {
     await window.electron.ipcRenderer.invoke('download:start', {
-      fileName: `${simpleSanitize(comicInfo.name)}.${ext}`,
+      fileName: `${file.simpleSanitize(comicInfo.name)}.${ext}`,
       url: data.url,
       savePath: `${defaultDownloadPath}/${comicInfo.author[0] || '未分类'}`,
       autoExtract: true

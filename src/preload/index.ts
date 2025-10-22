@@ -9,7 +9,7 @@ import favorite from './plugins/favorite'
 import videoBookmarks from './plugins/video-bookmarks'
 import dlna from './plugins/dlna'
 import file from './plugins/file'
-import jmDownloader from './plugins/jm-downloader/index.ts'
+import jmtt from './plugins/downloader/jmtt/index.ts'
 import pixiv from './plugins/downloader/pixiv'
 import twitter from './plugins/downloader/twitter'
 // Custom APIs for renderer
@@ -30,7 +30,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('dlna', dlna)
     contextBridge.exposeInMainWorld('book', book)
     contextBridge.exposeInMainWorld('video', video)
-    contextBridge.exposeInMainWorld('jmDownloader', jmDownloader)
+    contextBridge.exposeInMainWorld('jmtt', jmtt)
     contextBridge.exposeInMainWorld('pixiv', pixiv)
     contextBridge.exposeInMainWorld('twitter', twitter)
   } catch (error) {
