@@ -1,7 +1,7 @@
 import { reactive, ref, nextTick } from 'vue'
 import { createDiscreteApi } from 'naive-ui'
 
-type TaskStatus = 'pending' | 'running' | 'paused' | 'success' | 'error' | 'canceled'
+type TaskStatus = 'pending' | 'running' | 'paused' | 'success' | 'error' | 'canceled' | 'existed'
 
 export interface DownloadProgress {
   chapter?: { index: number; total: number }
@@ -21,7 +21,7 @@ export interface DownloadTask {
   _pause?: boolean
   _cancel?: boolean
 }
-
+const { jmtt, pixiv, twitter, file } = (window as any)
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -35,9 +35,28 @@ function findNextPending(): DownloadTask | undefined {
   return tasks.find((t) => t.status === 'pending')
 }
 
+function sortTasks() {
+  const weight: Record<TaskStatus, number> = {
+    error: 0,
+    running: 1,
+    pending: 2,
+    paused: 3,
+    existed: 4,
+    canceled: 5,
+    success: 6
+  }
+  tasks.sort((a, b) => {
+    const w = weight[a.status] - weight[b.status]
+    if (w !== 0) return w
+    // 同一分组内按创建时间排序，较新靠前
+    return b.createdAt - a.createdAt
+  })
+}
+
 function updateTask(t: DownloadTask, patch: Partial<DownloadTask>) {
   Object.assign(t, patch)
   t.updatedAt = Date.now()
+  sortTasks()
 }
 
 export function addTask(task: Omit<DownloadTask, 'id' | 'status' | 'createdAt' | 'updatedAt'>) {
@@ -49,9 +68,10 @@ export function addTask(task: Omit<DownloadTask, 'id' | 'status' | 'createdAt' |
     updatedAt: Date.now()
   }
   tasks.push(full)
+  sortTasks()
   // 加入队列提示
   try {
-    message.info(`已加入队列：${full.title}`)
+    // message.info(`已加入队列`)
   } catch { }
   startRunner()
   return full.id
@@ -94,30 +114,65 @@ async function waitWhilePaused(task: DownloadTask) {
   }
 }
 
+// 通用并发执行器：按 limit 并发处理 items，支持暂停/取消与进度回调
+async function runWithConcurrency<T>(
+  items: T[],
+  task: DownloadTask,
+  onItem: (item: T, index: number) => Promise<void>,
+  onProgress?: (completed: number, total: number) => void
+) {
+  const limit = 6
+  let next = 0
+  let completed = 0
+  async function worker() {
+    while (true) {
+      if (task._cancel) throw new Error('任务已取消')
+      await waitWhilePaused(task)
+      const i = next
+      if (i >= items.length) break
+      next++
+      await onItem(items[i], i)
+      completed++
+      onProgress?.(completed, items.length)
+    }
+  }
+  const workers = Array(Math.min(limit, items.length)).fill(0).map(() => worker())
+  await Promise.all(workers)
+}
+
 async function runJmtt(task: DownloadTask) {
-  const { jmtt, file } = (window as any)
   const { chapter, comicInfo, baseDir } = task.payload as {
     chapter: any
     comicInfo: any
     baseDir: string
   }
   try {
-    updateTask(task, { status: 'running', title: comicInfo.name })
+    updateTask(task, { status: 'running' })
     const chapterFolder =
       (comicInfo.chapter_infos?.length || 0) > 1 ? `${baseDir}/第${chapter.index}章` : baseDir
-    const images: string[] = await jmtt.getChapterImages(chapter.id)
-    for (let i = 0; i < images.length; i++) {
-      if (task._cancel) throw new Error('任务已取消')
-      await waitWhilePaused(task)
-      const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
-      await jmtt.downloadImage(savePath, images[i])
-      updateTask(task, {
-        progress: {
-          chapter: { index: chapter.index, total: comicInfo.chapter_infos.length || 1 },
-          image: { index: i + 1, total: images.length }
-        }
-      })
+    // 开始前检查目录是否existed
+    if (await file.pathExists(chapterFolder)) {
+      updateTask(task, { status: 'existed', progress: {} })
+      return
     }
+    const images: string[] = await jmtt.getChapterImages(chapter.id)
+    await runWithConcurrency(
+      images,
+      task,
+      async (_img, i) => {
+        const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
+        await jmtt.downloadImage(savePath, images[i])
+      },
+      (completed, total) => {
+        updateTask(task, {
+          progress: {
+            chapter: { index: chapter.index, total: comicInfo.chapter_infos.length || 1 },
+            image: { index: completed, total }
+          }
+        })
+      }
+    )
+
     updateTask(task, { status: 'success' })
     try {
       message.success(`下载成功：${comicInfo.name}`)
@@ -139,27 +194,29 @@ async function runJmtt(task: DownloadTask) {
 }
 
 async function runPixiv(task: DownloadTask) {
-  const { pixiv, file } = (window as any)
-  const { artworkId, baseDir } = task.payload as { artworkId: string; baseDir: string }
+  const { artworkId, artworkInfo, baseDir } = task.payload as { artworkId: string; baseDir: string }
   try {
-    updateTask(task, { status: 'running', title: `作品 ${artworkId}` })
-    const artworkInfo = await pixiv.getArtworkInfo(artworkId)
-    const images: string[] = await pixiv.getArtworkImages(artworkId)
+    updateTask(task, { status: 'running' })
     const workDir = `${baseDir}/${file.simpleSanitize(artworkInfo.author)}/${file.simpleSanitize(artworkInfo.title)}`
-    for (let i = 0; i < images.length; i++) {
-      if (task._cancel) throw new Error('任务已取消')
-      await waitWhilePaused(task)
-      const url = images[i]
-      const fileName = `${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
-      const savePath = `${workDir}/${fileName}`
-      await pixiv.downloadImage(url, savePath)
-      updateTask(task, {
-        title: artworkInfo.title,
-        progress: {
-          image: { index: i + 1, total: images.length }
-        }
-      })
+    // 开始前检查目录是否existed
+    if (await file.pathExists(workDir)) {
+      updateTask(task, { status: 'existed', progress: {} })
+      return
     }
+    const images: string[] = await pixiv.getArtworkImages(artworkId)
+    await runWithConcurrency(
+      images,
+      task,
+      async (url, i) => {
+        const fileName = `${i.toString().padStart(5, '0')}.${(url as string).split('.').pop() || 'jpg'}`
+        const savePath = `${workDir}/${fileName}`
+        await pixiv.downloadImage(url as string, savePath)
+      },
+      (completed, total) => {
+        updateTask(task, { progress: { image: { index: completed, total } } })
+      }
+    )
+
     updateTask(task, { status: 'success' })
     try {
       message.success(`下载成功：${artworkInfo.title}`)
@@ -178,7 +235,6 @@ async function runPixiv(task: DownloadTask) {
 }
 
 async function runTwitter(task: DownloadTask) {
-  const { twitter, file } = (window as any)
   const { author, userId, cookies, baseDir } = task.payload as {
     author: string
     userId: string
@@ -186,20 +242,28 @@ async function runTwitter(task: DownloadTask) {
     baseDir: string
   }
   try {
-    updateTask(task, { status: 'running', title: author })
-    const urls: string[] = await twitter.getAllMedia(userId, cookies)
-    if (!urls.length) throw new Error('未解析到可下载的媒体')
-    for (let i = 0; i < urls.length; i++) {
-      if (task._cancel) throw new Error('任务已取消')
-      await waitWhilePaused(task)
-      const url = urls[i]
-      const fileName = file.simpleSanitize(url.split('/').pop())
-      const savePath = `${baseDir}/${fileName}`
-      await twitter.downloadImage(url, savePath)
-      updateTask(task, {
-        progress: { image: { index: i + 1, total: urls.length } }
-      })
+    updateTask(task, { status: 'running' })
+    // 开始前检查目录是否existed
+    if (await file.pathExists(baseDir)) {
+      updateTask(task, { status: 'existed', progress: {} })
+      return
     }
+    const images: string[] = await twitter.getAllMedia(userId, cookies)
+    if (!images.length) throw new Error('未解析到可下载的媒体')
+
+    await runWithConcurrency(
+      images,
+      task,
+      async (url, _i) => {
+        const fileName = file.simpleSanitize((url as string).split('/').pop()!)
+        const savePath = `${baseDir}/${fileName}`
+        await twitter.downloadImage(url as string, savePath)
+      },
+      (completed, total) => {
+        updateTask(task, { progress: { image: { index: completed, total } } })
+      }
+    )
+
     updateTask(task, { status: 'success' })
     try {
       message.success(`下载成功：${author}`)

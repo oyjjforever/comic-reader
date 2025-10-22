@@ -68,11 +68,13 @@ async function download() {
     const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
     // 每个作品加入队列任务
     for (const artworkId of illusts) {
+      const artworkInfo = await pixiv.getArtworkInfo(artworkId)
       queue.addTask({
         site: 'pixiv',
-        title: `作品 ${artworkId}`,
+        title: `[${artworkInfo.author}]${artworkInfo.title}`,
         payload: {
           artworkId,
+          artworkInfo,
           baseDir: defaultDownloadPath
         }
       })

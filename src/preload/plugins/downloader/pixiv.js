@@ -1,5 +1,6 @@
 import Api from './api.js'
-import path from 'path'
+import fsp from 'fs/promises'
+import file from '../file.ts'
 import { ipcRenderer } from 'electron'
 const api = new Api({
   proxyMode: 'Custom',
@@ -7,8 +8,15 @@ const api = new Api({
   proxyPort: '7890'
 })
 async function getArtworksByUserId(userId) {
+  const cookies = await ipcRenderer.invoke('site:getCookies')
   const res = await api.get({
-    url: `https://www.pixiv.net/ajax/user/${userId}/profile/all?sensitiveFilterMode=userSetting&lang=zh`
+    url: `https://www.pixiv.net/ajax/user/${userId}/profile/all?sensitiveFilterMode=userSetting&lang=zh`,
+    headers: {
+      Cookie: cookies
+        .filter((_) => _.domain === '.pixiv.net')
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ')
+    }
   })
   return {
     illusts: res.body.illusts,
@@ -26,22 +34,28 @@ async function getArtworkInfo(artworkId) {
 }
 
 async function getArtworkImages(artworkId) {
+  const cookies = await ipcRenderer.invoke('site:getCookies')
   const res = await api.get({
-    url: `https://www.pixiv.net/ajax/illust/${artworkId}/pages?lang=zh`
+    url: `https://www.pixiv.net/ajax/illust/${artworkId}/pages?lang=zh`,
+    headers: {
+      Cookie: cookies
+        .filter((_) => _.domain === '.pixiv.net')
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ')
+    }
   })
   return res.body.map((_) => _.urls.original)
 }
 
 async function downloadImage(url, savePath) {
-  const dir = path.dirname(savePath)
-  const fileName = path.basename(savePath)
-  await ipcRenderer.invoke('download:start', {
+  const res = await api.get({
     url,
-    fileName,
-    savePath: dir,
-    autoExtract: false,
+    responseType: 'arraybuffer',
     headers: { Referer: 'https://www.pixiv.net/' }
   })
+  let imageData = Buffer.from(res)
+  file.ensureDir(savePath)
+  fsp.writeFile(savePath, imageData)
 }
 
 export default {

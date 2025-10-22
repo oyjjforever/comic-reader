@@ -1,6 +1,7 @@
-import fsp from 'fs/promises'
-// import file from '../file.ts'
 import Api from './api.js'
+import fsp from 'fs/promises'
+import file from '../file.ts'
+import { ipcRenderer } from 'electron'
 
 const api = new Api({
   proxyMode: 'Custom',
@@ -55,22 +56,26 @@ function extractBottomCursorValues(root) {
   // 去重
   return Array.from(new Set(out))[0]
 }
-async function buildHeader(cookies) {
-  const ct0 = (cookies.match(/ct0=([^;]+)/) || [])[1] || ''
+async function buildHeader() {
+  const cookies = await ipcRenderer.invoke('site:getCookies')
   const header = {
     Authorization:
       'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
     'x-twitter-active-user': 'yes',
     'X-Twitter-Auth-Type': 'OAuth2Session',
-    'x-csrf-token': ct0,
+    'x-csrf-token': cookies.find((_) => _.name === 'ct0').value,
     'X-Client-Transaction-Id':
       '+ifp8By2H0O/DBmRL0XFg6lCxu5mSkrP7aho/uYrEu86JgnS3p/d+BdcIjkq7yI+jWGzb/5ZExMMlI86jfQYjP0tFW6e+Q',
     'X-Xp-Forwarded-For':
-      '3939bfeaab22b444d596f61102bd4dfc149fe08c2311b7e5a2a6c14ea0b5b515ad297adc208992890532d6a6cf59d0f791b925d383c8a6c8b8706c7a6f7813e991b58fbe402e5991813b2b7c5bd6364615a050132df33c8e71146e1a42f4038edd7728c0f1897393f54a341f3e6d761411cb1d47e84dc8ad10d90d69418902dcb32da7ea285d973b72cf256d4e2e21455060072570da45c2a6314f39d119ebde77465abb0b5d408998dd2f4869bb676a3ef383f833cc8f8467a70f94522443bdfa6f7c6b71d637a89aef651ce2184a3110e293956b2072dbfcfac1a8274449f11cd2610d8514b45e5c95bcb48d3fef466ffeda1b3ef7a01604140b5a6b057bd859e6edafeec6822abeed7cae7388f55495b7edd99708ce2c80b5a697bf73'
+      '3939bfeaab22b444d596f61102bd4dfc149fe08c2311b7e5a2a6c14ea0b5b515ad297adc208992890532d6a6cf59d0f791b925d383c8a6c8b8706c7a6f7813e991b58fbe402e5991813b2b7c5bd6364615a050132df33c8e71146e1a42f4038edd7728c0f1897393f54a341f3e6d761411cb1d47e84dc8ad10d90d69418902dcb32da7ea285d973b72cf256d4e2e21455060072570da45c2a6314f39d119ebde77465abb0b5d408998dd2f4869bb676a3ef383f833cc8f8467a70f94522443bdfa6f7c6b71d637a89aef651ce2184a3110e293956b2072dbfcfac1a8274449f11cd2610d8514b45e5c95bcb48d3fef466ffeda1b3ef7a01604140b5a6b057bd859e6edafeec6822abeed7cae7388f55495b7edd99708ce2c80b5a697bf73',
+    Cookie: cookies
+      .filter((_) => _.domain === '.x.com')
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join('; ')
   }
   return header
 }
-async function getUserIdByName(name, cookies) {
+async function getUserIdByName(name) {
   const variables = { screen_name: name, withGrokTranslatedBio: false }
   const features = {
     hidden_profile_subscriptions_enabled: true,
@@ -88,15 +93,16 @@ async function getUserIdByName(name, cookies) {
     responsive_web_graphql_timeline_navigation_enabled: true
   }
   const fieldToggles = { withAuxiliaryUserLabels: true }
+  const headers = await buildHeader()
   const res = await api.get({
     url: `https://x.com/i/api/graphql/96tVxbPqMZDoYB5pmzezKA/UserByScreenName?variables=${encodeURIComponent(JSON.stringify(variables))}&features=${encodeURIComponent(JSON.stringify(features))}&fieldToggles=${encodeURIComponent(JSON.stringify(fieldToggles))}`,
-    headers: buildHeader(cookies)
+    headers
   })
   const userId = res?.data?.user?.result?.rest_id
   return userId
 }
 
-async function getMediaPerPage(userId, cookies) {
+async function getMediaPerPage(userId, cursor) {
   const variables = {
     userId,
     cursor,
@@ -143,19 +149,19 @@ async function getMediaPerPage(userId, cookies) {
     responsive_web_enhance_cards_enabled: false
   }
   const fieldToggles = { withArticlePlainText: false }
-
+  const headers = await buildHeader()
   const res = await api.get({
     url: `https://x.com/i/api/graphql/1sfLYBlfEneWDhkHSv_9hw/UserMedia?variables=${encodeURIComponent(JSON.stringify(variables))}&features=${encodeURIComponent(JSON.stringify(features))}&fieldToggles=${encodeURIComponent(JSON.stringify(fieldToggles))}`,
-    headers: buildHeader(cookies)
+    headers
   })
   return res
 }
 
-async function getAllMedia(userId, cookies) {
+async function getAllMedia(userId) {
   let all = [],
     cursor = null
   while (true) {
-    const res = await getMediaPerPage(userId, cookies)
+    const res = await getMediaPerPage(userId, cursor)
     const urls = extractMediaUrlsDeep(res)
     cursor = extractBottomCursorValues(res)
     if (urls?.length) all.push(...urls)
@@ -174,9 +180,6 @@ async function downloadImage(url, savePath) {
   file.ensureDir(savePath)
   fsp.writeFile(savePath, imageData)
 }
-const cookies =
-  'guest_id=v1%3A173113047100843998; night_mode=2; guest_id_marketing=v1%3A173113047100843998; guest_id_ads=v1%3A173113047100843998; ct0=0782208e498f559465b767cc06e3beffda83613f47ac1451c9cb6e224dc7df1f08b93d93376e63387b7a0ae43e8663ddc0ce5c44b363c9ed9261fd48b0181b068ea4d109402bafaf0ba645ba1a407181; twid=u%3D1446370960647475204; personalization_id="v1_6vV1Aj8S+qNydk2XHznQuw=="; dnt=1; __cuid=437e7bea44d74e01b632fef568c4b7bd; lang=zh-cn'
-getUserIdByName('tanabejyuukou_9', cookies)
 export default {
   getUserIdByName,
   getUserIdByName,

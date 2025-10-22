@@ -14,7 +14,7 @@ function ensureDir(filePath) {
 function simpleSanitize(filename, replacement = '') {
   if (typeof filename !== 'string') return ''
   return filename
-    .replace(/[<>:"/\\|?*]/g, replacement) // 移除非法字符
+    .replace(/[#<>:"/\\|?*]/g, replacement) // 移除非法字符
     .replace(/^[\s.]+|[\s.]+$/g, '') // 移除首尾空格和点
 }
 /**

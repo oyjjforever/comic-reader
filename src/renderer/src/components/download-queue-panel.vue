@@ -16,7 +16,7 @@
               class="progress-flex"
               type="line"
               :show-indicator="false"
-              :percentage="t.status === 'success' ? 100 : calcPercent(t)"
+              :percentage="['success','existed'].includes(t.status) ? 100 : calcPercent(t)"
               :show-info="false"
               :status="progressStatus(t)"
               :height="6"
@@ -72,6 +72,7 @@
             <template v-if="t.progress.image">
               图片 {{ t.progress.image.index }}/{{ t.progress.image.total }}
             </template>
+            <n-tag size="small" :type="statusType(t.status)" class="status-tag">{{ statusLabel(t.status) }}</n-tag>
           </div>
         </div>
       </div>
@@ -82,6 +83,32 @@
 <script setup lang="ts">
 import { NDrawer, NDrawerContent, NButton, NTag, NProgress, NIcon } from 'naive-ui'
 import { queue } from '@renderer/plugins/store/downloadQueue'
+
+function statusLabel(s: string) {
+  const map: Record<string, string> = {
+    pending: '排队中',
+    running: '进行中',
+    paused: '已暂停',
+    success: '已完成',
+    error: '错误',
+    canceled: '已取消',
+    existed: '已存在'
+  }
+  return map[s] || s
+}
+
+function statusType(s: string) {
+  const map: Record<string, any> = {
+    pending: 'info',
+    running: 'success',
+    paused: 'warning',
+    success: 'success',
+    error: 'error',
+    canceled: 'default',
+    existed: 'default'
+  }
+  return map[s] || 'default'
+}
 
 // 站点图标（与 layout 中相同资源）
 import jmttImg from '@renderer/assets/jmtt.jpg'
@@ -195,6 +222,12 @@ function onDelete(t: any) {
   font-size: 12px;
   color: #666;
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-tag {
+  margin-left: auto;
 }
 .actions {
   display: flex;

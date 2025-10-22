@@ -132,7 +132,7 @@ async function download() {
   for (const chapter of toDownload) {
     queue.addTask({
       site: 'jmtt',
-      title: `${comicInfo.name} - 第${chapter.index}章`,
+      title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
       payload: {
         chapter,
         comicInfo,

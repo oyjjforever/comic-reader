@@ -1,6 +1,7 @@
 import axios from 'axios'
 function buildAxios(config) {
   const instance = axios.create({
+    adapter: 'http', // 强制使用 Node http 适配器，避免渲染/XHR 改写请求头
     // 超时可根据需要调整
     timeout: 10000,
     // 代理
@@ -59,7 +60,7 @@ export default class Api {
         if (resp.status !== 200) throw new Error(`${resp.status} ${resp.statusText}`)
         return resp.data
       } catch (e) {
-        console.log(e.message)
+        console.log(config.url, e.message)
         throw e
       }
     })

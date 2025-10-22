@@ -42,7 +42,13 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.cjs'),
     }
   })
-
+  // 拦截 window.open 及新窗口请求
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // 使用默认浏览器打开链接
+    shell.openExternal(url); // 注意：需对url进行安全校验，特别是来自不可信源时
+    // 阻止 Electron 创建新窗口
+    return { action: 'deny' };
+  });
   mainWindow.on('ready-to-show', () => {
     setTimeout(() => {
       mainWindow.show()
@@ -301,6 +307,17 @@ app.whenReady().then(() => {
     return
   })
 
+})
+ipcMain.handle('site:getCookies', async (_e, payload) => {
+  try {
+    const { session } = require('electron')
+    const currentSession = session.fromPartition('persist:thirdparty')
+    const cookies = await currentSession.cookies.get({})
+    return cookies // 明确返回cookies
+  } catch (error) {
+    console.error('获取cookies失败:', error)
+    return null // 或返回空数组 []，根据你的错误处理逻辑
+  }
 })
 app.on('activate', function () {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()

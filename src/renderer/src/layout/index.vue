@@ -78,7 +78,7 @@
             <span v-if="totalCount > 0" class="queue-count"
               ><span class="queue-count-simple">{{ completedCount }} / {{ totalCount }}</span
               ><span class="queue-count-full"
-                >正在下载：{{ runningCount }}，已完成：{{ completedCount }}，总任务：{{
+                >队列中：{{ pendingCount }}，已完成：{{ completedCount }}，总任务：{{
                   totalCount
                 }}</span
               ></span
@@ -150,10 +150,10 @@ const hasActiveDownloads = computed(() => {
 })
 const totalCount = computed(() => queue.tasks.length || 0)
 const completedCount = computed(
-  () => queue.tasks.filter((t: any) => t.status === 'success').length || 0
+  () => queue.tasks.filter((t: any) => ['success','existed'].includes(t.status)).length || 0
 )
-const runningCount = computed(
-  () => queue.tasks.filter((t: any) => t.status === 'running').length || 0
+const pendingCount = computed(
+  () => queue.tasks.filter((t: any) => t.status === 'pending').length || 0
 )
 // 菜单项配置
 const menuItems = [
