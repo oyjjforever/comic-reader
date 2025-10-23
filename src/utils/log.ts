@@ -31,7 +31,7 @@ function getLogDirByDate(d = new Date()) {
     return path.join(getLogBaseDir(), dateStr(d))
 }
 // 配置按日期输出日志到 YYYY-MM-DD/main.log
-(log.transports.file as any).resolvePath = (variables: any) => {
+(log.transports.file as any).resolvePathFn = (variables: any) => {
     const dt = variables?.date instanceof Date ? variables.date : new Date()
     const dir = getLogDirByDate(dt)
     ensureDir(dir)

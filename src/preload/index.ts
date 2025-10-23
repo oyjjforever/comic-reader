@@ -9,9 +9,10 @@ import favorite from './plugins/favorite'
 import videoBookmarks from './plugins/video-bookmarks'
 import dlna from './plugins/dlna'
 import file from './plugins/file'
-import jmtt from './plugins/downloader/jmtt/index.ts'
+import jmtt from './plugins/downloader/jmtt/index'
 import pixiv from './plugins/downloader/pixiv'
 import twitter from './plugins/downloader/twitter'
+import specialAttention from './plugins/special-attention'
 // Custom APIs for renderer
 const api = {}
 
@@ -33,6 +34,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('jmtt', jmtt)
     contextBridge.exposeInMainWorld('pixiv', pixiv)
     contextBridge.exposeInMainWorld('twitter', twitter)
+    contextBridge.exposeInMainWorld('specialAttention', specialAttention)
   } catch (error) {
     console.error(error)
   }

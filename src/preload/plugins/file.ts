@@ -308,6 +308,16 @@ function getFileNameWithoutExtension(filePath: string): string {
   return name.slice(0, -ext.length)
 }
 
+/**
+ * 写入文件（自动创建目录）
+ * @param filePath 文件路径
+ * @param content 文本或二进制内容
+ */
+async function writeFile(filePath: string, content: string | Buffer): Promise<void> {
+  ensureDir(filePath)
+  await fsp.writeFile(filePath, content)
+}
+
 export default {
   ensureDir,
   simpleSanitize,
@@ -320,5 +330,6 @@ export default {
   getFilesInfo,
   readFileBuffer,
   getFileExtension,
-  getFileNameWithoutExtension
+  getFileNameWithoutExtension,
+  writeFile
 }

@@ -62,6 +62,9 @@
             <div class="wb-max" v-if="canDownload" @click="onDownload">
               <n-icon :component="ArrowDownload16Filled" size="12" />
             </div>
+            <div class="wb-site" v-if="canDownload" @click="onAddSpecialAttention" title="特别关注">
+              <n-icon :component="Star24Regular" size="12" />
+            </div>
             <div class="wb-site" v-if="isDev" @click="onDebug">
               <n-icon :component="WindowConsole20Regular" size="12" />
             </div>
@@ -104,7 +107,7 @@
         <!-- 下载队列面板 -->
         <DownloadQueuePanel v-model:show="queueVisible" />
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,jmtt,pixiv,twitter">
+          <keep-alive include="book,jmtt,pixiv,twitter,special-attention">
             <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>
@@ -129,7 +132,8 @@ import {
   ArrowClockwise16Filled,
   ArrowDownload16Filled,
   WindowConsole20Regular,
-  Cart16Filled
+  Cart16Filled,
+  Star24Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import jmttImg from '@renderer/assets/jmtt.jpg'
@@ -160,7 +164,8 @@ const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
   // { image: jmttImg, name: 'jmtt' },
-  { image: pixivImg, name: 'pixiv' }
+  { image: pixivImg, name: 'pixiv' },
+  { icon: Star24Regular, name: 'special-attention' }
   // { image: twitterImg, name: 'twitter' }
 ]
 
@@ -172,6 +177,9 @@ function handleMenuClick(index: number, name: string) {
 }
 function onDownload() {
   childComponentRef.value?.download()
+}
+function onAddSpecialAttention() {
+  (childComponentRef.value as any)?.addSpecialAttention?.()
 }
 function onBack() {
   const webview = document.querySelector('webview')

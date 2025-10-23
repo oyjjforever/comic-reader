@@ -47,6 +47,32 @@ function extractArtworkId(currentUrl: string): string | null {
     return null
   }
 }
+async function addSpecialAttention() {
+  const tip = new Tip()
+  try {
+    const wv = webviewRef.value
+    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+    const userId = extractUserId(currentUrl)
+    if (!userId) throw new Error('无法从当前URL解析作者ID')
+    let authorName: string | undefined = undefined
+    if (currentUrl.includes('artworks')) {
+      const artworkId = extractArtworkId(currentUrl)
+      if (artworkId) {
+        const info = await pixiv.getArtworkInfo(artworkId)
+        authorName = info?.author
+      }
+    }
+    await (window as any).specialAttention.add({
+      source: 'pixiv',
+      authorId: userId,
+      authorName
+    })
+    tip.success('已添加到特别关注')
+  } catch (e) {
+    console.log("🚀 ~ file: pixiv.vue ~ line 72 ~ addSpecialAttention ~ e", e)
+    tip.error(e)
+  }
+}
 async function download() {
   const tip = new Tip()
   try {
@@ -97,7 +123,8 @@ onMounted(async () => {
 // 暴露方法
 defineExpose({
   download,
-  canDownload
+  canDownload,
+  addSpecialAttention
 })
 </script>
 

@@ -33,6 +33,15 @@ export default [
                 component: () => import('@renderer/views/video/player.vue'),
             },
             {
+                path: '/special-attention',
+                name: "special-attention",
+                component: () => import('@renderer/views/special-attention.vue'),
+                meta: {
+                    title: "特别关注",
+                    keepAlive: true
+                }
+            },
+            {
                 path: '/site',
                 name: "site",
                 children: [

@@ -174,6 +174,22 @@ async function runJmtt(task: DownloadTask) {
       }
     )
 
+    // 写入章节信息文件
+    try {
+      const infoPath = `${chapterFolder}/info.json`
+      const payloadInfo = {
+        site: 'jmtt',
+        id: comicInfo?.id ?? comicInfo?.comic_id ?? '',
+        name: comicInfo?.title ?? comicInfo?.name ?? '',
+        author: comicInfo?.author ?? '',
+        chapterIndex: chapter?.index ?? 1,
+        chapterTitle: chapter?.title ?? '',
+        timestamp: Date.now(),
+        source: 'queue'
+      }
+      await file.writeFile(infoPath, JSON.stringify(payloadInfo, null, 2))
+    } catch {}
+
     updateTask(task, { status: 'success' })
 
   } catch (e: any) {
@@ -190,7 +206,7 @@ async function runJmtt(task: DownloadTask) {
 }
 
 async function runPixiv(task: DownloadTask) {
-  const { artworkId, artworkInfo, baseDir } = task.payload as { artworkId: string; baseDir: string }
+  const { artworkId, artworkInfo, baseDir } = task.payload as { artworkId: string; artworkInfo: any; baseDir: string }
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}/${file.simpleSanitize(artworkInfo.author)}/${file.simpleSanitize(artworkInfo.title)}`
@@ -212,6 +228,21 @@ async function runPixiv(task: DownloadTask) {
         updateTask(task, { progress: { image: { index: completed, total } } })
       }
     )
+
+    // 写入作品信息文件
+    try {
+      const infoPath = `${workDir}/info.json`
+      const payloadInfo = {
+        site: 'pixiv',
+        id: artworkId,
+        name: artworkInfo?.title ?? '',
+        author: artworkInfo?.author ?? '',
+        title: artworkInfo?.title ?? '',
+        timestamp: Date.now(),
+        source: 'queue'
+      }
+      await file.writeFile(infoPath, JSON.stringify(payloadInfo, null, 2))
+    } catch {}
 
     updateTask(task, { status: 'success' })
 
