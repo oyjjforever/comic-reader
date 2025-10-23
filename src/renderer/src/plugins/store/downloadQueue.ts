@@ -230,10 +230,10 @@ async function runTwitter(task: DownloadTask) {
       updateTask(task, { status: 'existed', progress: {} })
       return
     }
-    const images: string[] = await twitter.getAllMedia(userId)
+    const images = await twitter.getAllMedia(userId)
     if (!images.length) throw new Error('未解析到可下载的媒体')
     await runWithConcurrency(
-      images,
+      images.map((_) => _.url),
       task,
       async (url, _i) => {
         const fileName = file.simpleSanitize((url as string).split('/').pop()!)

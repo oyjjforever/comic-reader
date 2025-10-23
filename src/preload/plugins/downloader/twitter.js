@@ -8,6 +8,70 @@ const api = new Api({
   proxyHost: '127.0.0.1',
   proxyPort: '7890'
 })
+/**
+ * 从JSON文件中读取items数组，提取每个对象的entryId、created_at和media_url_https字段
+ * @param {Object|string} jsonData - JSON对象或JSON字符串
+ * @returns {Array} 包含指定字段的对象数组
+ */
+function extractItemsFromJson(jsonData) {
+  try {
+    // 如果传入的是字符串，先解析为JSON对象
+    const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
+
+    // 查找items数组的路径
+    // 根据JSON结构，items位于: data.user.result.timeline.timeline.instructions[2].entries[0].content.items
+    const instructions = data?.data?.user?.result?.timeline?.timeline?.instructions
+
+    if (!instructions || !Array.isArray(instructions)) {
+      console.warn('未找到instructions数组')
+      return []
+    }
+
+    // 查找包含TimelineAddEntries的指令
+    const addEntriesInstruction = instructions.find(
+      (instruction) => instruction.type === 'TimelineAddEntries'
+    )
+
+    if (!addEntriesInstruction || !addEntriesInstruction.entries) {
+      console.warn('未找到TimelineAddEntries指令或entries数组')
+      return []
+    }
+
+    // 查找包含items的entry
+    const entryWithItems = addEntriesInstruction.entries.find(
+      (entry) => entry.content && entry.content.items && Array.isArray(entry.content.items)
+    )
+
+    if (!entryWithItems) {
+      console.warn('未找到包含items的entry')
+      return []
+    }
+
+    const items = entryWithItems.content.items
+
+    // 提取每个item的指定字段
+    const extractedData = items.map((item) => ({
+      entryId: item.entryId || null,
+      createTime:
+        item.item?.itemContent?.tweet_results?.result?.legacy?.created_at ||
+        item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.created_at,
+      url:
+        item.item?.itemContent?.tweet_results?.result?.legacy?.entities?.media?.[0]
+          ?.media_url_https ||
+        item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.entities?.media?.[0]
+          ?.media_url_https
+    }))
+    return extractedData
+  } catch (error) {
+    console.error('解析JSON时出错:', error)
+    return []
+  }
+}
+
+// 使用示例：
+// const result = extractItemsFromFile('response.json');
+// console.log(result);
+
 function extractMediaUrlsDeep(data) {
   const urls = []
   const stack = [data]
@@ -162,10 +226,10 @@ async function getAllMedia(userId) {
     cursor = null
   while (true) {
     const res = await getMediaPerPage(userId, cursor)
-    const urls = extractMediaUrlsDeep(res)
+    const images = extractItemsFromJson(res)
     cursor = extractBottomCursorValues(res)
-    if (urls?.length) all.push(...urls)
-    if (!urls || urls.length < 20) break
+    if (images?.length) all.push(...images)
+    if (!images || images.length < 20) break
   }
   return Array.from(new Set(all))
 }
