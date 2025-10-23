@@ -122,7 +122,7 @@ async function runWithConcurrency<T>(
   onItem: (item: T, index: number) => Promise<void>,
   onProgress?: (completed: number, total: number) => void
 ) {
-  const limit = 6
+  const limit = 20
   let next = 0
   let completed = 0
   async function worker() {

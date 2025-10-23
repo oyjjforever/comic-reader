@@ -178,7 +178,7 @@ async function downloadImage(url, savePath) {
   })
   let imageData = Buffer.from(res)
   file.ensureDir(savePath)
-  fsp.writeFile(savePath, imageData)
+  await fsp.writeFile(savePath, imageData)
 }
 export default {
   getUserIdByName,

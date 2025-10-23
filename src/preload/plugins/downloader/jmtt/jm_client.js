@@ -371,13 +371,13 @@ class JmClient {
     ensureDir(folderPath)
     // 优化：webp->webp 且无需拼接，直接保存
     if (srcFormat === 'webp' && downloadFormat === 'webp' && blockNum === 0) {
-      fsp.writeFile(savePath, srcImgData)
+      await fsp.writeFile(savePath, srcImgData)
       return
     }
 
     // GIF 直接保存
     if (srcFormat === 'gif') {
-      fsp.writeFile(savePath, srcImgData)
+      await fsp.writeFile(savePath, srcImgData)
       return
     }
 
@@ -447,7 +447,7 @@ class JmClient {
         throw new Error(`Unsupported downloadFormat: ${downloadFormat}`)
     }
 
-    fsp.writeFile(savePath, encoded)
+    await fsp.writeFile(savePath, encoded)
   }
 
   async get_scramble_id(id) {
