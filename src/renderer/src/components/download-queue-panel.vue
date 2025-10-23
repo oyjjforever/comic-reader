@@ -82,10 +82,10 @@
             </div>
           </div>
           <div class="progress-text">
-            <template v-if="t.status === 'success' && t.progress.chapter">
+            <template v-if="['success', 'running'].includes(t.status) && t.progress.chapter">
               章节 {{ t.progress.chapter.index }}/{{ t.progress.chapter.total }}
             </template>
-            <template v-if="t.status === 'success' && t.progress.image">
+            <template v-if="['success', 'running'].includes(t.status) && t.progress.image">
               图片 {{ t.progress.image.index }}/{{ t.progress.image.total }}
             </template>
             <span v-if="t.status === 'error' && t.errorMessage" class="error-msg">{{

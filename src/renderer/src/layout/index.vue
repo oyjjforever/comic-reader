@@ -163,10 +163,10 @@ const pendingCount = computed(
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  // { image: jmttImg, name: 'jmtt' },
+  { image: jmttImg, name: 'jmtt' },
   { image: pixivImg, name: 'pixiv' },
+  { image: twitterImg, name: 'twitter' },
   { icon: Star24Regular, name: 'special-attention' }
-  // { image: twitterImg, name: 'twitter' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
@@ -179,7 +179,7 @@ function onDownload() {
   childComponentRef.value?.download()
 }
 function onAddSpecialAttention() {
-  (childComponentRef.value as any)?.addSpecialAttention?.()
+  ;(childComponentRef.value as any)?.addSpecialAttention?.()
 }
 function onBack() {
   const webview = document.querySelector('webview')

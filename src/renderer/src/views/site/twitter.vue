@@ -34,11 +34,7 @@ function getAuthorFromUrl(): string | null {
     const wv = webviewRef.value
     if (!wv) throw new Error('webview 未准备好')
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    // 形如 https://x.com/<screen_name>/media
-    const parts = currentUrl.split('/').filter(Boolean)
-    // parts[0] 是 screen_name；当第二段是 'media' 时有效
-    if (parts.length >= 1) return parts[0]
-    return null
+    return currentUrl.match(/x\.com\/([^\/]+)\/media/)?.[1]
   } catch {
     return null
   }
@@ -50,35 +46,19 @@ async function download() {
     if (!wv) throw new Error('webview 未准备好')
     const author = getAuthorFromUrl()
     if (!author) throw new Error('无法从当前URL解析 screen_name')
-    const cookies = await wv.executeJavaScript(`(async () => {
-      try {
-        return document.cookie || '';
-      } catch (e) {
-        return '';
-      }
-    })()`)
-    const userId = await twitter.getUserIdByName(author, cookies)
+    const userId = await twitter.getUserIdByName(author)
     if (!userId) throw new Error('未获取到用户ID')
     const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
-    tip.info('正在获取作品分页...')
-    const images = await twitter.getAllMedia(userId)
-    if (!images || images.length === 0) throw new Error('未解析到可下载的媒体')
-    const baseDir = `${defaultDownloadPath}/${file.simpleSanitize(author)}`
-    queue.addTask(
-      images.map((imageUrl) => {
-        const fileName = file.simpleSanitize((imageUrl as string).split('/').pop() || '')
-        return {
-          site: 'twitter',
-          title: `[${author}]${fileName || 'image'}`,
-          payload: {
-            author,
-            fileName,
-            imageUrl,
-            baseDir
-          }
-        }
-      })
-    )
+    // 将媒体页作为一个任务加入队列
+    queue.addTask({
+      site: 'twitter',
+      title: `[${author}]的媒体库`,
+      payload: {
+        author,
+        userId,
+        baseDir: `${defaultDownloadPath}/${file.simpleSanitize(author)}`
+      }
+    })
   } catch (error) {
     tip.error(error)
   }

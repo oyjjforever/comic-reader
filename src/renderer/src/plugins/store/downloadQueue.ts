@@ -173,25 +173,7 @@ async function runJmtt(task: DownloadTask) {
         })
       }
     )
-
-    // 写入章节信息文件
-    try {
-      const infoPath = `${chapterFolder}/info.json`
-      const payloadInfo = {
-        site: 'jmtt',
-        id: comicInfo?.id ?? comicInfo?.comic_id ?? '',
-        name: comicInfo?.title ?? comicInfo?.name ?? '',
-        author: comicInfo?.author ?? '',
-        chapterIndex: chapter?.index ?? 1,
-        chapterTitle: chapter?.title ?? '',
-        timestamp: Date.now(),
-        source: 'queue'
-      }
-      await file.writeFile(infoPath, JSON.stringify(payloadInfo, null, 2))
-    } catch {}
-
     updateTask(task, { status: 'success' })
-
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
@@ -228,24 +210,7 @@ async function runPixiv(task: DownloadTask) {
         updateTask(task, { progress: { image: { index: completed, total } } })
       }
     )
-
-    // 写入作品信息文件
-    try {
-      const infoPath = `${workDir}/info.json`
-      const payloadInfo = {
-        site: 'pixiv',
-        id: artworkId,
-        name: artworkInfo?.title ?? '',
-        author: artworkInfo?.author ?? '',
-        title: artworkInfo?.title ?? '',
-        timestamp: Date.now(),
-        source: 'queue'
-      }
-      await file.writeFile(infoPath, JSON.stringify(payloadInfo, null, 2))
-    } catch {}
-
     updateTask(task, { status: 'success' })
-
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
@@ -257,17 +222,29 @@ async function runPixiv(task: DownloadTask) {
 }
 
 async function runTwitter(task: DownloadTask) {
-  const { fileName, imageUrl, baseDir } = task.payload
+  const { userId, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-    const savePath = `${baseDir}/${fileName}`
     // 开始前检查目录是否existed
-    if (await file.pathExists(savePath)) {
-      updateTask(task, { status: 'existed', progress: { image: { index: 1, total: 1 } } })
+    if (await file.pathExists(baseDir)) {
+      updateTask(task, { status: 'existed', progress: {} })
       return
     }
-    await twitter.downloadImage(imageUrl as string, savePath)
-    updateTask(task, { status: 'success', progress: { image: { index: 1, total: 1 } } })
+    const images: string[] = await twitter.getAllMedia(userId)
+    if (!images.length) throw new Error('未解析到可下载的媒体')
+    await runWithConcurrency(
+      images,
+      task,
+      async (url, _i) => {
+        const fileName = file.simpleSanitize((url as string).split('/').pop()!)
+        const savePath = `${baseDir}/${fileName}`
+        await twitter.downloadImage(url as string, savePath)
+      },
+      (completed, total) => {
+        updateTask(task, { progress: { image: { index: completed, total } } })
+      }
+    )
+    updateTask(task, { status: 'success' })
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
@@ -334,7 +311,7 @@ function seedDemoDataIfEmpty() {
   // 示例任务：成功（绿色）
   tasks.push(mk('pixiv', '演示·作品（Pixiv）', 'success', 12, 12))
 }
-seedDemoDataIfEmpty()
+// seedDemoDataIfEmpty()
 
 export const queue = {
   tasks,

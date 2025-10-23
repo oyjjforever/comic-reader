@@ -31,6 +31,12 @@ export class Tip {
     this.instance.content = content
   }
   success(content) {
+    if (!this.instance) {
+      this.instance = message.create(content, {
+        type: 'loading',
+        duration: 0
+      })
+    }
     this.instance.content = content
     this.instance.type = 'success'
     setTimeout(() => {
@@ -38,7 +44,14 @@ export class Tip {
     }, 1000)
   }
   error(err) {
-    this.instance.content = `下载失败：${err}`
+    const content = `下载失败：${err}`
+    if (!this.instance) {
+      this.instance = message.create(content, {
+        type: 'loading',
+        duration: 0
+      })
+    }
+    this.instance.content = content
     this.instance.type = 'error'
     this.instance.closable = true
   }
