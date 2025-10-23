@@ -1,5 +1,5 @@
 import { reactive, ref, nextTick } from 'vue'
-import { createDiscreteApi } from 'naive-ui'
+
 
 type TaskStatus = 'pending' | 'running' | 'paused' | 'success' | 'error' | 'canceled' | 'existed'
 
@@ -17,6 +17,7 @@ export interface DownloadTask {
   progress?: DownloadProgress
   createdAt: number
   updatedAt: number
+  errorMessage?: string
   payload: any
   _pause?: boolean
   _cancel?: boolean
@@ -27,7 +28,7 @@ function uid() {
 }
 
 export const tasks = reactive<DownloadTask[]>([])
-const { message } = createDiscreteApi(['message'])
+
 
 let runnerActive = false
 
@@ -59,22 +60,18 @@ function updateTask(t: DownloadTask, patch: Partial<DownloadTask>) {
   sortTasks()
 }
 
-export function addTask(task: Omit<DownloadTask, 'id' | 'status' | 'createdAt' | 'updatedAt'>) {
-  const full: DownloadTask = {
+export function addTask(taskList) {
+  if (typeof taskList !== 'Array') taskList = [taskList]
+  tasks.push(...taskList.map(task => ({
     ...task,
     id: uid(),
     status: 'pending',
     createdAt: Date.now(),
     updatedAt: Date.now()
-  }
-  tasks.push(full)
+  })))
   sortTasks()
-  // 加入队列提示
-  try {
-    // message.info(`已加入队列`)
-  } catch { }
+
   startRunner()
-  return full.id
 }
 
 export function pauseTask(id: string) {
@@ -88,7 +85,7 @@ export function resumeTask(id: string) {
   const t = tasks.find((x) => x.id === id)
   if (!t) return
   t._pause = false
-  if (t.status === 'paused') updateTask(t, { status: 'pending' })
+  if (t.status === 'paused') updateTask(t, { status: 'pending', errorMessage: undefined })
   startRunner()
 }
 
@@ -107,7 +104,11 @@ export function deleteTask(id: string) {
     tasks.splice(idx, 1)
   }
 }
-
+export function clearCompletedTask() {
+  tasks
+    .filter((t: any) => ['success', 'existed'].includes(t.status))
+    .map((t: any) => deleteTask(t.id))
+}
 async function waitWhilePaused(task: DownloadTask) {
   while (task._pause && !task._cancel) {
     await new Promise((r) => setTimeout(r, 300))
@@ -147,7 +148,7 @@ async function runJmtt(task: DownloadTask) {
     baseDir: string
   }
   try {
-    updateTask(task, { status: 'running' })
+    updateTask(task, { status: 'running', errorMessage: undefined })
     const chapterFolder =
       (comicInfo.chapter_infos?.length || 0) > 1 ? `${baseDir}/第${chapter.index}章` : baseDir
     // 开始前检查目录是否existed
@@ -174,19 +175,14 @@ async function runJmtt(task: DownloadTask) {
     )
 
     updateTask(task, { status: 'success' })
-    try {
-      message.success(`下载成功：${comicInfo.name}`)
-    } catch { }
+
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       // 取消不提示
       return
     }
-    updateTask(task, { status: 'error' })
-    try {
-      message.error(`下载失败：${comicInfo?.name || task.title}${e ? ' - ' + (e?.message || e) : ''}`)
-    } catch { }
+    updateTask(task, { status: 'error', errorMessage: (e?.message || String(e)) })
   } finally {
     // 章间暂停 5s 避免频繁请求
     await new Promise((r) => setTimeout(r, 5000))
@@ -196,7 +192,7 @@ async function runJmtt(task: DownloadTask) {
 async function runPixiv(task: DownloadTask) {
   const { artworkId, artworkInfo, baseDir } = task.payload as { artworkId: string; baseDir: string }
   try {
-    updateTask(task, { status: 'running' })
+    updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}/${file.simpleSanitize(artworkInfo.author)}/${file.simpleSanitize(artworkInfo.title)}`
     // 开始前检查目录是否existed
     if (await file.pathExists(workDir)) {
@@ -218,19 +214,14 @@ async function runPixiv(task: DownloadTask) {
     )
 
     updateTask(task, { status: 'success' })
-    try {
-      message.success(`下载成功：${artworkInfo.title}`)
-    } catch { }
+
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       // 取消不提示
       return
     }
-    updateTask(task, { status: 'error' })
-    try {
-      message.error(`下载失败：${task.title}${e ? ' - ' + (e?.message || e) : ''}`)
-    } catch { }
+    updateTask(task, { status: 'error', errorMessage: (e?.message || String(e)) })
   }
 }
 
@@ -242,7 +233,7 @@ async function runTwitter(task: DownloadTask) {
     baseDir: string
   }
   try {
-    updateTask(task, { status: 'running' })
+    updateTask(task, { status: 'running', errorMessage: undefined })
     // 开始前检查目录是否existed
     if (await file.pathExists(baseDir)) {
       updateTask(task, { status: 'existed', progress: {} })
@@ -265,19 +256,14 @@ async function runTwitter(task: DownloadTask) {
     )
 
     updateTask(task, { status: 'success' })
-    try {
-      message.success(`下载成功：${author}`)
-    } catch { }
+
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       // 取消不提示
       return
     }
-    updateTask(task, { status: 'error' })
-    try {
-      message.error(`下载失败：${author}${e ? ' - ' + (e?.message || e) : ''}`)
-    } catch { }
+    updateTask(task, { status: 'error', errorMessage: (e?.message || String(e)) })
   }
 }
 
@@ -309,7 +295,7 @@ async function startRunner() {
       // 若任务被标记删除，将跳过
       if (!tasks.find((t) => t.id === next.id)) continue
       // 变更为 running 将在具体 run 内部再次设置，确保状态一致
-      updateTask(next, { status: 'running' })
+      updateTask(next, { status: 'running', errorMessage: undefined })
       await executeTask(next)
       // 任务完成或错误后继续下一项
     }
@@ -332,13 +318,13 @@ function seedDemoDataIfEmpty() {
     payload: null
   })
   // 示例任务：运行中（蓝色）
-  tasks.push(mk('jmtt', '演示·漫画章节（JMtt）', 'running', 3, 10))
+  tasks.push(mk('jmtt', '演示·漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节（JMtt）', 'running', 3, 10))
   // 示例任务：暂停（信息色）
   tasks.push(mk('twitter', '演示·媒体页（Twitter）', 'paused', 5, 12))
   // 示例任务：成功（绿色）
   tasks.push(mk('pixiv', '演示·作品（Pixiv）', 'success', 12, 12))
 }
-// seedDemoDataIfEmpty()
+seedDemoDataIfEmpty()
 
 export const queue = {
   tasks,
@@ -347,5 +333,6 @@ export const queue = {
   resumeTask,
   cancelTask,
   deleteTask,
+  clearCompletedTask,
   startRunner
 }

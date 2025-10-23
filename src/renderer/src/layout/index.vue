@@ -150,7 +150,7 @@ const hasActiveDownloads = computed(() => {
 })
 const totalCount = computed(() => queue.tasks.length || 0)
 const completedCount = computed(
-  () => queue.tasks.filter((t: any) => ['success','existed'].includes(t.status)).length || 0
+  () => queue.tasks.filter((t: any) => ['success', 'existed'].includes(t.status)).length || 0
 )
 const pendingCount = computed(
   () => queue.tasks.filter((t: any) => t.status === 'pending').length || 0
@@ -441,7 +441,7 @@ $background-color: #322f3b;
     }
     .wb-site.breathing {
       background: #57dc04;
-      animation: breatheGlow 1.6s ease-in-out infinite;
+      animation: breatheGlow 1s ease-in-out infinite;
       box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
     }
     .wb-min {
@@ -569,15 +569,15 @@ $background-color: #322f3b;
 @keyframes breatheGlow {
   0% {
     box-shadow: 0 0 0 rgba(96, 165, 250, 0);
-    transform: scale(1);
+    transform: scale(0.8);
   }
   50% {
     box-shadow: 0 0 12px #57dc04;
-    transform: scale(1.06);
+    transform: scale(1.1);
   }
   100% {
     box-shadow: 0 0 0 rgba(96, 165, 250, 0);
-    transform: scale(1);
+    transform: scale(0.8);
   }
 }
 </style>

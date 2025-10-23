@@ -1,22 +1,38 @@
 <template>
   <n-drawer v-bind="$attrs" placement="right" :width="360">
-    <n-drawer-content title="下载队列">
+    <n-drawer-content>
+      <template #header>
+        <div class="drawer-header">
+          <span>下载队列</span>
+          <n-button size="tiny" quaternary @click="onClearFinished">清除已完成</n-button>
+        </div>
+      </template>
       <div class="task-list">
         <div v-if="!queue.tasks.length" class="empty">暂无任务</div>
         <div v-for="t in queue.tasks" :key="t.id" class="task-item">
           <div class="task-main">
             <div class="title">
               <img :src="siteIcon(t.site)" class="site-icon" />
-              <span class="name">{{ t.title }}</span>
+              <n-ellipsis class="name" style="max-width: 250px">
+                {{ t.title }}
+              </n-ellipsis>
+              <n-tag
+                size="small"
+                :bordered="false"
+                :type="statusType(t.status)"
+                class="status-tag"
+                >{{ statusLabel(t.status) }}</n-tag
+              >
             </div>
           </div>
 
-          <div class="progress-actions" v-if="t.progress">
+          <div class="progress-actions">
             <n-progress
+              v-if="t.progress"
               class="progress-flex"
               type="line"
               :show-indicator="false"
-              :percentage="['success','existed'].includes(t.status) ? 100 : calcPercent(t)"
+              :percentage="['success', 'existed'].includes(t.status) ? 100 : calcPercent(t)"
               :show-info="false"
               :status="progressStatus(t)"
               :height="6"
@@ -65,14 +81,16 @@
               </n-button>
             </div>
           </div>
-          <div class="progress-text" v-if="t.progress">
-            <template v-if="t.progress.chapter">
+          <div class="progress-text">
+            <template v-if="t.status === 'success' && t.progress.chapter">
               章节 {{ t.progress.chapter.index }}/{{ t.progress.chapter.total }}
             </template>
-            <template v-if="t.progress.image">
+            <template v-if="t.status === 'success' && t.progress.image">
               图片 {{ t.progress.image.index }}/{{ t.progress.image.total }}
             </template>
-            <n-tag size="small" :type="statusType(t.status)" class="status-tag">{{ statusLabel(t.status) }}</n-tag>
+            <span v-if="t.status === 'error' && t.errorMessage" class="error-msg">{{
+              t.errorMessage
+            }}</span>
           </div>
         </div>
       </div>
@@ -86,8 +104,8 @@ import { queue } from '@renderer/plugins/store/downloadQueue'
 
 function statusLabel(s: string) {
   const map: Record<string, string> = {
-    pending: '排队中',
-    running: '进行中',
+    pending: '队列中',
+    running: '下载中',
     paused: '已暂停',
     success: '已完成',
     error: '错误',
@@ -99,13 +117,13 @@ function statusLabel(s: string) {
 
 function statusType(s: string) {
   const map: Record<string, any> = {
-    pending: 'info',
-    running: 'success',
+    pending: 'default',
+    running: 'info',
     paused: 'warning',
     success: 'success',
     error: 'error',
-    canceled: 'default',
-    existed: 'default'
+    canceled: 'warning',
+    existed: 'success'
   }
   return map[s] || 'default'
 }
@@ -148,6 +166,9 @@ function onCancel(t: any) {
 function onDelete(t: any) {
   queue.deleteTask(t.id)
 }
+function onClearFinished() {
+  queue.clearCompletedTask()
+}
 </script>
 
 <style lang="scss">
@@ -176,7 +197,7 @@ function onDelete(t: any) {
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 0px;
+  gap: 2px;
 }
 .task-main {
   display: flex;
@@ -184,6 +205,7 @@ function onDelete(t: any) {
   align-items: center;
 }
 .title {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -195,7 +217,8 @@ function onDelete(t: any) {
   object-fit: cover;
 }
 .name {
-  font-weight: 500;
+  font-weight: 700;
+  width: 100%;
 }
 .progress {
   font-size: 12px;
@@ -232,5 +255,21 @@ function onDelete(t: any) {
 .actions {
   display: flex;
   gap: 6px;
+}
+.error-msg {
+  color: #d03050;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.n-drawer-header__main {
+  width: 100%;
+}
+.drawer-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 </style>
