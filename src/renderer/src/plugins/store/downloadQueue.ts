@@ -60,8 +60,8 @@ function updateTask(t: DownloadTask, patch: Partial<DownloadTask>) {
   sortTasks()
 }
 
-export function addTask(taskList) {
-  if (typeof taskList !== 'Array') taskList = [taskList]
+export function addTask(taskList: Array<any> | any) {
+  if (!Array.isArray(taskList)) taskList = [taskList]
   tasks.push(...taskList.map(task => ({
     ...task,
     id: uid(),
@@ -226,41 +226,20 @@ async function runPixiv(task: DownloadTask) {
 }
 
 async function runTwitter(task: DownloadTask) {
-  const { author, userId, cookies, baseDir } = task.payload as {
-    author: string
-    userId: string
-    cookies: string
-    baseDir: string
-  }
+  const { fileName, imageUrl, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
+    const savePath = `${baseDir}/${fileName}`
     // 开始前检查目录是否existed
-    if (await file.pathExists(baseDir)) {
-      updateTask(task, { status: 'existed', progress: {} })
+    if (await file.pathExists(savePath)) {
+      updateTask(task, { status: 'existed', progress: { image: { index: 1, total: 1 } } })
       return
     }
-    const images: string[] = await twitter.getAllMedia(userId, cookies)
-    if (!images.length) throw new Error('未解析到可下载的媒体')
-
-    await runWithConcurrency(
-      images,
-      task,
-      async (url, _i) => {
-        const fileName = file.simpleSanitize((url as string).split('/').pop()!)
-        const savePath = `${baseDir}/${fileName}`
-        await twitter.downloadImage(url as string, savePath)
-      },
-      (completed, total) => {
-        updateTask(task, { progress: { image: { index: completed, total } } })
-      }
-    )
-
-    updateTask(task, { status: 'success' })
-
+    await twitter.downloadImage(imageUrl as string, savePath)
+    updateTask(task, { status: 'success', progress: { image: { index: 1, total: 1 } } })
   } catch (e: any) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
-      // 取消不提示
       return
     }
     updateTask(task, { status: 'error', errorMessage: (e?.message || String(e)) })

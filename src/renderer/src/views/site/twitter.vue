@@ -57,21 +57,28 @@ async function download() {
         return '';
       }
     })()`)
-    tip.info('正在获取作品分页...')
     const userId = await twitter.getUserIdByName(author, cookies)
     if (!userId) throw new Error('未获取到用户ID')
     const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
-    // 将媒体页作为一个任务加入队列
-    queue.addTask({
-      site: 'twitter',
-      title: author,
-      payload: {
-        author,
-        userId,
-        cookies,
-        baseDir: `${defaultDownloadPath}/${file.simpleSanitize(author)}`
-      }
-    })
+    tip.info('正在获取作品分页...')
+    const images = await twitter.getAllMedia(userId)
+    if (!images || images.length === 0) throw new Error('未解析到可下载的媒体')
+    const baseDir = `${defaultDownloadPath}/${file.simpleSanitize(author)}`
+    queue.addTask(
+      images.map((imageUrl) => {
+        const fileName = file.simpleSanitize((imageUrl as string).split('/').pop() || '')
+        return {
+          site: 'twitter',
+          title: `[${author}]${fileName || 'image'}`,
+          payload: {
+            author,
+            fileName,
+            imageUrl,
+            baseDir
+          }
+        }
+      })
+    )
   } catch (error) {
     tip.error(error)
   }

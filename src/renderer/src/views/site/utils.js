@@ -21,23 +21,17 @@ export class Tip {
   constructor() {
     this.instance = null
   }
-  info(data) {
+  info(content) {
     if (!this.instance) {
-      this.instance = message.create(data, {
+      this.instance = message.create(content, {
         type: 'loading',
         duration: 0
       })
     }
-    this.instance.content = data
-  }
-  progress(data) {
-    let content = `正在下载：${data.title}\n`
-    if (data.chapter.total) content += `[第${data.chapter.index}/${data.chapter.total}章]`
-    if (data.image.total) content += `[第${data.image.index}/${data.image.total}张]`
     this.instance.content = content
   }
-  success() {
-    this.instance.content = `下载完成`
+  success(content) {
+    this.instance.content = content
     this.instance.type = 'success'
     setTimeout(() => {
       this.instance.destroy()
@@ -46,5 +40,6 @@ export class Tip {
   error(err) {
     this.instance.content = `下载失败：${err}`
     this.instance.type = 'error'
+    this.instance.closable = true
   }
 }

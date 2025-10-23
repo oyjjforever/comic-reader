@@ -128,20 +128,17 @@ async function download() {
     return
   }
 
-  // 每个章节加入为一个独立任务
-  for (const chapter of toDownload) {
-    queue.addTask(
-      toDownload.map((chapter) => ({
-        site: 'jmtt',
-        title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
-        payload: {
-          chapter,
-          comicInfo,
-          baseDir: comicFolder
-        }
-      }))
-    )
-  }
+  queue.addTask(
+    toDownload.map((chapter) => ({
+      site: 'jmtt',
+      title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
+      payload: {
+        chapter,
+        comicInfo,
+        baseDir: comicFolder
+      }
+    }))
+  )
 }
 const onDownloadPrepare = async (event: any, data: any) => {
   let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
