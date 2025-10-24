@@ -84,6 +84,7 @@ watch(
   }
 )
 onMounted(async () => {
+  console.log('🚀 ~ props.item:', props.item)
   grid.rows = await fetchPixiv(props.item.authorId)
   console.log('grid.rows', grid.rows)
 })

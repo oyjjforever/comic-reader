@@ -53,15 +53,8 @@ async function addSpecialAttention() {
     const wv = webviewRef.value
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
     const userId = extractUserId(currentUrl)
-    if (!userId) throw new Error('无法从当前URL解析作者ID')
-    let authorName: string | undefined = undefined
-    if (currentUrl.includes('artworks')) {
-      const artworkId = extractArtworkId(currentUrl)
-      if (artworkId) {
-        const info = await pixiv.getArtworkInfo(artworkId)
-        authorName = info?.author
-      }
-    }
+    const firstArtworkId = (await pixiv.getArtworksByUserId(userId)).illusts[0]
+    const authorName = (await pixiv.getArtworkInfo(firstArtworkId)).author
     await window.specialAttention.add({
       source: 'pixiv',
       authorId: userId,
