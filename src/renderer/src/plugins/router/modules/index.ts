@@ -35,7 +35,7 @@ export default [
             {
                 path: '/special-attention',
                 name: "special-attention",
-                component: () => import('@renderer/views/special-attention.vue'),
+                component: () => import('@renderer/views/special-attention/index.vue'),
                 meta: {
                     title: "特别关注",
                     keepAlive: true

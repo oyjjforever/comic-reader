@@ -62,14 +62,14 @@ async function addSpecialAttention() {
         authorName = info?.author
       }
     }
-    await (window as any).specialAttention.add({
+    await window.specialAttention.add({
       source: 'pixiv',
       authorId: userId,
       authorName
     })
     tip.success('已添加到特别关注')
   } catch (e) {
-    console.log("🚀 ~ file: pixiv.vue ~ line 72 ~ addSpecialAttention ~ e", e)
+    console.log('🚀 ~ file: pixiv.vue ~ line 72 ~ addSpecialAttention ~ e', e)
     tip.error(e)
   }
 }
@@ -89,7 +89,7 @@ async function download() {
       const userId = extractUserId(currentUrl)
       if (!userId) throw new Error('无法从当前URL解析 未解析到作者ID')
       const profile = await pixiv.getArtworksByUserId(userId)
-      illusts = Object.keys(profile.illusts || {}).reverse()
+      illusts = profile.illusts
     }
     const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
     // 每个作品加入队列任务

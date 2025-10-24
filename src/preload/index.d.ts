@@ -47,6 +47,16 @@ declare global {
       updateVideoBookmark: (id: number, title?: string, description?: string) => Promise<void>;
       getVideoBookmarkCount: (videoPath: string) => Promise<number>;
       isTimePointBookmarked: (videoPath: string, timePoint: number) => Promise<boolean>;
+    },
+    specialAttention: {
+      init: () => Promise<void>;
+      add: (entry: { source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string; extra?: any; latestWorkTime?: number; latestWorkId?: string; ignoredWorkIds?: string[] }) => Promise<{ id: number | undefined }>;
+      remove: (id: number) => Promise<boolean>;
+      update: (id: number, patch: Partial<{ authorName: string; extra: any; latestWorkTime: number; latestWorkId: string; ignoredWorkIds: string[]; sort: number }>) => Promise<boolean>;
+      list: () => Promise<Array<{ id?: number; source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string | null; extra?: any | null; createdAt?: number; latestWorkTime?: number | null; latestWorkId?: string | null; ignoredWorkIds?: string[] }>>;
+      increasePriority: (id: number, delta?: number) => Promise<boolean>;
+      decreasePriority: (id: number, delta?: number) => Promise<boolean>;
+      swapPriority: (id1: number, id2: number) => Promise<boolean>;
     }
   }
 }

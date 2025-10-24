@@ -19,8 +19,8 @@ async function getArtworksByUserId(userId) {
     }
   })
   return {
-    illusts: res.body.illusts,
-    manga: res.body.manga
+    illusts: Object.keys(res.body.illusts || {}).reverse(),
+    manga: Object.keys(res.body.manga || {}).reverse()
   }
 }
 async function getArtworkInfo(artworkId) {

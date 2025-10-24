@@ -133,7 +133,8 @@ import {
   ArrowDownload16Filled,
   WindowConsole20Regular,
   Cart16Filled,
-  Star24Regular
+  Star24Regular,
+  PeopleTeam24Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import jmttImg from '@renderer/assets/jmtt.jpg'
@@ -163,10 +164,10 @@ const pendingCount = computed(
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  { image: jmttImg, name: 'jmtt' },
-  { image: pixivImg, name: 'pixiv' },
-  { image: twitterImg, name: 'twitter' },
-  { icon: Star24Regular, name: 'special-attention' }
+  { icon: PeopleTeam24Regular, name: 'special-attention' },
+  // { image: jmttImg, name: 'jmtt' },
+  { image: pixivImg, name: 'pixiv' }
+  // { image: twitterImg, name: 'twitter' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
