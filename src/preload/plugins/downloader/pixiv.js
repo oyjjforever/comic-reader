@@ -44,7 +44,18 @@ async function getArtworkImages(artworkId) {
         .join('; ')
     }
   })
-  return res.body.map((_) => _.urls.original)
+  return res.body
+}
+async function getImage(url) {
+  const res = await api.get({
+    url,
+    responseType: 'arraybuffer',
+    headers: { Referer: 'https://www.pixiv.net/' }
+  })
+  let imageStream = Buffer.from(res)
+  const blob = new Blob([imageStream])
+  const coverUrl = URL.createObjectURL(blob)
+  return coverUrl
 }
 
 async function downloadImage(url, savePath) {
@@ -62,5 +73,6 @@ export default {
   getArtworksByUserId,
   getArtworkInfo,
   getArtworkImages,
+  getImage,
   downloadImage
 }

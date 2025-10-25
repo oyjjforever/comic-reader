@@ -6,16 +6,18 @@
         <n-input
           v-model:value="searchQuery"
           type="text"
+          size="small"
           placeholder="请输入作者名称进行搜索"
           style="width: 320px"
         />
         <n-select
           v-model:value="sourceFilter"
           :options="sourceOptions"
+          size="small"
           placeholder="类型"
           style="width: 120px"
         />
-        <n-button size="small" @click="toggleSortMode">排序</n-button>
+        <n-button type="primary" size="small" @click="toggleSortMode">排序</n-button>
         <n-button type="primary" size="small" @click="refresh">刷新</n-button>
       </div>
     </div>
@@ -24,12 +26,8 @@
         v-for="u in filteredItems"
         :key="u.id"
         :item="u"
-        :sort-mode="sortMode"
-        :page-size="5"
         @move-up="moveUp"
         @move-down="moveDown"
-        @get-latest="getLatest"
-        @local-check="onLocalCheck"
         @remove="onRemove"
       />
       <div v-if="!filteredItems.length" class="special-attention__grid--empty">暂无特别关注</div>
@@ -44,7 +42,6 @@ import AuthorCard from './author.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 
 const message = useMessage()
-
 
 const items = ref([])
 
@@ -82,7 +79,7 @@ async function refresh() {
 
 async function onRemove(id: number) {
   await window.specialAttention.remove(id)
-  message.success('已移除')
+  message.success('取消关注成功')
   await refresh()
 }
 
@@ -122,11 +119,19 @@ onMounted(refresh)
 .special-attention {
   padding: 12px;
   height: 100%;
+  background: black;
+  display: flex;
+  flex-direction: column;
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
+    color: #fff;
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+    }
     &__toolbar {
       display: flex;
       align-items: center;
@@ -139,6 +144,8 @@ onMounted(refresh)
     gap: 10px;
     height: 100%;
     overflow: auto;
+    border-bottom-left-radius: 15px;
+    border-bottom-right-radius: 15px;
     &--empty {
       text-align: center;
       color: #999;

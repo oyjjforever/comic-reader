@@ -12,12 +12,12 @@ const { twitter, file } = window as any
 const url = ref('https://x.com/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
+const canAttention = ref(false)
 function updateCanDownload() {
   try {
-    const wv = webviewRef.value
-    if (!wv) return
-    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    canDownload.value = !!currentUrl && currentUrl.includes('media')
+    const author = getAuthorFromUrl()
+    canDownload.value = author !== 'home'
+    canAttention.value = author !== 'home'
   } catch {
     canDownload.value = false
   }
@@ -34,7 +34,7 @@ function getAuthorFromUrl(): string | null {
     const wv = webviewRef.value
     if (!wv) throw new Error('webview 未准备好')
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    return currentUrl.match(/x\.com\/([^\/]+)\/media/)?.[1]
+    return currentUrl.match(/x\.com\/([^\/]+)/)?.[1]
   } catch {
     return null
   }
@@ -56,11 +56,26 @@ async function download() {
       payload: {
         author,
         userId,
-        baseDir: `${defaultDownloadPath}/${file.simpleSanitize(author)}`
+        baseDir: defaultDownloadPath
       }
     })
   } catch (error) {
     tip.error(error)
+  }
+}
+async function addSpecialAttention() {
+  const tip = new Tip()
+  try {
+    const author = getAuthorFromUrl()
+    const userId = await twitter.getUserIdByName(author)
+    await window.specialAttention.add({
+      source: 'twitter',
+      authorId: userId,
+      authorName: author
+    })
+    tip.success('已添加到特别关注')
+  } catch (e) {
+    tip.error(e)
   }
 }
 onMounted(async () => {
@@ -74,7 +89,9 @@ onMounted(async () => {
 // 暴露方法
 defineExpose({
   download,
-  canDownload
+  canDownload,
+  canAttention,
+  addSpecialAttention
 })
 </script>
 

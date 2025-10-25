@@ -12,6 +12,8 @@ type SpecialAttentionRecord = {
   latest_work_time?: number | null
   latest_work_id?: string | null
   ignored_work_ids?: string | null
+  local_work_id?: string | null
+  local_work_name?: string | null
   sort?: number
 }
 
@@ -37,11 +39,13 @@ async function init() {
       latest_work_time INTEGER,
       latest_work_id TEXT,
       ignored_work_ids TEXT,
+      local_work_id TEXT,
+      local_work_name TEXT,
       sort INTEGER NOT NULL DEFAULT 0,
       UNIQUE(source, author_id)
     )
   `)
-  // 迁移：补齐缺失的列（created_at/latest_work_time/ignored_work_ids/sort）
+  // 迁移：补齐缺失的列（created_at/latest_work_time/ignored_work_ids/local_work_id/local_work_name/sort）
   const cols = await _db.all<{ name: string }[]>(`PRAGMA table_info('special_attention')`)
   const hasCol = (name: string) => Array.isArray(cols) && cols.some((c: any) => c.name === name)
 
@@ -68,13 +72,23 @@ async function init() {
     await _db.exec(`ALTER TABLE special_attention ADD COLUMN ignored_work_ids TEXT`)
   }
 
+  // local_work_id：允许为 NULL
+  if (!hasCol('local_work_id')) {
+    await _db.exec(`ALTER TABLE special_attention ADD COLUMN local_work_id TEXT`)
+  }
+
+  // local_work_name：允许为 NULL
+  if (!hasCol('local_work_name')) {
+    await _db.exec(`ALTER TABLE special_attention ADD COLUMN local_work_name TEXT`)
+  }
+
   // sort：NOT NULL，默认 0
   if (!hasCol('sort')) {
     await _db.exec(`ALTER TABLE special_attention ADD COLUMN sort INTEGER NOT NULL DEFAULT 0`)
   }
 }
 
-async function add(entry: { source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string; extra?: any; latestWorkTime?: number; latestWorkId?: string; ignoredWorkIds?: string[] }) {
+async function add(entry: { source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string; extra?: any; latestWorkTime?: number; latestWorkId?: string; ignoredWorkIds?: string[]; localWorkId?: string; localWorkName?: string }) {
   await init()
   const _db = await ensureDb()
   const createdAt = Date.now()
@@ -84,9 +98,9 @@ async function add(entry: { source: 'pixiv' | 'jmtt' | 'twitter'; authorId: stri
   const maxSortRow = await _db.get<{ maxSort: number }>(`SELECT COALESCE(MAX(sort), 0) AS maxSort FROM special_attention`)
   const sort = ((maxSortRow?.maxSort ?? 0) + 1)
   await _db.run(
-    `INSERT OR IGNORE INTO special_attention (source, author_id, author_name, extra, created_at, latest_work_time, latest_work_id, ignored_work_ids, sort)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [entry.source, entry.authorId, entry.authorName ?? null, extraStr, createdAt, entry.latestWorkTime ?? null, entry.latestWorkId ?? null, ignoredWorkIdsStr, sort]
+    `INSERT OR IGNORE INTO special_attention (source, author_id, author_name, extra, created_at, latest_work_time, latest_work_id, ignored_work_ids, local_work_id, local_work_name, sort)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [entry.source, entry.authorId, entry.authorName ?? null, extraStr, createdAt, entry.latestWorkTime ?? null, entry.latestWorkId ?? null, ignoredWorkIdsStr, entry.localWorkId ?? null, entry.localWorkName ?? null, sort]
   )
   const row = await _db.get<{ id: number }>(
     `SELECT id FROM special_attention WHERE source = ? AND author_id = ?`,
@@ -102,10 +116,10 @@ async function remove(id: number) {
   return true
 }
 
-async function update(id: number, patch: Partial<{ authorName: string; extra: any; latestWorkTime: number; latestWorkId: string; ignoredWorkIds: string[]; sort: number }>) {
+async function update(id: number, patch: Partial<{ authorName: string; extra: any; latestWorkTime: number; latestWorkId: string; ignoredWorkIds: string[]; localWorkId: string | null; localWorkName: string | null; sort: number }>) {
   await init()
   const _db = await ensureDb()
-  // 允许更新 author_name/extra/latest_work_time/ignored_work_ids
+  // 允许更新 author_name/extra/latest_work_time/ignored_work_ids/local_work_id/local_work_name/sort
   const sets: string[] = []
   const params: any[] = []
   if (patch.authorName !== undefined) {
@@ -127,6 +141,14 @@ async function update(id: number, patch: Partial<{ authorName: string; extra: an
   if (patch.ignoredWorkIds !== undefined) {
     sets.push('ignored_work_ids = ?')
     params.push(JSON.stringify(patch.ignoredWorkIds))
+  }
+  if (patch.localWorkId !== undefined) {
+    sets.push('local_work_id = ?')
+    params.push(patch.localWorkId)
+  }
+  if (patch.localWorkName !== undefined) {
+    sets.push('local_work_name = ?')
+    params.push(patch.localWorkName)
   }
   if (patch.sort !== undefined) {
     sets.push('sort = ?')
@@ -151,7 +173,9 @@ async function list() {
     createdAt: r.created_at,
     latestWorkTime: r.latest_work_time,
     latestWorkId: r.latest_work_id,
-    ignoredWorkIds: r.ignored_work_ids ? JSON.parse(r.ignored_work_ids) : []
+    ignoredWorkIds: r.ignored_work_ids ? JSON.parse(r.ignored_work_ids) : [],
+    localWorkId: r.local_work_id ?? null,
+    localWorkName: r.local_work_name ?? null,
   }))
 }
 

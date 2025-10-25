@@ -62,7 +62,12 @@
             <div class="wb-max" v-if="canDownload" @click="onDownload">
               <n-icon :component="ArrowDownload16Filled" size="12" />
             </div>
-            <div class="wb-site" v-if="canDownload" @click="onAddSpecialAttention" title="特别关注">
+            <div
+              class="wb-site"
+              v-if="canAttention"
+              @click="onAddSpecialAttention"
+              title="特别关注"
+            >
               <n-icon :component="Star24Regular" size="12" />
             </div>
             <div class="wb-site" v-if="isDev" @click="onDebug">
@@ -149,6 +154,9 @@ const childComponentRef = ref()
 const canDownload = computed(
   () => !!(childComponentRef.value && (childComponentRef.value as any).canDownload)
 )
+const canAttention = computed(
+  () => !!(childComponentRef.value && (childComponentRef.value as any).canAttention)
+)
 const isDev = import.meta.env.DEV
 const hasActiveDownloads = computed(() => {
   return queue.tasks.some((t: any) => t.status === 'running' || t.status === 'pending')
@@ -166,8 +174,8 @@ const menuItems = [
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
   // { image: jmttImg, name: 'jmtt' },
-  { image: pixivImg, name: 'pixiv' }
-  // { image: twitterImg, name: 'twitter' }
+  { image: pixivImg, name: 'pixiv' },
+  { image: twitterImg, name: 'twitter' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]

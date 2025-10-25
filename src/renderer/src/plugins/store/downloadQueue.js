@@ -141,6 +141,7 @@ async function runJmtt(task) {
             image: { index: completed, total }
           }
         })
+        task.onSuccess?.()
       }
     )
     updateTask(task, { status: 'success' })
@@ -169,7 +170,7 @@ async function runPixiv(task) {
     }
     const images = await pixiv.getArtworkImages(artworkId)
     await runWithConcurrency(
-      images,
+      images.map((_) => _.urls.original),
       task,
       async (url, i) => {
         const fileName = `${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
@@ -178,6 +179,7 @@ async function runPixiv(task) {
       },
       (completed, total) => {
         updateTask(task, { progress: { image: { index: completed, total } } })
+        task.onSuccess?.()
       }
     )
     updateTask(task, { status: 'success' })
@@ -192,28 +194,43 @@ async function runPixiv(task) {
 }
 
 async function runTwitter(task) {
-  const { userId, baseDir } = task.payload
+  const { author, userId, baseDir, artworkInfo } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-    // 开始前检查目录是否existed
-    if (await file.pathExists(baseDir)) {
-      updateTask(task, { status: 'existed', progress: {} })
-      return
-    }
-    const images = await twitter.getAllMedia(userId)
-    if (!images.length) throw new Error('未解析到可下载的媒体')
-    await runWithConcurrency(
-      images.map((_) => _.url),
-      task,
-      async (url, _i) => {
-        const fileName = file.simpleSanitize(url.split('/').pop())
-        const savePath = `${baseDir}/${fileName}`
-        await twitter.downloadImage(url, savePath)
-      },
-      (completed, total) => {
-        updateTask(task, { progress: { image: { index: completed, total } } })
+
+    if (artworkInfo) {
+      const workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}`
+      // 开始前检查目录是否existed
+      if (await file.pathExists(workDir)) {
+        updateTask(task, { status: 'existed', progress: {} })
+        return
       }
-    )
+      await twitter.downloadImage(artworkInfo.url, workDir)
+      updateTask(task, { progress: { image: { index: 1, total: 1 } } })
+      task.onSuccess?.()
+    } else {
+      const workDir = `${baseDir}/${file.simpleSanitize(author)}`
+      // 开始前检查目录是否existed
+      if (await file.pathExists(workDir)) {
+        updateTask(task, { status: 'existed', progress: {} })
+        return
+      }
+      const images = await twitter.getAllMedia(userId)
+      if (!images.length) throw new Error('未解析到可下载的媒体')
+      await runWithConcurrency(
+        images.map((_) => _.url),
+        task,
+        async (url, _i) => {
+          const fileName = file.simpleSanitize(url.split('/').pop())
+          const savePath = `${workDir}/${fileName}`
+          await twitter.downloadImage(url, savePath)
+        },
+        (completed, total) => {
+          updateTask(task, { progress: { image: { index: completed, total } } })
+          task.onSuccess?.()
+        }
+      )
+    }
     updateTask(task, { status: 'success' })
   } catch (e) {
     if (task._cancel) {

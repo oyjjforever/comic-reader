@@ -34,7 +34,6 @@ function extractItemsFromJson(jsonData) {
 
     if (!addEntriesInstruction || !addEntriesInstruction.entries) {
       console.warn('未找到TimelineAddEntries指令或entries数组')
-      return []
     }
 
     // 查找包含items的entry
@@ -44,23 +43,30 @@ function extractItemsFromJson(jsonData) {
 
     if (!entryWithItems) {
       console.warn('未找到包含items的entry')
-      return []
     }
-
-    const items = entryWithItems.content.items
+    // 查找包含TimelineAddToModule的指令
+    const addModulesInstruction = instructions.find(
+      (instruction) => instruction.type === 'TimelineAddToModule'
+    )
+    const items = entryWithItems?.content?.items || addModulesInstruction?.moduleItems
 
     // 提取每个item的指定字段
-    const extractedData = items.map((item) => ({
-      entryId: item.entryId || null,
-      createTime:
-        item.item?.itemContent?.tweet_results?.result?.legacy?.created_at ||
-        item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.created_at,
-      url:
+    const extractedData = items.map((item) => {
+      const url =
         item.item?.itemContent?.tweet_results?.result?.legacy?.entities?.media?.[0]
           ?.media_url_https ||
         item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.entities?.media?.[0]
           ?.media_url_https
-    }))
+      const title = url.split('/').pop()
+      return {
+        id: item.entryId || null,
+        createTime:
+          item.item?.itemContent?.tweet_results?.result?.legacy?.created_at ||
+          item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.created_at,
+        url,
+        title
+      }
+    })
     return extractedData
   } catch (error) {
     console.error('解析JSON时出错:', error)
@@ -166,11 +172,11 @@ async function getUserIdByName(name) {
   return userId
 }
 
-async function getMediaPerPage(userId, cursor) {
+async function getMediaPerPage(userId, cursor, count) {
   const variables = {
     userId,
     cursor,
-    count: 50,
+    count,
     includePromotedContent: false,
     withClientEventToken: false,
     withBirdwatchNotes: false,
@@ -225,7 +231,7 @@ async function getAllMedia(userId) {
   let all = [],
     cursor = null
   while (true) {
-    const res = await getMediaPerPage(userId, cursor)
+    const res = await getMediaPerPage(userId, cursor, 50)
     const images = extractItemsFromJson(res)
     cursor = extractBottomCursorValues(res)
     if (images?.length) all.push(...images)
@@ -233,7 +239,17 @@ async function getAllMedia(userId) {
   }
   return Array.from(new Set(all))
 }
-
+async function getImage(url) {
+  const res = await api.get({
+    url,
+    responseType: 'arraybuffer',
+    headers: { Referer: 'https://x.com/' }
+  })
+  let imageStream = Buffer.from(res)
+  const blob = new Blob([imageStream])
+  const coverUrl = URL.createObjectURL(blob)
+  return coverUrl
+}
 async function downloadImage(url, savePath) {
   const res = await api.get({
     url,
@@ -248,5 +264,9 @@ export default {
   getUserIdByName,
   getUserIdByName,
   getAllMedia,
-  downloadImage
+  getImage,
+  downloadImage,
+  getMediaPerPage,
+  extractItemsFromJson,
+  extractBottomCursorValues
 }

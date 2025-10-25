@@ -12,6 +12,7 @@ const { pixiv, file } = window as any
 const url = ref('https://www.pixiv.net/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
+const canAttention = ref(false)
 function updateCanDownload() {
   try {
     const wv = webviewRef.value
@@ -19,6 +20,7 @@ function updateCanDownload() {
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
     canDownload.value =
       !!currentUrl && (currentUrl.includes('illustrations') || currentUrl.includes('artworks'))
+    canAttention.value = !!currentUrl && currentUrl.includes('users')
   } catch {
     canDownload.value = false
   }
@@ -62,7 +64,6 @@ async function addSpecialAttention() {
     })
     tip.success('已添加到特别关注')
   } catch (e) {
-    console.log('🚀 ~ file: pixiv.vue ~ line 72 ~ addSpecialAttention ~ e', e)
     tip.error(e)
   }
 }
@@ -117,6 +118,7 @@ onMounted(async () => {
 defineExpose({
   download,
   canDownload,
+  canAttention,
   addSpecialAttention
 })
 </script>
