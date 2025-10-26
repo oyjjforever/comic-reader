@@ -8,7 +8,7 @@
           placeholder="请输入关键字进行搜索..."
           clearable
           class="search-input"
-          @input="onQuery"
+          @input="debounceQuery"
         >
           <template #prefix>
             <n-icon :component="SearchIcon" />
@@ -157,11 +157,11 @@ const handleSettingClick = () => {
 // 排序
 function onSort(key: string | number) {
   search.sort = String(key)
-  onQuery()
+  debounceQuery()
 }
 
 // 搜索/排序
-const onQuery = debounce(async (keyword?: string) => {
+const query = async (keyword?: string) => {
   isLoading.value = true
   try {
     let list = [...grid.rows]
@@ -171,8 +171,10 @@ const onQuery = debounce(async (keyword?: string) => {
       list = list.filter((folder) => folder.name?.toLowerCase().includes(_kw))
     }
     const sortFunctions: Record<string, (a: FolderInfo, b: FolderInfo) => number> = {
-      name_asc: (a, b) => a.name.localeCompare(b.name),
-      name_desc: (a, b) => b.name.localeCompare(a.name),
+      name_asc: (a, b) =>
+        a.name.localeCompare(b.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
+      name_desc: (a, b) =>
+        b.name.localeCompare(a.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
       createTime_asc: (a, b) => a.createdTime.getTime() - b.createdTime.getTime(),
       createTime_desc: (a, b) => b.createdTime.getTime() - a.createdTime.getTime()
     }
@@ -184,8 +186,8 @@ const onQuery = debounce(async (keyword?: string) => {
   } finally {
     isLoading.value = false
   }
-}, 300)
-
+}
+const debounceQuery = debounce(query, 300)
 const refresh = async () => {
   if (!props.resourcePath) return
   isLoading.value = true
@@ -254,6 +256,7 @@ const onTreeNodeClick = async (folderPath: string) => {
   tree.currentKey = folderPath
   try {
     grid.filterRows = grid.rows = await props.provideList(folderPath)
+    query()
     dataCache.currentPath = folderPath
     dataCache.isDataLoaded = true
     dataCache.lastLoadTime = Date.now()

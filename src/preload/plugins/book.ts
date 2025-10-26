@@ -108,7 +108,7 @@ function sortFiles(files: FileInfo[], sortOptions: SortOptions): FileInfo[] {
 
     switch (type) {
       case 'name':
-        comparison = a.name.localeCompare(b.name)
+        comparison = a.name.localeCompare(b.name, 'zh-CN', { numeric: true, sensitivity: 'base' })
         break
       case 'createdTime':
         comparison = a.createdTime.getTime() - b.createdTime.getTime()
