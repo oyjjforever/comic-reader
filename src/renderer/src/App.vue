@@ -13,7 +13,6 @@
 </template>
 
 <script setup lang="ts">
-import SettingProvider from '@renderer/components/setting/provider.vue'
 import { useSettingStore } from '@renderer/plugins/store'
 import { ref, watch } from 'vue'
 import { useOsTheme, GlobalTheme, darkTheme } from 'naive-ui'

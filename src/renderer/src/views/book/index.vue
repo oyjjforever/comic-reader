@@ -19,7 +19,7 @@
 
 <script setup lang="ts" name="book">
 import type { FolderInfo } from '@/typings/file'
-import comicCard from '@renderer/components/comic-card.vue'
+import comicCard from './comic-card.vue'
 import ResourceBrowser from '@renderer/components/resource-browser.vue'
 import { useSettingStore } from '@renderer/plugins/store'
 import ContextMenu from '@imengyu/vue3-context-menu'
@@ -89,7 +89,7 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
         onClick: () => {
           window.systemInterface.openExplorer(folder.fullPath)
         }
-      },
+      }
       // {
       //   label: '解压',
       //   onClick: () => {

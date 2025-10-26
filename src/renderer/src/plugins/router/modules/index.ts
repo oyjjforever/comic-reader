@@ -15,7 +15,7 @@ export default [
             {
                 path: '/book',
                 name: "book.read",
-                component: () => import('@renderer/views/book/reader.vue'),
+                component: () => import('@renderer/views/book/reader/index.vue'),
             },
             {
                 path: '/setting',

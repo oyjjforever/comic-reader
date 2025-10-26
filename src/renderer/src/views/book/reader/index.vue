@@ -20,9 +20,9 @@
 </template>
 
 <script setup lang="ts">
-import epubReader from '@renderer/components/epub-reader.vue'
-import imgReader from '@renderer/components/image-reader.vue'
-import pdfReader from '@renderer/components/pdf-reader.vue'
+import epubReader from './epub-reader.vue'
+import imgReader from './image-reader.vue'
+import pdfReader from './pdf-reader.vue'
 import { useMessage } from 'naive-ui'
 const route = useRoute()
 const router = useRouter()
