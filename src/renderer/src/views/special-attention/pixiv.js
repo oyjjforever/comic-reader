@@ -20,7 +20,7 @@ async function pagingImage(authorName, grid, page) {
       // 检测本地是否已下载
       const downloaded = isLocalDownloaded(authorName, info.title)
       // 获取图片流并转换为Blob URL
-      const coverUrl = await pixiv.getImage(images[0].urls.small)
+      const coverUrl = await pixiv.getImage(images[0].urls.small) //thumb_mini
       return {
         artworkId: id,
         author: authorName,

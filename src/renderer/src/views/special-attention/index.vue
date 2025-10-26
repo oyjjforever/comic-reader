@@ -21,9 +21,9 @@
         <n-button type="primary" size="small" @click="refresh">刷新</n-button>
       </div>
     </div>
-    <div class="special-attention__grid">
+    <div class="special-attention__grid" ref="gridRef">
       <AuthorCard
-        v-for="u in filteredItems"
+        v-for="u in filteredItems.slice(0, displayCount)"
         :key="u.id"
         :item="u"
         @move-up="moveUp"
@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts" name="special-attention">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { NButton, NInput, NSelect, useMessage } from 'naive-ui'
 import AuthorCard from './author.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
@@ -48,6 +48,9 @@ const items = ref([])
 const searchQuery = ref('')
 const sourceFilter = ref(null)
 const sortMode = ref(false)
+
+const displayCount = ref(3)
+const gridRef = ref<HTMLElement | null>(null)
 
 const sourceOptions = [
   { label: '全部', value: null },
@@ -112,7 +115,37 @@ function onLocalCheck(item) {
   // 先占位：本地检测逻辑后续实现
 }
 
-onMounted(refresh)
+function handleScroll() {
+  const el = gridRef.value
+  if (!el) return
+  const threshold = 10
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+    const next = displayCount.value + 3
+    displayCount.value = Math.min(next, filteredItems.value.length)
+  }
+}
+
+onMounted(async () => {
+  await refresh()
+  const el = gridRef.value
+  if (el) el.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  const el = gridRef.value
+  if (el) el.removeEventListener('scroll', handleScroll)
+})
+
+watch([searchQuery, sourceFilter], () => {
+  displayCount.value = 3
+  // 回到顶部，避免过滤后仍在底部导致立即触发到底加载
+  const el = gridRef.value
+  if (el) el.scrollTop = 0
+})
+
+watch(filteredItems, () => {
+  displayCount.value = Math.min(3, filteredItems.value.length)
+})
 </script>
 
 <style scoped lang="scss">
@@ -146,6 +179,7 @@ onMounted(refresh)
     overflow: auto;
     border-bottom-left-radius: 15px;
     border-bottom-right-radius: 15px;
+    position: relative;
     &--empty {
       text-align: center;
       color: #999;

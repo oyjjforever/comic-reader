@@ -59,6 +59,7 @@
             <div class="wb-site" @click="onRefresh">
               <n-icon :component="ArrowClockwise16Filled" size="12" />
             </div>
+            <div style="width: 20px"></div>
             <div class="wb-max" v-if="canDownload" @click="onDownload">
               <n-icon :component="ArrowDownload16Filled" size="12" />
             </div>

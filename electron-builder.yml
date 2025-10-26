@@ -1,4 +1,4 @@
-appId: com.oyjj
+appId: comic-reader
 productName: 漫画阅读器
 directories:
   buildResources: build

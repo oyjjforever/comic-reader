@@ -173,7 +173,7 @@ async function runPixiv(task) {
       images.map((_) => _.urls.original),
       task,
       async (url, i) => {
-        const fileName = `${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
+        const fileName = `${artworkId}-${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
         const savePath = `${workDir}/${fileName}`
         await pixiv.downloadImage(url, savePath)
       },
