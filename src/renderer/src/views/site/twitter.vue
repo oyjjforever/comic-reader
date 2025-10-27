@@ -1,6 +1,6 @@
 <template>
   <div class="site">
-    <webview ref="webviewRef" :src="url" partition="persist:thirdparty" />
+    <webview ref="webviewRef" :src="url" partition="persist:thirdparty" allowpopups />
   </div>
 </template>
 

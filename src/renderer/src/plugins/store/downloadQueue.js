@@ -96,7 +96,9 @@ async function waitWhilePaused(task) {
 async function runWithConcurrency(items, task, onItem, onProgress) {
   const limit = 20
   let next = 0
-  let completed = 0
+  let completed = 0,
+    success = 0,
+    fail = 0
   async function worker() {
     while (true) {
       if (task._cancel) throw new Error('任务已取消')
@@ -104,9 +106,14 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
       const i = next
       if (i >= items.length) break
       next++
-      await onItem(items[i], i)
+      try {
+        await onItem(items[i], i)
+        success++
+      } catch (e) {
+        fail++
+      }
       completed++
-      onProgress?.(completed, items.length)
+      onProgress?.(completed, success, fail, items.length)
     }
   }
   const workers = Array(Math.min(limit, items.length))
@@ -134,11 +141,11 @@ async function runJmtt(task) {
         const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
         await jmtt.downloadImage(savePath, images[i])
       },
-      (completed, total) => {
+      (completed, success, fail, total) => {
         updateTask(task, {
           progress: {
             chapter: { index: chapter.index, total: comicInfo.chapter_infos.length || 1 },
-            image: { index: completed, total }
+            image: { index: completed, success, fail, total }
           }
         })
         task.onSuccess?.()
@@ -151,7 +158,7 @@ async function runJmtt(task) {
       // 取消不提示
       return
     }
-    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    // updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   } finally {
     // 章间暂停 5s 避免频繁请求
     await new Promise((r) => setTimeout(r, 5000))
@@ -177,8 +184,8 @@ async function runPixiv(task) {
         const savePath = `${workDir}/${fileName}`
         await pixiv.downloadImage(url, savePath)
       },
-      (completed, total) => {
-        updateTask(task, { progress: { image: { index: completed, total } } })
+      (completed, success, fail, total) => {
+        updateTask(task, { progress: { image: { index: completed, success, fail, total } } })
         task.onSuccess?.()
       }
     )
@@ -189,7 +196,7 @@ async function runPixiv(task) {
       // 取消不提示
       return
     }
-    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    // updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   }
 }
 
@@ -215,18 +222,27 @@ async function runTwitter(task) {
         updateTask(task, { status: 'existed', progress: {} })
         return
       }
-      const images = await twitter.getAllMedia(userId)
+      let images = [],
+        cursor = null
+      while (true) {
+        const res = await twitter.getMediaPerPage(userId, cursor, 50)
+        const _images = twitter.extractItemsFromJson(res)
+        cursor = twitter.extractBottomCursorValues(res)
+        if (_images?.length) images.push(..._images)
+        updateTask(task, { progress: { image: { index: 0, total: images.length } } })
+        if (!_images || _images.length < 20) break
+      }
       if (!images.length) throw new Error('未解析到可下载的媒体')
       await runWithConcurrency(
-        images.map((_) => _.url),
+        images,
         task,
-        async (url, _i) => {
-          const fileName = file.simpleSanitize(url.split('/').pop())
+        async (image, _i) => {
+          const fileName = file.simpleSanitize(image.title || `unknow_${_i}.jpg`)
           const savePath = `${workDir}/${fileName}`
-          await twitter.downloadImage(url, savePath)
+          await twitter.downloadImage(image.url, savePath)
         },
-        (completed, total) => {
-          updateTask(task, { progress: { image: { index: completed, total } } })
+        (completed, success, fail, total) => {
+          updateTask(task, { progress: { image: { index: completed, success, fail, total } } })
           task.onSuccess?.()
         }
       )
@@ -237,7 +253,7 @@ async function runTwitter(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
-    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    // updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   }
 }
 
