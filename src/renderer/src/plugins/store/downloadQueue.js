@@ -168,20 +168,27 @@ async function runPixiv(task) {
       updateTask(task, { status: 'existed', progress: {} })
       return
     }
-    const images = await pixiv.getArtworkImages(artworkId)
-    await runWithConcurrency(
-      images.map((_) => _.urls.original),
-      task,
-      async (url, i) => {
-        const fileName = `${artworkId}-${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
-        const savePath = `${workDir}/${fileName}`
-        await pixiv.downloadImage(url, savePath)
-      },
-      (completed, total) => {
-        updateTask(task, { progress: { image: { index: completed, total } } })
-        task.onSuccess?.()
-      }
-    )
+    // 动图
+    if (artworkInfo.illustType === 2) {
+      await pixiv.downloadGif(artworkId, workDir)
+    }
+    // 图片集
+    else if (artworkInfo.illustType === 0) {
+      const images = await pixiv.getArtworkImages(artworkId)
+      await runWithConcurrency(
+        images.map((_) => _.urls.original),
+        task,
+        async (url, i) => {
+          const fileName = `${artworkId}-${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
+          const savePath = `${workDir}/${fileName}`
+          await pixiv.downloadImage(url, savePath)
+        },
+        (completed, total) => {
+          updateTask(task, { progress: { image: { index: completed, total } } })
+          task.onSuccess?.()
+        }
+      )
+    }
     updateTask(task, { status: 'success' })
   } catch (e) {
     if (task._cancel) {
