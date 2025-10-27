@@ -41,14 +41,14 @@ function extractItemsFromJson(jsonData) {
       (entry) => entry.content && entry.content.items && Array.isArray(entry.content.items)
     )
 
-    if (!entryWithItems) {
-      console.warn('未找到包含items的entry')
-    }
+    // if (!entryWithItems) {
+    //   console.warn('未找到包含items的entry')
+    // }
     // 查找包含TimelineAddToModule的指令
     const addModulesInstruction = instructions.find(
       (instruction) => instruction.type === 'TimelineAddToModule'
     )
-    const items = entryWithItems?.content?.items || addModulesInstruction?.moduleItems
+    const items = entryWithItems?.content?.items || addModulesInstruction?.moduleItems || []
 
     // 提取每个item的指定字段
     const extractedData = items.map((item) => {
@@ -57,7 +57,7 @@ function extractItemsFromJson(jsonData) {
           ?.media_url_https ||
         item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.entities?.media?.[0]
           ?.media_url_https
-      const title = url.split('/').pop()
+      const title = url?.split('/')?.pop()
       return {
         id: item.entryId || null,
         createTime:

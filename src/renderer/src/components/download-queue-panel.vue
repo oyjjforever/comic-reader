@@ -85,14 +85,13 @@
           </div>
           <div class="progress-text">
             <template
-              v-if="['success', 'running'].includes(t.status) && t.progress && t.progress.chapter"
-            >
-              章节 {{ t.progress.chapter.index }}/{{ t.progress.chapter.total }}
-            </template>
-            <template
               v-if="['success', 'running'].includes(t.status) && t.progress && t.progress.image"
             >
-              图片 {{ t.progress.image.index }}/{{ t.progress.image.total }}
+              <span style="color: green">{{ t.progress.image.success || 0 }}</span>
+              /
+              <span style="color: red">{{ t.progress.image.fail || 0 }}</span>
+              /
+              <span>{{ t.progress.image.total || 0 }}</span>
             </template>
             <span v-if="t.status === 'error' && t.errorMessage" class="error-msg">{{
               t.errorMessage
