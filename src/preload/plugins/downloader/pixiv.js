@@ -2,7 +2,7 @@ import Api from './api.js'
 import fsp from 'fs/promises'
 import file from '../file.ts'
 import { ipcRenderer } from 'electron'
-import { spawnSync } from 'child_process'
+import { spawnSync, spawn } from 'child_process'
 import path from 'path'
 const api = new Api({
   proxyMode: 'Custom',
@@ -72,41 +72,50 @@ async function downloadImage(url, savePath) {
   await fsp.writeFile(savePath, imageData)
 }
 async function downloadGif(artworkId, savePath) {
-  const cookies = await ipcRenderer.invoke('site:getCookies')
-  const info = await api.get({
-    url: `https://www.pixiv.net/ajax/illust/${artworkId}/ugoira_meta?lang=zh`,
-    headers: {
-      Referer: 'https://www.pixiv.net/',
-      Cookie: cookies
-        .filter((_) => _.domain === '.pixiv.net')
-        .map((cookie) => `${cookie.name}=${cookie.value}`)
-        .join('; ')
-    }
-  })
-  const url = info.body.originalSrc
-  const res = await api.get({
-    url,
-    responseType: 'arraybuffer',
-    headers: { Referer: 'https://www.pixiv.net/' }
-  })
-  let imageData = Buffer.from(res)
-  file.ensureDir(`${savePath}/${temp}`)
-  const filePath = `${savePath}/${temp}`
-  await fsp.writeFile(`${filePath}.zip`, imageData)
-  await file.extractFile(`${filePath}.zip`, `${filePath}`)
-  await generateGif(filePath)
+  try {
+    const cookies = await ipcRenderer.invoke('site:getCookies')
+    const info = await api.get({
+      url: `https://www.pixiv.net/ajax/illust/${artworkId}/ugoira_meta?lang=zh`,
+      headers: {
+        Referer: 'https://www.pixiv.net/',
+        Cookie: cookies
+          .filter((_) => _.domain === '.pixiv.net')
+          .map((cookie) => `${cookie.name}=${cookie.value}`)
+          .join('; ')
+      }
+    })
+    const url = info.body.originalSrc
+    const res = await api.get({
+      url,
+      responseType: 'arraybuffer',
+      headers: { Referer: 'https://www.pixiv.net/' }
+    })
+    let imageData = Buffer.from(res)
+    file.ensureDir(`${savePath}/temp`)
+    const filePath = `${savePath}/temp`
+    await fsp.writeFile(`${filePath}.zip`, imageData)
+    await file.extractFile(`${filePath}.zip`, `${filePath}`)
+    await generateGif(filePath, `${artworkId}.mp4`)
+  } catch (error) {
+    console.log('🚀 ~ downloadGif ~ error:', error)
+    return null
+  }
 }
-async function generateGif(folder) {
+async function generateGif(folder, outputName) {
   // 先检查并安装依赖
   if (!checkAndInstallDependencies()) {
     console.error('依赖安装失败，无法执行 Python 脚本')
     return
   }
-  const result = spawnSync('python', ['python_scripts/gif.py', folder])
-  if (result.error) {
-    console.error(`spawnSync error: ${result.error}`)
-    return
-  }
+  await new Promise((resolve, reject) => {
+    const process = spawn('python', ['python_scripts/gif.py', folder, outputName])
+    process.on('close', (code) => {
+      resolve()
+    })
+    process.on('error', (error) => {
+      reject()
+    })
+  })
 }
 
 function checkAndInstallDependencies() {
@@ -139,5 +148,6 @@ export default {
   getArtworkImages,
   getImage,
   downloadImage,
-  downloadGif
+  downloadGif,
+  generateGif
 }

@@ -170,17 +170,24 @@ async function runPixiv(task) {
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}/${file.simpleSanitize(artworkInfo.author)}/${file.simpleSanitize(artworkInfo.title)}`
-    // 开始前检查目录是否existed
-    if (await file.pathExists(workDir)) {
-      updateTask(task, { status: 'existed', progress: {} })
-      return
-    }
     // 动图
     if (artworkInfo.illustType === 2) {
+      // 开始前检查目录是否existed
+      if (await file.pathExists(`${workDir}/${artworkId}.mp4`)) {
+        updateTask(task, { status: 'existed', progress: {} })
+        return
+      }
       await pixiv.downloadGif(artworkId, workDir)
+      updateTask(task, { progress: { image: { index: 1, total: 1 } } })
+      task.onSuccess?.()
     }
-    // 图片集
-    else if (artworkInfo.illustType === 0) {
+    // 0：插画，1：漫画
+    else if ([0, 1].includes(artworkInfo.illustType)) {
+      // 开始前检查目录是否existed
+      if (await file.pathExists(workDir)) {
+        updateTask(task, { status: 'existed', progress: {} })
+        return
+      }
       const images = await pixiv.getArtworkImages(artworkId)
       await runWithConcurrency(
         images.map((_) => _.urls.original),
