@@ -227,7 +227,6 @@ app.whenReady().then(() => {
                   ensureDir(extractDir)
                   await extractFile(fullPath, extractDir)
                   log.info('download:extract:success', { downloadId, extractDir })
-                  fs.unlinkSync(fullPath)
                   log.info('download:archive-removed', { downloadId, archive: fullPath })
                   resolve({
                     savePath: extractDir,

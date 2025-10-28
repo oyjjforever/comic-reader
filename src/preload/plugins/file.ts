@@ -321,64 +321,17 @@ async function writeFile(filePath: string, content: string | Buffer): Promise<vo
 async function extractFile(filePath: string, extractDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const ext = path.extname(filePath).toLowerCase()
-
-    // 检查7zip是否可用
-    let sevenZipCmd = ''
-    try {
-      // 尝试查找7zip安装路径
-      if (process.platform === 'win32') {
-        // Windows系统查找7zip
-        const possiblePaths = [
-          'W:\\Program Files\\7-Zip\\7z.exe',
-          'C:\\Program Files\\7-Zip\\7z.exe',
-          'C:\\Program Files (x86)\\7-Zip\\7z.exe',
-          process.env['ProgramFiles'] + '\\7-Zip\\7z.exe',
-          process.env['ProgramFiles(x86)'] + '\\7-Zip\\7z.exe'
-        ]
-
-        for (const p of possiblePaths) {
-          if (fs.existsSync(p)) {
-            sevenZipCmd = p
-            break
-          }
-        }
-
-        if (!sevenZipCmd) {
-          // 如果找不到7zip，尝试使用系统自带的tar或使用Node.js解压库
-          throw new Error('未找到7zip安装路径')
-        }
-      }
-    } catch (err) {
-      console.warn('7zip未安装，使用Node.js解压:', err)
-      sevenZipCmd = ''
-    }
-
-    if (sevenZipCmd) {
-      // 使用7zip解压
-      const args = ['x', filePath, `-o${extractDir}`, '-y']
-      const child = spawn(sevenZipCmd, args)
-
-      child.on('close', (code) => {
-        if (code === 0) {
+    // 使用Node.js内置解压（支持zip格式）
+    if (ext === '.zip') {
+      const { extract } = require('zip-lib')
+      extract(filePath, extractDir)
+        .then(() => {
+          fs.unlinkSync(filePath)
           resolve()
-        } else {
-          reject(new Error(`7zip解压失败，退出码: ${code}`))
-        }
-      })
-
-      child.on('error', (err) => {
-        reject(new Error(`7zip解压错误: ${err.message}`))
-      })
+        })
+        .catch((err: any) => reject(new Error(`ZIP解压失败: ${err.message}`)))
     } else {
-      // 使用Node.js内置解压（支持zip格式）
-      if (ext === '.zip') {
-        const { extract } = require('zip-lib')
-        extract(filePath, extractDir)
-          .then(() => resolve())
-          .catch((err: any) => reject(new Error(`ZIP解压失败: ${err.message}`)))
-      } else {
-        reject(new Error(`不支持的解压格式: ${ext}，请安装7zip`))
-      }
+      reject(new Error(`不支持的解压格式: ${ext}，请安装7zip`))
     }
   })
 }

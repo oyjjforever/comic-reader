@@ -2,6 +2,8 @@ import Api from './api.js'
 import fsp from 'fs/promises'
 import file from '../file.ts'
 import { ipcRenderer } from 'electron'
+import { spawnSync } from 'child_process'
+import path from 'path'
 const api = new Api({
   proxyMode: 'Custom',
   proxyHost: '127.0.0.1',
@@ -88,32 +90,48 @@ async function downloadGif(artworkId, savePath) {
     headers: { Referer: 'https://www.pixiv.net/' }
   })
   let imageData = Buffer.from(res)
-  file.ensureDir(`${savePath}/${artworkId}`)
-  const filePath = `${savePath}/${artworkId}`
+  file.ensureDir(`${savePath}/${temp}`)
+  const filePath = `${savePath}/${temp}`
   await fsp.writeFile(`${filePath}.zip`, imageData)
   await file.extractFile(`${filePath}.zip`, `${filePath}`)
+  await generateGif(filePath)
+}
+async function generateGif(folder) {
+  // 先检查并安装依赖
+  if (!checkAndInstallDependencies()) {
+    console.error('依赖安装失败，无法执行 Python 脚本')
+    return
+  }
+  const result = spawnSync('python', ['python_scripts/gif.py', folder])
+  if (result.error) {
+    console.error(`spawnSync error: ${result.error}`)
+    return
+  }
+}
 
-  const fs = require('fs')
-  const GIFEncoder = require('gif-encoder-2')
-
-  // 图片帧的路径列表
-  const imagePaths = info.body.frames.map((_) => `${filePath}/${_.file}`)
-
-  // 创建一个GIFEncoder实例
-  const encoder = new GIFEncoder(1920, 1080) // 设置宽度和高度
-  encoder
-    .createReadStream()
-    .pipe(fs.createWriteStream(`${savePath}/output.gif`)) // 设置输出文件的路径
-    .on('finish', () => console.log('GIF created successfully!')) // 完成后的回调
-  encoder.start()
-  encoder.setDelay(20)
-  // 添加每个帧到GIF
-  imagePaths.forEach((imagePath) => {
-    encoder.addFrame(fs.createReadStream(imagePath)) // 添加帧
-  })
-
-  // 结束并输出GIF文件
-  encoder.finish()
+function checkAndInstallDependencies() {
+  try {
+    // 尝试导入 imageio 库来检查是否已安装
+    const checkResult = spawnSync('python', ['-c', "import imageio; print('imageio is installed')"])
+    if (checkResult.status !== 0) {
+      console.log('检测到未安装 imageio 库，正在安装...')
+      // 安装 imageio
+      const installResult = spawnSync('pip', ['install', 'imageio'], {
+        stdio: 'inherit' // 显示安装过程输出
+      })
+      if (installResult.status !== 0) {
+        console.error('安装 imageio 失败')
+        return false
+      }
+      console.log('imageio 安装成功')
+    } else {
+      console.log('imageio 已安装')
+    }
+    return true
+  } catch (error) {
+    console.error('检查依赖时出错:', error)
+    return false
+  }
 }
 export default {
   getArtworksByUserId,

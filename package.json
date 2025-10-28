@@ -46,7 +46,8 @@
     "sqlite3": "^5.1.7",
     "tailwindcss": "^3.4.1",
     "vue-pdf-embed": "^2.1.1",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "zip-lib": "^1.1.2"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
