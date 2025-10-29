@@ -1,23 +1,18 @@
 import Api from './api.js'
 import fsp from 'fs/promises'
 import file from '../file.ts'
-import { ipcRenderer } from 'electron'
 import { spawnSync, spawn } from 'child_process'
-import path from 'path'
 const api = new Api({
   proxyMode: 'Custom',
   proxyHost: '127.0.0.1',
   proxyPort: '7890'
 })
 async function getArtworksByUserId(userId) {
-  const cookies = await ipcRenderer.invoke('site:getCookies')
+  const cookies = await api.getCookies('.pixiv.net')
   const res = await api.get({
     url: `https://www.pixiv.net/ajax/user/${userId}/profile/all?sensitiveFilterMode=userSetting&lang=zh`,
     headers: {
       Cookie: cookies
-        .filter((_) => _.domain === '.pixiv.net')
-        .map((cookie) => `${cookie.name}=${cookie.value}`)
-        .join('; ')
     }
   })
   return {
@@ -37,18 +32,29 @@ async function getArtworkInfo(artworkId) {
 }
 
 async function getArtworkImages(artworkId) {
-  const cookies = await ipcRenderer.invoke('site:getCookies')
+  const cookies = await api.getCookies('.pixiv.net')
   const res = await api.get({
     url: `https://www.pixiv.net/ajax/illust/${artworkId}/pages?lang=zh`,
     headers: {
       Cookie: cookies
-        .filter((_) => _.domain === '.pixiv.net')
-        .map((cookie) => `${cookie.name}=${cookie.value}`)
-        .join('; ')
     }
   })
   return res.body
 }
+async function getMangaInfo(artworkId) {
+  const cookies = await api.getCookies('.pixiv.net')
+  const res = await api.get({
+    url: `https://www.pixiv.net/ajax/series/${artworkId}?p=1&lang=zh`,
+    headers: {
+      Cookie: cookies
+    }
+  })
+  return {
+    title: res.body?.extraData?.meta?.title,
+    series: (res.body?.page?.series || []).map((_) => _.workId).reverse()
+  }
+}
+
 async function getImage(url) {
   const res = await api.get({
     url,
@@ -73,15 +79,12 @@ async function downloadImage(url, savePath) {
 }
 async function downloadGif(artworkId, savePath) {
   try {
-    const cookies = await ipcRenderer.invoke('site:getCookies')
+    const cookies = await api.getCookies('.pixiv.net')
     const info = await api.get({
       url: `https://www.pixiv.net/ajax/illust/${artworkId}/ugoira_meta?lang=zh`,
       headers: {
         Referer: 'https://www.pixiv.net/',
         Cookie: cookies
-          .filter((_) => _.domain === '.pixiv.net')
-          .map((cookie) => `${cookie.name}=${cookie.value}`)
-          .join('; ')
       }
     })
     const url = info.body.originalSrc
@@ -144,6 +147,7 @@ function checkAndInstallDependencies() {
 }
 export default {
   getArtworksByUserId,
+  getMangaInfo,
   getArtworkInfo,
   getArtworkImages,
   getImage,

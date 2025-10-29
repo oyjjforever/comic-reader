@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ipcRenderer } from 'electron'
 function buildAxios(config) {
   const instance = axios.create({
     adapter: 'http', // 强制使用 Node http 适配器，避免渲染/XHR 改写请求头
@@ -72,5 +73,12 @@ export default class Api {
 
   post(config) {
     return this.request('POST', config)
+  }
+  async getCookies(domain) {
+    const cookies = await ipcRenderer.invoke('site:getCookies')
+    return cookies
+      .filter((_) => _.domain === domain)
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join('; ')
   }
 }

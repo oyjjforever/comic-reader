@@ -13,36 +13,36 @@ const url = ref('https://www.pixiv.net/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
 const canAttention = ref(false)
+let downloadType
 function updateCanDownload() {
   try {
     const wv = webviewRef.value
     if (!wv) return
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    canDownload.value =
-      !!currentUrl && (currentUrl.includes('illustrations') || currentUrl.includes('artworks'))
+    canDownload.value = true
+    if (currentUrl.includes('artworks')) {
+      downloadType = 'artwork'
+    } else if (currentUrl.includes('illustrations')) {
+      downloadType = 'illusts'
+    } else if (currentUrl.includes('series')) {
+      downloadType = 'managa'
+    } else {
+      canDownload.value = false
+    }
     canAttention.value = !!currentUrl && currentUrl.includes('users')
   } catch {
     canDownload.value = false
+    canAttention.value = false
   }
 }
-// 解析作者ID：从 https://www.pixiv.net/users/113801960/illustrations 中提取 113801960
-function extractUserId(currentUrl: string): string | null {
+function extractFromUrl(key) {
   try {
+    const wv = webviewRef.value
+    if (!wv) return null
+    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
     const u = new URL(currentUrl)
     const parts = u.pathname.split('/').filter(Boolean)
-    const idx = parts.findIndex((p) => p === 'users')
-    if (idx !== -1 && parts[idx + 1]) return parts[idx + 1]
-    return null
-  } catch {
-    return null
-  }
-}
-// 解析作品ID：从 https://www.pixiv.net/artworks/135869669#1 中提取 135869669
-function extractArtworkId(currentUrl: string): string | null {
-  try {
-    const u = new URL(currentUrl)
-    const parts = u.pathname.split('/').filter(Boolean)
-    const idx = parts.findIndex((p) => p === 'artworks')
+    const idx = parts.findIndex((p) => p === key)
     if (idx !== -1 && parts[idx + 1]) return parts[idx + 1]
     return null
   } catch {
@@ -52,9 +52,7 @@ function extractArtworkId(currentUrl: string): string | null {
 async function addSpecialAttention() {
   const tip = new Tip()
   try {
-    const wv = webviewRef.value
-    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    const userId = extractUserId(currentUrl)
+    const userId = extractFromUrl('users')
     const firstArtworkId = (await pixiv.getArtworksByUserId(userId)).illusts[0]
     const authorName = (await pixiv.getArtworkInfo(firstArtworkId)).author
     await window.specialAttention.add({
@@ -70,24 +68,28 @@ async function addSpecialAttention() {
 async function download() {
   const tip = new Tip()
   try {
-    const wv = webviewRef.value
-    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    let illusts: string[] = []
+    let artworkIds: string[] = []
     // 单作品
-    if (currentUrl.includes('artworks')) {
-      const artworkId = extractArtworkId(currentUrl)
-      if (artworkId) illusts = [artworkId]
+    if (downloadType === 'artwork') {
+      const artworkId = extractFromUrl('artworks')
+      if (artworkId) artworkIds = [artworkId]
     }
-    // 作品集
-    else if (currentUrl.includes('illustrations')) {
-      const userId = extractUserId(currentUrl)
+    // 插画集
+    else if (downloadType === 'illusts') {
+      const userId = extractFromUrl('users')
       if (!userId) throw new Error('无法从当前URL解析 未解析到作者ID')
       const profile = await pixiv.getArtworksByUserId(userId)
-      illusts = profile.illusts
+      artworkIds = profile.illusts
+    }
+    // 漫画集
+    else if (downloadType === 'managa') {
+      const mangaId = extractFromUrl('series')
+      const mangaInfo = await pixiv.getMangaInfo(mangaId)
+      artworkIds = mangaInfo.series
     }
     const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
     // 每个作品加入队列任务
-    for (const artworkId of illusts) {
+    for (const artworkId of artworkIds) {
       const artworkInfo = await pixiv.getArtworkInfo(artworkId)
       queue.addTask({
         site: 'pixiv',

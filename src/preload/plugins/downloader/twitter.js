@@ -127,7 +127,7 @@ function extractBottomCursorValues(root) {
   return Array.from(new Set(out))[0]
 }
 async function buildHeader() {
-  const cookies = await ipcRenderer.invoke('site:getCookies')
+  const cookies = await api.getCookies('.x.com')
   const header = {
     Authorization:
       'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
@@ -139,9 +139,6 @@ async function buildHeader() {
     'X-Xp-Forwarded-For':
       '3939bfeaab22b444d596f61102bd4dfc149fe08c2311b7e5a2a6c14ea0b5b515ad297adc208992890532d6a6cf59d0f791b925d383c8a6c8b8706c7a6f7813e991b58fbe402e5991813b2b7c5bd6364615a050132df33c8e71146e1a42f4038edd7728c0f1897393f54a341f3e6d761411cb1d47e84dc8ad10d90d69418902dcb32da7ea285d973b72cf256d4e2e21455060072570da45c2a6314f39d119ebde77465abb0b5d408998dd2f4869bb676a3ef383f833cc8f8467a70f94522443bdfa6f7c6b71d637a89aef651ce2184a3110e293956b2072dbfcfac1a8274449f11cd2610d8514b45e5c95bcb48d3fef466ffeda1b3ef7a01604140b5a6b057bd859e6edafeec6822abeed7cae7388f55495b7edd99708ce2c80b5a697bf73',
     Cookie: cookies
-      .filter((_) => _.domain === '.x.com')
-      .map((cookie) => `${cookie.name}=${cookie.value}`)
-      .join('; ')
   }
   return header
 }

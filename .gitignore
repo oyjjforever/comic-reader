@@ -7,3 +7,5 @@ out
 data
 .codebuddy
 package-lock.json
+src/renderer/auto-imports.d.ts
+src/renderer/components.d.ts

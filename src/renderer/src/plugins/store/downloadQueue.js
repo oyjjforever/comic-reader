@@ -177,6 +177,7 @@ async function runPixiv(task) {
         updateTask(task, { status: 'existed', progress: {} })
         return
       }
+      updateTask(task, { progress: { image: { index: 0, total: 1 } } })
       await pixiv.downloadGif(artworkId, workDir)
       updateTask(task, { progress: { image: { index: 1, total: 1 } } })
       task.onSuccess?.()
