@@ -9,41 +9,39 @@
 ## 功能特性
 
 - 漫画阅读模块
-
-  - 图片阅读器：翻页、缩放、键鼠操作（`src/renderer/src/components/image-reader.vue`）
-  - PDF 阅读：基于 `vue-pdf-embed`（`src/renderer/src/components/pdf-reader.vue`）
-  - EPUB 阅读：基于 `epubjs`（`src/renderer/src/components/epub-reader.vue`）
-  - 资源浏览器：文件夹扫描、收藏夹、虚拟网格高性能渲染（`resource-browser.vue`、`virtual-grid.vue`、`responsive-virtual-grid.vue`）
+  - 图片阅读器：翻页、缩放、键鼠操作、自动播放
+  - 支持图片格式
+    - jpg/jpeg/png/webp
+    - PDF
+    - EPUB
+  - 资源浏览器：本地文件夹扫描、收藏夹、右键打开本地文件
 
 - 视频模块
+  - 资源浏览：指定资源路径下的树/文件列表与收藏
+  - 播放器：原生 video 播放（本地文件），进度管理
+  - 书签功能：时间点收藏、增删改查
+  - DLNA 投屏：局域网设备发现与投屏
 
-  - 资源浏览：指定资源路径下的树/文件列表与收藏（`views/video/index.vue`）
-  - 播放器：原生 video 播放（本地文件），进度管理（`views/video/player.vue`）
-  - 书签功能：时间点收藏、增删改查（预加载暴露 `window.videoBookmarks`）
-  - DLNA 投屏：局域网设备发现与投屏（`views/video/dlna-cast.vue`，预加载暴露 `window.dlna`）
-
-- 第三方网站预览与下载
-
-  - Twitter、Pixiv、JM 站 WebView 预览（`persist:thirdparty` 分区，启用 `webviewTag`）
-  - Cookie/Headers 注入、GraphQL/API 解析、批量下载（通过 `ipcRenderer` 与主进程 `download:start` 协作）
-  - 自动解压 zip/rar/7z 等归档（系统安装 7-Zip 时启用；zip 默认走 Node 解压）
-  - 下载队列：批量下载任务管理、进度显示、任务取消、任务管理
+- 第三方网站浏览与下载
+  - JM
+    - WebView 浏览
+    - 章节选择下载、自动解压
+  - Pixiv
+    - WebView 浏览
+    - 用户全部作品一键下载
+    - 插画下载
+    - 漫画集下载
+    - 动图下载
+  - Twitter
+    - WebView 浏览
+    - 用户媒体库一键下载
+    - 视频下载
 
 - 特别关注
-
   - 关注用户：查看最新作品和本地下载情况
   - 类型： 支持关注上述三个网站的用户
 
-- 系统能力
-
-  - 自动更新：`electron-updater`
-  - 日志系统：`electron-log`（按日期目录维护，定期清理）
-  - 自定义无边框窗口、全屏/还原、窗口控制 IPC
-  - 一键打开 DevTools：`Ctrl/Cmd + Alt + Shift + L`
-
 ## 截图与演示
-
-将你的实际截图或动图放入 `docs/screenshots`，文件名可沿用以下占位：
 
 - 漫画阅读（图片）
   ![Image Reader](docs/books.png)
@@ -63,7 +61,7 @@
 
 - Node.js 18+
 - npm 或 yarn
-- Windows 推荐安装 7-Zip（用于 rar/7z 自动解压），macOS/Linux 请自行配置解压工具或仅使用 zip
+- Python
 
 安装与启动
 
@@ -98,7 +96,7 @@
 - 预加载：@electron-toolkit/preload（contextBridge 安全暴露 API）
 - 渲染层：Vue 3、Vite、Pinia、Vue Router、Naive UI、Tailwind CSS
 - 阅读器：epubjs、vue-pdf-embed
-- 数据与存储：sqlite/sqlite3（收藏/书签等）
+- 数据与存储：sqlite/sqlite3
 - 其他：lodash、dlnacasts、mime-types
 
 ## 许可证
