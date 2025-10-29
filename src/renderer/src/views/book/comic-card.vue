@@ -375,7 +375,7 @@ onUnmounted(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  // min-height: 2.6em; /* 确保双行高度 */
+  min-height: 2.6em; /* 确保双行高度 */
   word-break: break-all;
 }
 .comic-info {

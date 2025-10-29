@@ -57,13 +57,13 @@ const toRead = (book: FolderInfo) => {
     return
   }
   // 检查是否为混合类型文件夹
-  if (book.contentType === 'mixed') {
-    // 使用 naive-ui 的消息提示
-    message.warning(
-      '该文件夹包含多种类型的文件，请将不同类型的文件独立拆分到子文件夹中后再进行阅读'
-    )
-    return
-  }
+  // if (book.contentType === 'mixed') {
+  //   // 使用 naive-ui 的消息提示
+  //   message.warning(
+  //     '该文件夹包含多种类型的文件，请将不同类型的文件独立拆分到子文件夹中后再进行阅读'
+  //   )
+  //   return
+  // }
 
   // 跳转到阅读页面
   router.push({
