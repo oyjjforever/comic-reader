@@ -148,6 +148,7 @@ import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
+import twitter from '../views/special-attention/twitter'
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
@@ -226,7 +227,7 @@ function onClose() {
   window.electron.ipcRenderer.invoke('window-close')
 }
 const isScreenFull = ref(false)
-onMounted(() => {
+onMounted(async () => {
   // 渲染进程加载完成后，主动发起请求获取窗口大小
   isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
 })

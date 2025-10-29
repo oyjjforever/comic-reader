@@ -40,8 +40,7 @@ function extractFromUrl(key) {
     const wv = webviewRef.value
     if (!wv) return null
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    const u = new URL(currentUrl)
-    const parts = u.pathname.split('/').filter(Boolean)
+    const parts = currentUrl.split('/').filter(Boolean)
     const idx = parts.findIndex((p) => p === key)
     if (idx !== -1 && parts[idx + 1]) return parts[idx + 1]
     return null

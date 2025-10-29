@@ -216,11 +216,23 @@ async function runPixiv(task) {
 }
 
 async function runTwitter(task) {
-  const { author, userId, baseDir, artworkInfo } = task.payload
+  const { author, userId, baseDir, artworkInfo, videoUrl } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-
-    if (artworkInfo) {
+    // 视频下载
+    if (videoUrl) {
+      const workDir = `${baseDir}/${file.simpleSanitize(author)}/${task.payload.twitterId}.mp4`
+      // 开始前检查目录是否existed
+      if (await file.pathExists(workDir)) {
+        updateTask(task, { status: 'existed', progress: {} })
+        return
+      }
+      await twitter.downloadImage(videoUrl, workDir)
+      updateTask(task, { progress: { image: { index: 1, total: 1 } } })
+      task.onSuccess?.()
+    }
+    // 单图片下载
+    else if (artworkInfo) {
       const workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}`
       // 开始前检查目录是否existed
       if (await file.pathExists(workDir)) {
@@ -230,7 +242,9 @@ async function runTwitter(task) {
       await twitter.downloadImage(artworkInfo.url, workDir)
       updateTask(task, { progress: { image: { index: 1, total: 1 } } })
       task.onSuccess?.()
-    } else {
+    }
+    // 媒体库下载
+    else {
       const workDir = `${baseDir}/${file.simpleSanitize(author)}`
       // 开始前检查目录是否existed
       if (await file.pathExists(workDir)) {

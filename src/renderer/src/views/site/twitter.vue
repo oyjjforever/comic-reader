@@ -13,28 +13,37 @@ const url = ref('https://x.com/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
 const canAttention = ref(false)
+let downloadType
 function updateCanDownload() {
   try {
-    const author = getAuthorFromUrl()
-    canDownload.value = author !== 'home'
+    const wv = webviewRef.value
+    if (!wv) return
+    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+    const author = extractFromUrl('x.com')
+    canDownload.value = true
+    if (currentUrl.includes('status')) {
+      downloadType = 'video'
+    } else if (author !== 'home') {
+      downloadType = 'media'
+    } else {
+      canDownload.value = false
+    }
     canAttention.value = author !== 'home'
   } catch {
     canDownload.value = false
+    canAttention.value = false
   }
 }
 
-/**
- * 从与 temp.json 同结构的对象中提取所有 cursorType === "Bottom" 的 value 值
- * @param root 任意对象（如 JSON.parse(temp.json) 的结果）
- * @returns 去重后的 value 列表
- */
-
-function getAuthorFromUrl(): string | null {
+function extractFromUrl(key) {
   try {
     const wv = webviewRef.value
-    if (!wv) throw new Error('webview 未准备好')
+    if (!wv) return null
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    return currentUrl.match(/x\.com\/([^\/]+)/)?.[1]
+    const parts = currentUrl.split('/').filter(Boolean)
+    const idx = parts.findIndex((p) => p === key)
+    if (idx !== -1 && parts[idx + 1]) return parts[idx + 1]
+    return null
   } catch {
     return null
   }
@@ -42,23 +51,36 @@ function getAuthorFromUrl(): string | null {
 async function download() {
   const tip = new Tip()
   try {
-    const wv = webviewRef.value
-    if (!wv) throw new Error('webview 未准备好')
-    const author = getAuthorFromUrl()
+    const author = extractFromUrl('x.com')
     if (!author) throw new Error('无法从当前URL解析 screen_name')
     const userId = await twitter.getUserIdByName(author)
     if (!userId) throw new Error('未获取到用户ID')
     const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
-    // 将媒体页作为一个任务加入队列
-    queue.addTask({
-      site: 'twitter',
-      title: `[${author}]的媒体库`,
-      payload: {
-        author,
-        userId,
-        baseDir: defaultDownloadPath
-      }
-    })
+    if (downloadType === 'media') {
+      // 将媒体页作为一个任务加入队列
+      queue.addTask({
+        site: 'twitter',
+        title: `[${author}]的媒体库`,
+        payload: {
+          author,
+          userId,
+          baseDir: defaultDownloadPath
+        }
+      })
+    } else if (downloadType === 'video') {
+      const twitterId = extractFromUrl('status')
+      const videoUrls = await window.twitter.getVideoUrls(twitterId)
+      queue.addTask({
+        site: 'twitter',
+        title: `[${author}]的视频(${twitterId})`,
+        payload: {
+          author,
+          twitterId,
+          videoUrl: videoUrls.pop().url,
+          baseDir: defaultDownloadPath
+        }
+      })
+    }
   } catch (error) {
     tip.error(error)
   }
@@ -66,7 +88,7 @@ async function download() {
 async function addSpecialAttention() {
   const tip = new Tip()
   try {
-    const author = getAuthorFromUrl()
+    const author = extractFromUrl('x.com')
     const userId = await twitter.getUserIdByName(author)
     await window.specialAttention.add({
       source: 'twitter',
