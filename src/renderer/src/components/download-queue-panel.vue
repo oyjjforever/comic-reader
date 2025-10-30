@@ -147,6 +147,7 @@ function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
 
 function calcPercent(t: any) {
   const p = t?.progress
+  if (p.value) return p.value
   if (!p?.image?.total) return 0
   const idx = p.image.index || 0
   const total = p.image.total || 0

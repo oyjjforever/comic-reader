@@ -178,9 +178,16 @@ async function runPixiv(task) {
         return
       }
       updateTask(task, { progress: { image: { index: 0, total: 1 } } })
-      await pixiv.downloadGif(artworkId, workDir)
-      updateTask(task, { progress: { image: { index: 1, total: 1 } } })
-      task.onSuccess?.()
+      try {
+        await pixiv.downloadGif(artworkId, workDir, (value) => {
+          updateTask(task, { progress: { value, image: { index: 0, total: 1 } } })
+        })
+        updateTask(task, { progress: { image: { index: 1, success: 1, total: 1 } } })
+        task.onSuccess?.()
+      } catch (error) {
+        console.log('🚀 ~ runPixiv ~ error:', error)
+        updateTask(task, { progress: { image: { index: 1, fail: 1, total: 1 } } })
+      }
     }
     // 0：插画，1：漫画
     else if ([0, 1].includes(artworkInfo.illustType)) {
@@ -227,9 +234,15 @@ async function runTwitter(task) {
         updateTask(task, { status: 'existed', progress: {} })
         return
       }
-      await twitter.downloadImage(videoUrl, workDir)
-      updateTask(task, { progress: { image: { index: 1, total: 1 } } })
-      task.onSuccess?.()
+      try {
+        await twitter.downloadImage(videoUrl, workDir, (value) => {
+          updateTask(task, { progress: { value, image: { index: 0, total: 1 } } })
+        })
+        updateTask(task, { progress: { image: { index: 1, success: 1, total: 1 } } })
+        task.onSuccess?.()
+      } catch (error) {
+        updateTask(task, { progress: { image: { index: 1, fail: 1, total: 1 } } })
+      }
     }
     // 单图片下载
     else if (artworkInfo) {

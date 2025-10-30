@@ -4,12 +4,14 @@ import logging
 import sys
 import shutil
 
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
+
 def downLoadGif(file_path=".",file_name="output.gif"):
     
     # 检查目录是否存在
     if not os.path.exists(file_path):
         logging.error(f"Directory {file_path} does not exist!")
-        return
+        sys.exit(1)
     
     # 获取目录中的所有文件
     all_files = os.listdir(file_path)
@@ -29,7 +31,7 @@ def downLoadGif(file_path=".",file_name="output.gif"):
     # 如果没有找到文件，直接返回
     if not temp_file_list:
         logging.error("No files found to create GIF!")
-        return
+        sys.exit(1)
     
     image_data = []
     for file in temp_file_list:
@@ -46,6 +48,7 @@ def downLoadGif(file_path=".",file_name="output.gif"):
         shutil.rmtree(file_path)
     else:
         logging.error("No valid image files found!")
+        sys.exit(1)
 
 if __name__ == "__main__":
     # 从命令行参数获取 file_path，如果没有参数则使用默认值 '.'

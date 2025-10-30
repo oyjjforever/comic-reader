@@ -289,11 +289,16 @@ async function getImage(url) {
   const coverUrl = URL.createObjectURL(blob)
   return coverUrl
 }
-async function downloadImage(url, savePath) {
+async function downloadImage(url, savePath, onProgress) {
   const res = await api.get({
     url,
     responseType: 'arraybuffer',
-    headers: { Referer: 'https://x.com/' }
+    headers: { Referer: 'https://x.com/' },
+    onDownloadProgress: function (progressEvent) {
+      // 计算下载进度百分比
+      const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+      onProgress?.(percentCompleted)
+    }
   })
   let imageData = Buffer.from(res)
   file.ensureDir(savePath)
