@@ -49,7 +49,6 @@ export function addTask(taskList) {
     }))
   )
   sortTasks()
-
   startRunner()
 }
 
@@ -96,8 +95,7 @@ async function waitWhilePaused(task) {
 async function runWithConcurrency(items, task, onItem, onProgress) {
   const limit = 20
   let next = 0
-  let completed = 0,
-    success = 0,
+  let success = 0,
     fail = 0
   async function worker() {
     while (true) {
@@ -112,8 +110,7 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
       } catch (e) {
         fail++
       }
-      completed++
-      onProgress?.(completed, success, fail, items.length)
+      onProgress?.(success, fail, items.length)
     }
   }
   const workers = Array(Math.min(limit, items.length))
@@ -121,18 +118,19 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
     .map(() => worker())
   await Promise.all(workers)
 }
-
+async function isPathExists(path, task) {
+  if (await file.pathExists(chapterFolder)) {
+    updateTask(task, { status: 'existed', progress: {} })
+    throw new Error(`${path} 已存在`)
+  }
+}
 async function runJmtt(task) {
   const { chapter, comicInfo, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const chapterFolder =
       (comicInfo.chapter_infos?.length || 0) > 1 ? `${baseDir}/第${chapter.index}章` : baseDir
-    // 开始前检查目录是否existed
-    if (await file.pathExists(chapterFolder)) {
-      updateTask(task, { status: 'existed', progress: {} })
-      return
-    }
+    await isPathExists(chapterFolder, task)
     const images = await jmtt.getChapterImages(chapter.id)
     await runWithConcurrency(
       images,
@@ -141,11 +139,12 @@ async function runJmtt(task) {
         const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
         await jmtt.downloadImage(savePath, images[i])
       },
-      (completed, success, fail, total) => {
+      (success, fail, total) => {
         updateTask(task, {
           progress: {
-            chapter: { index: chapter.index, total: comicInfo.chapter_infos.length || 1 },
-            image: { index: completed, success, fail, total }
+            success,
+            fail,
+            total
           }
         })
         task.onSuccess?.()
@@ -158,7 +157,6 @@ async function runJmtt(task) {
       // 取消不提示
       return
     }
-    // updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   } finally {
     // 章间暂停 5s 避免频繁请求
     await new Promise((r) => setTimeout(r, 5000))
@@ -170,32 +168,24 @@ async function runPixiv(task) {
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}/${file.simpleSanitize(artworkInfo.author)}/${file.simpleSanitize(artworkInfo.title)}`
-    // 动图
+    // 动图下载
     if (artworkInfo.illustType === 2) {
-      // 开始前检查目录是否existed
-      if (await file.pathExists(`${workDir}/${artworkId}.mp4`)) {
-        updateTask(task, { status: 'existed', progress: {} })
-        return
-      }
-      updateTask(task, { progress: { image: { index: 0, total: 1 } } })
+      await isPathExists(`${workDir}/${artworkId}.mp4`, task)
+      updateTask(task, { progress: { total: 1 } })
       try {
         await pixiv.downloadGif(artworkId, workDir, (value) => {
-          updateTask(task, { progress: { value, image: { index: 0, total: 1 } } })
+          updateTask(task, { progress: { value, total: 1 } })
         })
-        updateTask(task, { progress: { image: { index: 1, success: 1, total: 1 } } })
+        updateTask(task, { progress: { success: 1, total: 1 } })
         task.onSuccess?.()
       } catch (error) {
         console.log('🚀 ~ runPixiv ~ error:', error)
-        updateTask(task, { progress: { image: { index: 1, fail: 1, total: 1 } } })
+        updateTask(task, { progress: { fail: 1, total: 1 } })
       }
     }
-    // 0：插画，1：漫画
+    // 0：插画，1：漫画 下载
     else if ([0, 1].includes(artworkInfo.illustType)) {
-      // 开始前检查目录是否existed
-      if (await file.pathExists(workDir)) {
-        updateTask(task, { status: 'existed', progress: {} })
-        return
-      }
+      await isPathExists(workDir, task)
       const images = await pixiv.getArtworkImages(artworkId)
       await runWithConcurrency(
         images.map((_) => _.urls.original),
@@ -205,8 +195,8 @@ async function runPixiv(task) {
           const savePath = `${workDir}/${fileName}`
           await pixiv.downloadImage(url, savePath)
         },
-        (completed, success, fail, total) => {
-          updateTask(task, { progress: { image: { index: completed, success, fail, total } } })
+        (success, fail, total) => {
+          updateTask(task, { progress: { success, fail, total } })
           task.onSuccess?.()
         }
       )
@@ -218,7 +208,6 @@ async function runPixiv(task) {
       // 取消不提示
       return
     }
-    // updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   }
 }
 
@@ -229,41 +218,29 @@ async function runTwitter(task) {
     // 视频下载
     if (videoUrl) {
       const workDir = `${baseDir}/${file.simpleSanitize(author)}/${task.payload.twitterId}.mp4`
-      // 开始前检查目录是否existed
-      if (await file.pathExists(workDir)) {
-        updateTask(task, { status: 'existed', progress: {} })
-        return
-      }
+      await isPathExists(workDir, task)
       try {
         await twitter.downloadImage(videoUrl, workDir, (value) => {
-          updateTask(task, { progress: { value, image: { index: 0, total: 1 } } })
+          updateTask(task, { progress: { value, total: 1 } })
         })
-        updateTask(task, { progress: { image: { index: 1, success: 1, total: 1 } } })
+        updateTask(task, { progress: { success: 1, total: 1 } })
         task.onSuccess?.()
       } catch (error) {
-        updateTask(task, { progress: { image: { index: 1, fail: 1, total: 1 } } })
+        updateTask(task, { progress: { fail: 1, total: 1 } })
       }
     }
     // 单图片下载
     else if (artworkInfo) {
       const workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}`
-      // 开始前检查目录是否existed
-      if (await file.pathExists(workDir)) {
-        updateTask(task, { status: 'existed', progress: {} })
-        return
-      }
+      await isPathExists(workDir, task)
       await twitter.downloadImage(artworkInfo.url, workDir)
-      updateTask(task, { progress: { image: { index: 1, total: 1 } } })
+      updateTask(task, { progress: { success: 1, total: 1 } })
       task.onSuccess?.()
     }
     // 媒体库下载
     else {
       const workDir = `${baseDir}/${file.simpleSanitize(author)}`
-      // 开始前检查目录是否existed
-      if (await file.pathExists(workDir)) {
-        updateTask(task, { status: 'existed', progress: {} })
-        return
-      }
+      await isPathExists(workDir, task)
       let images = [],
         cursor = null
       while (true) {
@@ -271,7 +248,7 @@ async function runTwitter(task) {
         const _images = twitter.extractItemsFromJson(res)
         cursor = twitter.extractBottomCursorValues(res)
         if (_images?.length) images.push(..._images)
-        updateTask(task, { progress: { image: { index: 0, total: images.length } } })
+        updateTask(task, { progress: { total: images.length } })
         if (!_images || _images.length < 20) break
       }
       if (!images.length) throw new Error('未解析到可下载的媒体')
@@ -283,8 +260,8 @@ async function runTwitter(task) {
           const savePath = `${workDir}/${fileName}`
           await twitter.downloadImage(image.url, savePath)
         },
-        (completed, success, fail, total) => {
-          updateTask(task, { progress: { image: { index: completed, success, fail, total } } })
+        (success, fail, total) => {
+          updateTask(task, { progress: { success, fail, total } })
           task.onSuccess?.()
         }
       )
@@ -295,7 +272,6 @@ async function runTwitter(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
-    // updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   }
 }
 
@@ -335,36 +311,6 @@ async function startRunner() {
     runnerActive = false
   }
 }
-
-function seedDemoDataIfEmpty() {
-  if (tasks.length > 0) return
-  const now = Date.now()
-  const mk = (site, title, status, imgIdx, imgTotal) => ({
-    id: uid(),
-    site,
-    title,
-    status,
-    progress: { image: { index: imgIdx, total: imgTotal } },
-    createdAt: now,
-    updatedAt: now,
-    payload: null
-  })
-  // 示例任务：运行中（蓝色）
-  tasks.push(
-    mk(
-      'jmtt',
-      '演示·漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节漫画章节（JMtt）',
-      'running',
-      3,
-      10
-    )
-  )
-  // 示例任务：暂停（信息色）
-  tasks.push(mk('twitter', '演示·媒体页（Twitter）', 'paused', 5, 12))
-  // 示例任务：成功（绿色）
-  tasks.push(mk('pixiv', '演示·作品（Pixiv）', 'success', 12, 12))
-}
-// seedDemoDataIfEmpty()
 
 export const queue = {
   tasks,

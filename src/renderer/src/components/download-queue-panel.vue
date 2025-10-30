@@ -84,14 +84,12 @@
             </div>
           </div>
           <div class="progress-text">
-            <template
-              v-if="['success', 'running'].includes(t.status) && t.progress && t.progress.image"
-            >
-              <span style="color: green">{{ t.progress.image.success || 0 }}</span>
+            <template v-if="['success', 'running'].includes(t.status) && t.progress">
+              <span style="color: green">{{ t.progress.success || 0 }}</span>
               /
-              <span style="color: red">{{ t.progress.image.fail || 0 }}</span>
+              <span style="color: red">{{ t.progress.fail || 0 }}</span>
               /
-              <span>{{ t.progress.image.total || 0 }}</span>
+              <span>{{ t.progress.total || 0 }}</span>
             </template>
             <span v-if="t.status === 'error' && t.errorMessage" class="error-msg">{{
               t.errorMessage
@@ -146,13 +144,11 @@ function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
 }
 
 function calcPercent(t: any) {
-  const p = t?.progress
+  const p = t?.progress || {}
   if (p.value) return p.value
-  if (!p?.image?.total) return 0
-  const idx = p.image.index || 0
-  const total = p.image.total || 0
-  if (total <= 0) return 0
-  return Math.min(100, Math.floor((idx / total) * 100))
+  if (!p.total) return 0
+  const completed = (p.success || 0) + (p.fail || 0)
+  return Math.min(100, Math.floor((completed / p.total) * 100))
 }
 function progressStatus(t: any) {
   if (t.status === 'success') return 'success'
