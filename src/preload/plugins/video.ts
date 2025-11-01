@@ -10,7 +10,7 @@ async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    return await File.getAllChildrenFolders(dirPath, 0, dirPath, true)
+    return await File.getAllFoldersFromPath(dirPath)
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -42,7 +42,7 @@ async function getFiles(
   },
 ): Promise<FileInfo[]> {
   try {
-    let files = await File.getFilesInfo(dirPath, false)
+    let files = await File.getFilesFromPath(dirPath, false)
     // 过滤非视频文件
     files = files.filter((file) => {
       return VIDEO_EXTENSIONS.includes(file.extension.toLowerCase())

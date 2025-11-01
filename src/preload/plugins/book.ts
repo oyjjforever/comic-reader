@@ -45,7 +45,28 @@ async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    return await File.getAllChildrenFolders(dirPath, 0, dirPath, false)
+    const tree = await File.getAllFoldersFromPath(dirPath)
+    const filterOutLeafNodes = function (tree) {
+      if (!Array.isArray(tree)) return [];
+
+      return tree
+        .map(node => {
+          // 如果是叶子节点，直接过滤掉
+          if (node.isLeaf === true) {
+            return null;
+          }
+
+          // 如果不是叶子节点，处理其子节点
+          const newNode = { ...node };
+          if (node.children && node.children.length > 0) {
+            newNode.children = filterOutLeafNodes(node.children);
+          }
+
+          return newNode;
+        })
+        .filter(node => node !== null); // 过滤掉null值
+    }
+    return filterOutLeafNodes(tree);
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -55,7 +76,7 @@ async function getFolderList(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    const folders = (await File.getDirectChildrenFolders(dirPath)).filter(_ => _.isLeaf)
+    const folders = await File.getDirectFoldersFromPath(dirPath)
     // 为每个文件夹分析内容类型
     const folderInfo = await Promise.all(
       folders.map(async (folder) => {
@@ -83,7 +104,7 @@ async function getFiles(
   },
 ): Promise<FileInfo[]> {
   try {
-    let files = await File.getFilesInfo(dirPath, false)
+    let files = await File.getFilesFromPath(dirPath, false)
     // 如果指定了排序选项，进行排序
     if (sortOptions) {
       files = sortFiles(files, sortOptions)

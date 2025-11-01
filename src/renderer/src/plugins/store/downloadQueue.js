@@ -119,7 +119,7 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
   await Promise.all(workers)
 }
 async function isPathExists(path, task) {
-  if (await file.pathExists(chapterFolder)) {
+  if (await file.pathExists(path)) {
     updateTask(task, { status: 'existed', progress: {} })
     throw new Error(`${path} 已存在`)
   }
@@ -152,6 +152,7 @@ async function runJmtt(task) {
     )
     updateTask(task, { status: 'success' })
   } catch (e) {
+    console.log('🚀 ~ runJmtt ~ e:', e)
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       // 取消不提示
@@ -203,6 +204,7 @@ async function runPixiv(task) {
     }
     updateTask(task, { status: 'success' })
   } catch (e) {
+    console.log('🚀 ~ runPixiv ~ e:', e)
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       // 取消不提示
@@ -268,6 +270,7 @@ async function runTwitter(task) {
     }
     updateTask(task, { status: 'success' })
   } catch (e) {
+    console.log('🚀 ~ runTwitter ~ e:', e)
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       return

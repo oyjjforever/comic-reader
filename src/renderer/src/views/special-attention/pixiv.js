@@ -25,6 +25,7 @@ async function pagingImage(authorName, grid, page) {
         artworkId: id,
         author: authorName,
         title: info.title || '',
+        illustType: info.illustType,
         cover: coverUrl,
         pages: images.length,
         downloaded

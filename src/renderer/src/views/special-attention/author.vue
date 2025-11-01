@@ -123,43 +123,48 @@ async function pagingImage() {
   }
 }
 async function onDownload(row) {
-  if (props.item.source === 'pixiv') {
-    const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
-    queue.addTask({
-      site: 'pixiv',
-      title: `[${row.author}]${row.title}`,
-      payload: {
-        artworkId: row.artworkId,
-        artworkInfo: {
-          author: row.author,
-          title: row.title
+  try {
+    if (props.item.source === 'pixiv') {
+      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
+      queue.addTask({
+        site: 'pixiv',
+        title: `[${row.author}]${row.title}`,
+        payload: {
+          artworkId: row.artworkId,
+          artworkInfo: {
+            author: row.author,
+            title: row.title,
+            illustType: row.illustType
+          },
+          baseDir: defaultDownloadPath
         },
-        baseDir: defaultDownloadPath
-      },
-      onSuccess() {
-        row.downloaded = true
-      }
-    })
-  } else if (props.item.source === 'twitter') {
-    const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
-    const author = props.item.authorName
-    queue.addTask({
-      site: 'twitter',
-      title: `[${author}]${row.title}`,
-      payload: {
-        author,
-        userId: props.item.authorId,
-        artworkInfo: {
+        onSuccess() {
+          row.downloaded = true
+        }
+      })
+    } else if (props.item.source === 'twitter') {
+      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
+      const author = props.item.authorName
+      queue.addTask({
+        site: 'twitter',
+        title: `[${author}]${row.title}`,
+        payload: {
           author,
-          title: row.title,
-          url: row.url
+          userId: props.item.authorId,
+          artworkInfo: {
+            author,
+            title: row.title,
+            url: row.url
+          },
+          baseDir: defaultDownloadPath
         },
-        baseDir: defaultDownloadPath
-      },
-      onSuccess() {
-        row.downloaded = true
-      }
-    })
+        onSuccess() {
+          row.downloaded = true
+        }
+      })
+    }
+  } catch (error) {
+    console.log('🚀 ~ onDownload ~ error:', error)
   }
 }
 function prevPage() {

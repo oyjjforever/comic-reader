@@ -1,7 +1,7 @@
 import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
-import { spawn } from 'child_process'
+import fg from 'fast-glob'
 import { FolderInfo, FileInfo } from '@/typings/file'
 const ensuredDirs = new Set()
 function ensureDir(filePath) {
@@ -110,35 +110,32 @@ async function getFileInfo(filepath: string): Promise<FileInfo> {
     )
   }
 }
-async function getDirectChildrenFolders(dirPath: string): Promise<FolderInfo[]> {
+async function getDirectFoldersFromPath(dirPath: string): Promise<FolderInfo[]> {
   // 检查路径是否存在
   if (!pathExists(dirPath)) {
     throw new Error(`路径不存在: ${dirPath}`)
   }
 
-  // 检查是否为目录
+  // 校验为目录
   const stat = await fsp.stat(dirPath)
   if (!stat.isDirectory()) {
     throw new Error(`指定路径不是目录: ${dirPath}`)
   }
-  const children = await fsp.readdir(dirPath, { withFileTypes: true })
+
+  // 使用 fast-glob 获取直接子目录
+  const entries = await fg(["*/"], { cwd: dirPath, onlyDirectories: true, absolute: true, stats: true }) as any
   const foldersInfo: FolderInfo[] = []
-  for (const child of children) {
+
+  for (const entry of entries) {
     try {
-      // 只处理文件夹
-      if (child.isDirectory()) {
-        const childPath = path.join(child.path, child.name)
-        const subChildren = await fsp.readdir(childPath, { withFileTypes: true })
-        const hasSubfolders = subChildren.some((_) => _.isDirectory())
-        const folderInfo: FolderInfo = {
-          name: child.name,
-          fullPath: path.join(child.path, child.name),
-          isLeaf: !hasSubfolders,
-        }
-        foldersInfo.push(folderInfo)
+      const childPath = typeof entry === 'string' ? entry : entry.path
+      const name = path.basename(childPath)
+      const folderInfo: FolderInfo = {
+        name,
+        fullPath: childPath,
       }
-    } catch (error) {
-      // 跳过无法访问的文件夹
+      foldersInfo.push(folderInfo)
+    } catch (_) {
       continue
     }
   }
@@ -148,73 +145,71 @@ async function getDirectChildrenFolders(dirPath: string): Promise<FolderInfo[]> 
 /**
  * 根据指定格式获取文件夹信息
  * @param dirPath 目录路径
- * @param currentDepth 当前深度
- * @param basePath 基础路径
- * @param parentPath 父路径
- * @returns 文件夹信息数组
  */
-async function getAllChildrenFolders(
-  dirPath: string,
-  currentDepth: number = 0,
-  basePath: string = dirPath,
-  containsLeaf: boolean = true,
+async function getAllFoldersFromPath(
+  dirPath: string
 ): Promise<FolderInfo[]> {
-  // 检查路径是否存在
-  if (!pathExists(dirPath)) {
-    throw new Error(`路径不存在: ${dirPath}`)
+  const root = path.resolve(dirPath)
+  // 校验根路径
+  if (!pathExists(root)) {
+    throw new Error(`路径不存在: ${root}`)
+  }
+  const stat = await fsp.stat(root)
+  if (!stat.isDirectory()) {
+    throw new Error(`指定路径不是目录: ${root}`)
   }
 
-  // 检查是否为目录
-  const stat = await fsp.stat(dirPath)
-  if (!stat.isDirectory()) {
-    throw new Error(`指定路径不是目录: ${dirPath}`)
+  // 一次性获取所有文件夹路径
+  const allFolders = await fg('**/', {
+    cwd: root,
+    onlyDirectories: true,
+    absolute: true,
+    dot: false,
+    deep: Infinity
+  })
+
+  const normalize = (p: string) => path.resolve(p).replace(/[\\\/]+$/, '')
+
+  // 构建路径映射
+  const folderMap = new Map<string, FolderInfo>()
+
+  // 先创建所有节点
+  for (const rawPath of allFolders) {
+    const folderPath = normalize(rawPath as string)
+    const name = path.basename(folderPath)
+    const relative = path.relative(root, folderPath)
+    const depth = relative ? relative.split(path.sep).length : 0
+    folderMap.set(folderPath, {
+      name,
+      fullPath: folderPath,
+      depth,
+      isLeaf: true,
+      children: []
+    })
   }
-  const children = await fsp.readdir(dirPath, { withFileTypes: true })
-  const foldersInfo: FolderInfo[] = []
-  for (const child of children) {
-    try {
-      // 只处理文件夹
-      if (child.isDirectory()) {
-        const childPath = path.join(child.path, child.name)
-        const subChildren = await fsp.readdir(childPath, { withFileTypes: true })
-        const hasSubfolders = subChildren.some((_) => _.isDirectory())
-        const isLeaf = !hasSubfolders
-        const folderInfo: FolderInfo = {
-          name: child.name,
-          fullPath: childPath,
-          depth: currentDepth,
-          isLeaf: !hasSubfolders,
-          children: []
-        }
-        // 递归获取子文件夹
-        if (hasSubfolders) {
-          folderInfo.children = await getAllChildrenFolders(
-            childPath,
-            currentDepth + 1,
-            basePath,
-            containsLeaf
-          )
-        }
-        if (containsLeaf || (!containsLeaf && !isLeaf)) {
-          foldersInfo.push(folderInfo)
-        }
-      }
-    } catch (error) {
-      // 跳过无法访问的文件夹
-      continue
+  // 构建父子关系并确定叶子节点
+  for (const [folderPath, node] of folderMap) {
+    const parentPath = normalize(path.dirname(folderPath))
+    if (folderMap.has(parentPath)) {
+      const parentNode = folderMap.get(parentPath)!
+      parentNode.children!.push(node)
+      parentNode.isLeaf = false
     }
   }
-
-  return foldersInfo
+  // 获取根目录的直接子节点
+  const normalizedRoot = normalize(root)
+  let result = Array.from(folderMap.values()).filter(
+    node => normalize(path.dirname(node.fullPath)) === normalizedRoot
+  )
+  return result
 }
-
 /**
 * 获取指定文件夹路径下的所有文件信息
 * @param dirPath 目录路径
 * @param includeSubfolders 是否包含子文件夹中的文件，默认为 false
 * @returns 文件信息数组
 */
-async function getFilesInfo(dirPath: string, includeSubfolders: boolean = false): Promise<FileInfo[]> {
+async function getFilesFromPath(dirPath: string, includeSubfolders: boolean = false): Promise<FileInfo[]> {
   try {
     // 检查路径是否存在
     if (!pathExists(dirPath)) {
@@ -230,11 +225,12 @@ async function getFilesInfo(dirPath: string, includeSubfolders: boolean = false)
     const filesInfo: FileInfo[] = []
 
     const processDirectory = async (currentPath: string) => {
-      const items = await fsp.readdir(currentPath)
+      // 使用 fast-glob 获取当前目录下的文件和子目录名
+      const filePaths = await fg(["*"], { cwd: currentPath, absolute: true })
 
-      for (const item of items) {
-        const itemPath = path.join(currentPath, item)
+      for (const itemPath of filePaths) {
         const itemStat = await fsp.stat(itemPath)
+        const item = path.basename(itemPath)
 
         if (itemStat.isFile()) {
           const fileInfo: FileInfo = {
@@ -248,7 +244,6 @@ async function getFilesInfo(dirPath: string, includeSubfolders: boolean = false)
           }
           filesInfo.push(fileInfo)
         } else if (itemStat.isDirectory() && includeSubfolders) {
-          // 递归处理子文件夹
           await processDirectory(itemPath)
         }
       }
@@ -343,9 +338,9 @@ export default {
   pathExists,
   getFolderInfo,
   getFileInfo,
-  getDirectChildrenFolders,
-  getAllChildrenFolders,
-  getFilesInfo,
+  getDirectFoldersFromPath,
+  getAllFoldersFromPath,
+  getFilesFromPath,
   readFileBuffer,
   getFileExtension,
   getFileNameWithoutExtension,

@@ -75,7 +75,7 @@ async function refreshDownloadedChapters(comicFolderPath: string) {
   const chapters = comicInfoRef.value?.chapter_infos || []
   if (!chapters.length) return
   try {
-    const folders = await window.file.getDirectChildrenFolders(comicFolderPath)
+    const folders = await window.file.getDirectFoldersFromPath(comicFolderPath)
     const folderNames = new Set(folders.map((f: any) => f.name))
     if (chapters.length === 1) {
       // 单章：没有章节文件夹也视为已下载
