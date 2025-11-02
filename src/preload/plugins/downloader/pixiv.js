@@ -89,6 +89,7 @@ async function downloadGif(artworkId, savePath, onProgress) {
   })
   onProgress?.(30)
   const url = info.body.originalSrc
+  const fps = Math.ceil(info.body.frames.length / 5)
   const res = await api.get({
     url,
     responseType: 'arraybuffer',
@@ -100,17 +101,17 @@ async function downloadGif(artworkId, savePath, onProgress) {
   await fsp.writeFile(`${filePath}.zip`, imageData)
   await file.extractFile(`${filePath}.zip`, `${filePath}`)
   onProgress?.(60)
-  await generateGif(filePath, `${artworkId}.mp4`)
+  await generateGif(filePath, `${artworkId}.mp4`, fps)
   onProgress?.(100)
 }
-async function generateGif(folder, outputName) {
+async function generateGif(folder, outputName, fps) {
   // 先检查并安装依赖
   if (!checkAndInstallDependencies()) {
     console.error('依赖安装失败，无法执行 Python 脚本')
     return
   }
   await new Promise((resolve, reject) => {
-    const py = spawn('python', [getPythonScriptPath('gif.py'), folder, outputName], {
+    const py = spawn('python', [getPythonScriptPath('gif.py'), folder, outputName, fps], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
     })

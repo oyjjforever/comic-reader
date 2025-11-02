@@ -5,6 +5,8 @@
       ref="videoRef"
       controls
       autoplay
+      loop
+      :key="video.fullPath"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onVideoLoaded"
     >
@@ -131,7 +133,13 @@ const video = ref({
   contentType: '',
   fullPath: ''
 })
-
+watch(
+  () => props.file,
+  () => {
+    fetchData()
+  },
+  { deep: true }
+)
 // UI 状态
 const showControls = ref(false)
 const showBookmarkModal = ref(false)

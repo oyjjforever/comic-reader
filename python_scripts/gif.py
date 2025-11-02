@@ -6,7 +6,7 @@ import shutil
 
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
 
-def downLoadGif(file_path=".",file_name="output.gif"):
+def downLoadGif(file_path=".",file_name="output.gif",fps=60):
     
     # 检查目录是否存在
     if not os.path.exists(file_path):
@@ -43,7 +43,7 @@ def downLoadGif(file_path=".",file_name="output.gif"):
     # 如果有图片数据，则创建GIF
     if image_data:
         output_path = os.path.join(file_path, "../"+file_name)
-        imageio.mimsave(output_path, image_data, "mp4", fps=60)
+        imageio.mimsave(output_path, image_data, "mp4", fps=fps)
         logging.info(f"GIF saved to {output_path}")
         shutil.rmtree(file_path)
     else:
@@ -54,5 +54,6 @@ if __name__ == "__main__":
     # 从命令行参数获取 file_path，如果没有参数则使用默认值 '.'
     file_path = sys.argv[1]
     file_name = sys.argv[2]
-    downLoadGif(file_path,file_name)
+    fps = float(sys.argv[3])
+    downLoadGif(file_path,file_name,fps)
     print("GIF generated successfully!")
