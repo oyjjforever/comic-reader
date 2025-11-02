@@ -76,7 +76,7 @@ async function getFolderList(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    const folders = await File.getDirectFoldersFromPath(dirPath)
+    const folders = (await File.getDirectFoldersFromPath(dirPath)).filter(_ => _.isLeaf)
     // 为每个文件夹分析内容类型
     const folderInfo = await Promise.all(
       folders.map(async (folder) => {

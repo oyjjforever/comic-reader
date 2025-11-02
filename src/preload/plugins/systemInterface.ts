@@ -2,6 +2,7 @@ import { exec } from 'child_process'
 import FileUtils from './file'
 
 function openExplorer(path: string) {
+    path = path.replaceAll('/', '\\')
     exec(`explorer /select,"${path}"`);
 }
 function unzip(path: string) {

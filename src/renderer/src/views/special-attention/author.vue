@@ -42,7 +42,12 @@
           <div class="artwork-item__pages">
             <n-icon :component="SlideMultiple24Regular" size="12" />{{ row.pages }}
           </div>
-          <img :src="row.cover" />
+          <!-- <img :src="row.cover" /> -->
+          <n-image :src="row.cover">
+            <template #error>
+              <img :src="errorImg" />
+            </template>
+          </n-image>
           <div class="hover-ops">
             <n-button-group size="small">
               <n-button size="small" @click="onDownload(row)">下载</n-button>
@@ -63,6 +68,7 @@ import { computed, ref, watch, reactive } from 'vue'
 import PixivUtil from './pixiv.js'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { getDefaultDownloadPath } from '../site/utils'
+import errorImg from '@renderer/assets/error.png'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -254,10 +260,13 @@ function nextPage() {
       opacity: 1;
     }
   }
+  .n-image {
+    width: 100%;
+  }
   img {
     height: 30vh;
     width: 100%;
-    object-fit: cover;
+    object-fit: cover !important;
   }
   &--downloaded img {
     opacity: 0.5;

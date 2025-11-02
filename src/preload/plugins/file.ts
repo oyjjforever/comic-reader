@@ -130,9 +130,12 @@ async function getDirectFoldersFromPath(dirPath: string): Promise<FolderInfo[]> 
     try {
       const childPath = typeof entry === 'string' ? entry : entry.path
       const name = path.basename(childPath)
+      const subChildren = await fsp.readdir(childPath, { withFileTypes: true })
+      const hasSubfolders = subChildren.some((_) => _.isDirectory())
       const folderInfo: FolderInfo = {
         name,
         fullPath: childPath,
+        isLeaf: !hasSubfolders,
       }
       foldersInfo.push(folderInfo)
     } catch (_) {
