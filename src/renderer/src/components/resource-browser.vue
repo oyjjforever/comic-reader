@@ -40,11 +40,12 @@
           <n-tree
             :data="tree.data"
             :node-props="nodeProps"
+            :on-load="handleTreeLoad"
             key-field="fullPath"
             label-field="name"
             block-line
             class="folder-tree"
-            default-expand-all
+            :default-expanded-keys="[props.resourcePath]"
           />
         </div>
       </aside>
@@ -201,7 +202,15 @@ const refresh = async () => {
 // 树节点属性
 const nodeProps = ({ option }: { option: any }) => {
   return {
-    onClick() {
+    onClick(e: MouseEvent) {
+      // 检查点击的是否是展开/折叠图标区域
+      const target = e.target as HTMLElement
+      const isExpandIcon = target.closest('.n-tree-node-switcher')
+
+      // 如果点击的是展开图标，不执行点击逻辑
+      if (isExpandIcon) {
+        return
+      }
       tree.currentKey = option.fullPath
       if (option.fullPath === '__favorites__') {
         getFavorites()
@@ -211,6 +220,19 @@ const nodeProps = ({ option }: { option: any }) => {
       onTreeNodeClick(option.fullPath as string)
     }
   }
+}
+// 懒加载处理
+const handleTreeLoad = (node: any) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const res = await props.provideTree(node.fullPath)
+      node.children = res
+      resolve()
+    } catch (error: any) {
+      message.error(`加载子节点失败: ${error.message}`)
+      resolve()
+    }
+  })
 }
 
 // 收藏

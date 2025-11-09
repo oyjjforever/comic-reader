@@ -10,7 +10,7 @@ async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    return await File.getAllFoldersFromPath(dirPath)
+    return await File.getDirectFoldersFromPath(dirPath)
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }

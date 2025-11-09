@@ -45,28 +45,8 @@ async function getFolderTree(
   dirPath: string,
 ): Promise<FolderInfo[]> {
   try {
-    const tree = await File.getAllFoldersFromPath(dirPath)
-    const filterOutLeafNodes = function (tree) {
-      if (!Array.isArray(tree)) return [];
-
-      return tree
-        .map(node => {
-          // 如果是叶子节点，直接过滤掉
-          if (node.isLeaf === true) {
-            return null;
-          }
-
-          // 如果不是叶子节点，处理其子节点
-          const newNode = { ...node };
-          if (node.children && node.children.length > 0) {
-            newNode.children = filterOutLeafNodes(node.children);
-          }
-
-          return newNode;
-        })
-        .filter(node => node !== null); // 过滤掉null值
-    }
-    return filterOutLeafNodes(tree);
+    const tree = await File.getDirectFoldersFromPath(dirPath)
+    return tree.filter(_ => !_.isLeaf)
   } catch (error) {
     throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
   }

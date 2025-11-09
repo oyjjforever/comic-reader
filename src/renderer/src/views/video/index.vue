@@ -38,16 +38,20 @@ const provideVideoList = async (folderPath: string) => {
 }
 const provideVideoFavorites = async () => {
   const favorites = await window.favorite.getFavorites('id DESC', 'video')
-  const result: FolderInfo[] = []
-  for (const fav of favorites) {
+
+  // 使用 Promise.all 并行获取所有收藏项信息
+  const promises = favorites.map(async (fav) => {
     try {
       const info = await window.video.getFileInfo(fav.fullPath)
-      if (info) result.push({ ...info, isBookmarked: true })
+      return info ? { ...info, isBookmarked: true } : null
     } catch (e) {
-      // 忽略不存在项
+      console.warn(`Failed to load favorite: ${fav.fullPath}`, e)
+      return null
     }
-  }
-  return result
+  })
+
+  const results = await Promise.all(promises)
+  return results.filter(Boolean) as FolderInfo[]
 }
 
 const toRead = (book: FolderInfo) => {

@@ -107,27 +107,31 @@ async function download() {
     tip.error(`获取章节失败：${e?.message || e}`)
     return
   }
+  let toDownload = []
+  // 如果只有一章，则直接下载
+  if (comicInfo.chapter_infos.length === 1) {
+    toDownload = [comicInfo.chapter_infos[0]]
+  } else {
+    // 选择需要下载的章节（模板弹窗）
+    comicInfoRef.value = comicInfo
+    selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
+    const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
+    await refreshDownloadedChapters(comicFolder)
+    showChapterDialog.value = true
+    const confirmed = await new Promise<boolean>((resolve) => {
+      resolveChapterDialog = resolve
+    })
+    if (!confirmed) {
+      tip.error('已取消下载')
+      return
+    }
 
-  // 选择需要下载的章节（模板弹窗）
-  comicInfoRef.value = comicInfo
-  selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
-  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
-  await refreshDownloadedChapters(comicFolder)
-  showChapterDialog.value = true
-  const confirmed = await new Promise<boolean>((resolve) => {
-    resolveChapterDialog = resolve
-  })
-  if (!confirmed) {
-    tip.error('已取消下载')
-    return
+    toDownload = comicInfo.chapter_infos.filter((c: any) => selected.value.includes(c.id))
+    if (toDownload.length === 0) {
+      tip.error('未选择任何章节')
+      return
+    }
   }
-
-  const toDownload = comicInfo.chapter_infos.filter((c: any) => selected.value.includes(c.id))
-  if (toDownload.length === 0) {
-    tip.error('未选择任何章节')
-    return
-  }
-
   queue.addTask(
     toDownload.map((chapter) => ({
       site: 'jmtt',
