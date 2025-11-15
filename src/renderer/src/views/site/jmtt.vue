@@ -108,6 +108,7 @@ async function download() {
     return
   }
   let toDownload = []
+  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
   // 如果只有一章，则直接下载
   if (comicInfo.chapter_infos.length === 1) {
     toDownload = [comicInfo.chapter_infos[0]]
@@ -115,7 +116,6 @@ async function download() {
     // 选择需要下载的章节（模板弹窗）
     comicInfoRef.value = comicInfo
     selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
-    const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
     await refreshDownloadedChapters(comicFolder)
     showChapterDialog.value = true
     const confirmed = await new Promise<boolean>((resolve) => {
@@ -155,7 +155,7 @@ const onDownloadPrepare = async (event: any, data: any) => {
   const comicInfo = await jmtt.getComicInfo(comicId)
   try {
     await window.electron.ipcRenderer.invoke('download:start', {
-      fileName: `${file.simpleSanitize(comicInfo.name)}.${ext}`,
+      fileName: `${file.simpleSanitize(comicInfo.name)}.zip`,
       url: data.url,
       savePath: `${defaultDownloadPath}/${comicInfo.author[0] || '未分类'}`,
       autoExtract: true
