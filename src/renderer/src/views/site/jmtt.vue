@@ -55,7 +55,10 @@ function onChapterDialogCancel() {
 }
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
+const canAttention = ref(false)
+let downloadType
 const comicId = ref<string | null>(null)
+const searchQuery = ref<string | null>(null)
 
 function updateCanDownload() {
   try {
@@ -63,11 +66,22 @@ function updateCanDownload() {
     if (!wv) return
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
     const match = currentUrl.match(/\/album\/(\d+)/)
-    comicId.value = match ? match[1] : null
-    canDownload.value = !!match
+    if (match) {
+      comicId.value = match ? match[1] : null
+      canDownload.value = true
+      downloadType = 'one'
+    }
+    if (currentUrl.includes('main_tag=2')) {
+      downloadType = 'batch'
+      canAttention.value = true
+      canDownload.value = true
+      const urlObj = new URL(currentUrl)
+      searchQuery.value = decodeURIComponent(urlObj.searchParams.get('search_query'))
+    }
   } catch {
     comicId.value = null
     canDownload.value = false
+    canAttention.value = false
   }
 }
 async function refreshDownloadedChapters(comicFolderPath: string) {
@@ -90,19 +104,33 @@ async function refreshDownloadedChapters(comicFolderPath: string) {
     console.warn('读取已下载章节失败', e)
   }
 }
-
-async function download() {
+async function addSpecialAttention() {
   const tip = new Tip()
-  const wv = webviewRef.value
-  if (!wv || !comicId.value) {
-    tip.error('webview 未准备好或未定位到漫画详情页')
-    return
+  try {
+    await window.specialAttention.add({
+      source: 'jmtt',
+      authorId: searchQuery.value,
+      authorName: searchQuery.value
+    })
+    tip.success('已添加到特别关注')
+  } catch (e) {
+    tip.error(e)
   }
+}
+async function download() {
+  if (downloadType === 'one') {
+    await singleDownload(comicId.value)
+  } else if (downloadType === 'batch') {
+    await batchDownload()
+  }
+}
+async function singleDownload(comicId) {
+  const tip = new Tip()
   const defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
   // 获取漫画详情
   let comicInfo
   try {
-    comicInfo = await jmtt.getComicInfo(comicId.value)
+    comicInfo = await jmtt.getComicInfo(comicId)
   } catch (e: any) {
     tip.error(`获取章节失败：${e?.message || e}`)
     return
@@ -144,6 +172,13 @@ async function download() {
     }))
   )
 }
+async function batchDownload() {
+  const res = await window.jmtt.getComicsByAuthor(searchQuery.value)
+  const comics = res?.data?.content || []
+  for (const comic of comics) {
+    singleDownload(comic.id)
+  }
+}
 const onDownloadPrepare = async (event: any, data: any) => {
   let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
   // 获取文件名称
@@ -183,7 +218,9 @@ onUnmounted(() => {
 // 暴露方法
 defineExpose({
   download,
-  canDownload
+  canDownload,
+  canAttention,
+  addSpecialAttention
 })
 </script>
 

@@ -26,11 +26,11 @@ const ApiPath = {
 }
 const ensuredDirs = new Set()
 function ensureDir(dirPath) {
-    if (ensuredDirs.has(dirPath)) return
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true })
-    }
-    ensuredDirs.add(dirPath)
+  if (ensuredDirs.has(dirPath)) return
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+  ensuredDirs.add(dirPath)
 }
 function md5_hex(s) {
   return crypto.createHash('md5').update(s).digest('hex')
@@ -221,10 +221,10 @@ class JmClient {
     return profile
   }
 
-  async search(keyword, page, sort) {
+  async search(keyword, page, sort, main_tag = 0) {
     const ts = Math.floor(Date.now() / 1000)
     const query = {
-      main_tag: 0,
+      main_tag,
       search_query: keyword,
       page,
       o: sort?.as_str ? sort.as_str() : sort
@@ -381,6 +381,11 @@ class JmClient {
       return
     }
 
+    const encoded = await decodeImage(downloadFormat, blockNum, srcImgData)
+    await fsp.writeFile(savePath, encoded)
+  }
+
+  async decodeImage(downloadFormat, blockNum, srcImgData) {
     // 解码到原始 RGB
     const srcSharp = sharp(srcImgData, { failOn: 'none' }).removeAlpha()
     const { data: rgbData, info } = await srcSharp.raw().toBuffer({ resolveWithObject: true }) // rgbData: Buffer, info: { width, height, channels }
@@ -447,7 +452,7 @@ class JmClient {
         throw new Error(`Unsupported downloadFormat: ${downloadFormat}`)
     }
 
-    await fsp.writeFile(savePath, encoded)
+    return encoded
   }
 
   async get_scramble_id(id) {

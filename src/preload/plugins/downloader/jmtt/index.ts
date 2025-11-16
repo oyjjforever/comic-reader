@@ -3,6 +3,10 @@ import { JmClient } from './jm_client.js'
 const jm = new JmClient({ proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 }) // 或 { proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 }
 // await jm.login('odoj', '83212789')
 
+async function getComicsByAuthor(author) {
+  const comics = await jm.search(author, 1, 'hot', 2)
+  return comics
+}
 async function getComicInfo(comicId) {
   const comic_resp_data = await jm.get_comic(comicId)
   const comic = jm.from_comic_resp_data(comic_resp_data)
@@ -25,6 +29,14 @@ async function getChapterImages(chapter_id) {
     return []
   }
 
+}
+async function getImage([url, block_num]) {
+  const [img_data] = await jm.get_img_data_and_format(url)
+  const res = await jm.decodeImage('webp', block_num, img_data)
+  let imageStream = Buffer.from(res)
+  const blob = new Blob([imageStream])
+  const coverUrl = URL.createObjectURL(blob)
+  return coverUrl
 }
 async function downloadImage(savePath, [url, block_num]) {
   const [img_data, format] = await jm.get_img_data_and_format(url)
@@ -62,7 +74,9 @@ async function downloadImage(savePath, [url, block_num]) {
 
 export default {
   // download,
+  getComicsByAuthor,
   getComicInfo,
   getChapterImages,
-  downloadImage
+  downloadImage,
+  getImage
 }

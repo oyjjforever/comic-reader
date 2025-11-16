@@ -65,14 +65,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, reactive } from 'vue'
-import PixivUtil from './pixiv.js'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { getDefaultDownloadPath } from '../site/utils'
 import errorImg from '@renderer/assets/error.png'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
+import PixivUtil from './pixiv.js'
 import TwitterUtil from './twitter.js'
+import JmttUtil from './jmtt.js'
 import { SlideMultiple24Regular } from '@vicons/fluent'
 // 运行时 props 定义
 const props = defineProps({
@@ -109,6 +110,10 @@ async function fetchData() {
     page.total = artworks.length
   } else if (props.item.source === 'twitter') {
     page.total = 1000000
+  } else if (props.item.source === 'jmtt') {
+    const artworks = await JmttUtil.fetchArtworks(props.item.authorId)
+    grid.allRows = artworks
+    page.total = artworks.length
   }
 }
 async function pagingImage() {
@@ -123,6 +128,8 @@ async function pagingImage() {
         grid,
         page
       )
+    } else if (props.item.source === 'jmtt') {
+      grid.rows = await JmttUtil.pagingImage(props.item.authorName, grid, page)
     }
   } finally {
     grid.loading = false
@@ -162,6 +169,22 @@ async function onDownload(row) {
             title: row.title,
             url: row.url
           },
+          baseDir: defaultDownloadPath
+        },
+        onSuccess() {
+          row.downloaded = true
+        }
+      })
+    } else if (props.item.source === 'jmtt') {
+      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
+      const comicInfo = row.comicInfo
+      const chapter = comicInfo.chapter_infos[0]
+      queue.addTask({
+        site: 'jmtt',
+        title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
+        payload: {
+          chapter,
+          comicInfo,
           baseDir: defaultDownloadPath
         },
         onSuccess() {
