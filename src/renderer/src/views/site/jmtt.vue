@@ -167,7 +167,7 @@ async function singleDownload(comicId) {
       payload: {
         chapter,
         comicInfo,
-        baseDir: comicFolder
+        baseDir: defaultDownloadPath
       }
     }))
   )

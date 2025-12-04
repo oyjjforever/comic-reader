@@ -120,7 +120,7 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
 }
 async function isPathExists(path, task) {
   if (await file.pathExists(path)) {
-    updateTask(task, { status: 'existed', progress: {} })
+    updateTask(task, { status: 'existed', progress: {}, localFilePath: path })
     throw new Error(`${path} 已存在`)
   }
 }
@@ -128,8 +128,9 @@ async function runJmtt(task) {
   const { chapter, comicInfo, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
+    const workDir = `${baseDir}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
     const chapterFolder =
-      (comicInfo.chapter_infos?.length || 0) > 1 ? `${baseDir}/第${chapter.index}章` : baseDir
+      (comicInfo.chapter_infos?.length || 0) > 1 ? `${workDir}/第${chapter.index}章` : workDir
     await isPathExists(chapterFolder, task)
     const images = await jmtt.getChapterImages(chapter.id)
     await runWithConcurrency(

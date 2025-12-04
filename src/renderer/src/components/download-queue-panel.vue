@@ -94,6 +94,9 @@
             <span v-if="t.status === 'error' && t.errorMessage" class="error-msg">{{
               t.errorMessage
             }}</span>
+            <span v-if="t.status === 'existed'" @click="onOpenLocalFile(t.localFilePath)">{{
+              t.localFilePath
+            }}</span>
           </div>
         </div>
       </div>
@@ -170,6 +173,9 @@ function onDelete(t: any) {
 }
 function onClearFinished() {
   queue.clearCompletedTask()
+}
+function onOpenLocalFile(path) {
+  window.systemInterface.openExplorer(path)
 }
 </script>
 
