@@ -53,6 +53,8 @@ function buildAxios(config) {
     baseURL: `https://${API_DOMAIN}`,
     // 超时可根据需要调整
     timeout: 10000,
+    // 强制使用 Node http 适配器，避免渲染/XHR 改写请求头
+    adapter: 'http',
     // 代理
     proxy:
       config?.proxyMode === 'Custom'
@@ -73,6 +75,8 @@ function buildImgAxios(config) {
   const instance = axios.create({
     // img 请求直接使用绝对 URL，无需 baseURL
     timeout: 10000,
+    // 强制使用 Node http 适配器，避免渲染/XHR 改写请求头
+    adapter: 'http',
     proxy:
       config?.proxyMode === 'Custom'
         ? {
@@ -381,7 +385,7 @@ class JmClient {
       return
     }
 
-    const encoded = await decodeImage(downloadFormat, blockNum, srcImgData)
+    const encoded = await this.decodeImage(downloadFormat, blockNum, srcImgData)
     await fsp.writeFile(savePath, encoded)
   }
 

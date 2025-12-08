@@ -108,6 +108,7 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
         await onItem(items[i], i)
         success++
       } catch (e) {
+        console.log('🚀 ~ worker ~ error:', e)
         fail++
       }
       onProgress?.(success, fail, items.length)
