@@ -17,7 +17,9 @@
           placeholder="类型"
           style="width: 120px"
         />
-        <n-button type="primary" size="small" @click="toggleSortMode">排序</n-button>
+        <n-button :type="sortMode ? 'error' : 'primary'" size="small" @click="toggleSortMode">{{
+          sortMode ? '结束排序' : '排序'
+        }}</n-button>
         <n-button type="primary" size="small" @click="refresh">刷新</n-button>
       </div>
     </div>
@@ -26,6 +28,7 @@
         v-for="u in filteredItems.slice(0, displayCount)"
         :key="u.id"
         :item="u"
+        :sortMode="sortMode"
         @move-up="moveUp"
         @move-down="moveDown"
         @remove="onRemove"
@@ -88,27 +91,45 @@ async function onRemove(id: number) {
 
 async function getLatest(u) {}
 
+// 交换items数组中两个元素的位置
+function swapItemsInArray(itemId1, itemId2) {
+  const itemIdx = items.value.findIndex((i) => i.id === itemId1)
+  const neighborIdx = items.value.findIndex((i) => i.id === itemId2)
+
+  if (itemIdx !== -1 && neighborIdx !== -1) {
+    // 交换元素位置
+    const temp = items.value[itemIdx]
+    items.value[itemIdx] = items.value[neighborIdx]
+    items.value[neighborIdx] = temp
+  }
+}
+
 async function moveUp(item) {
   // 使用当前过滤后的顺序来确定相邻项
   const idx = filteredItems.value.findIndex((i) => i.id === item.id)
   if (idx <= 0) return
   const neighbor = filteredItems.value[idx - 1]
   if (!neighbor) return
+
   // 调用预加载方法交换排序
   await window.specialAttention.swapPriority(item.id, neighbor.id)
-  // 交换完成后刷新列表，保持排序一致
-  await refresh()
+
+  // 直接在原始items数组中交换元素位置
+  swapItemsInArray(item.id, neighbor.id)
 }
+
 async function moveDown(item) {
   // 使用当前过滤后的顺序来确定相邻项
   const idx = filteredItems.value.findIndex((i) => i.id === item.id)
   if (idx < 0 || idx >= filteredItems.value.length - 1) return
   const neighbor = filteredItems.value[idx + 1]
   if (!neighbor) return
+
   // 调用预加载方法交换排序
   await window.specialAttention.swapPriority(item.id, neighbor.id)
-  // 交换完成后刷新列表，保持排序一致
-  await refresh()
+
+  // 直接在原始items数组中交换元素位置
+  swapItemsInArray(item.id, neighbor.id)
 }
 
 function onLocalCheck(item) {
@@ -143,8 +164,12 @@ watch([searchQuery, sourceFilter], () => {
   if (el) el.scrollTop = 0
 })
 
-watch(filteredItems, () => {
-  displayCount.value = Math.min(3, filteredItems.value.length)
+watch(filteredItems, (newItems, oldItems) => {
+  // 只有当filteredItems的长度发生变化时才更新displayCount
+  // 避免在元素顺序变化时（如moveUp/moveDown）触发重新渲染
+  if (newItems.length !== oldItems?.length) {
+    displayCount.value = Math.min(3, newItems.length)
+  }
 })
 </script>
 

@@ -17,8 +17,16 @@
     <div class="artwork-list">
       <!-- 排序模式左侧上下箭头 -->
       <div class="sort-controls" v-if="sortMode">
-        <n-button size="tiny" tertiary @click="emit('move-up', item)">上箭头</n-button>
-        <n-button size="tiny" tertiary @click="emit('move-down', item)">上箭头</n-button>
+        <n-button circle size="small" type="primary" @click="emit('move-up', item)">
+          <template #icon>
+            <n-icon :component="ArrowUp24Regular" />
+          </template>
+        </n-button>
+        <n-button circle size="small" type="primary" @click="emit('move-down', item)">
+          <template #icon>
+            <n-icon :component="ArrowDown24Regular" />
+          </template>
+        </n-button>
       </div>
       <n-button class="page-button" type="default" tertiary @click="prevPage">上一页</n-button>
       <div v-if="grid.loading" class="artwork-list--loading">
@@ -74,7 +82,7 @@ import twitterImg from '@renderer/assets/twitter.jpg'
 import PixivUtil from './pixiv.js'
 import TwitterUtil from './twitter.js'
 import JmttUtil from './jmtt.js'
-import { SlideMultiple24Regular } from '@vicons/fluent'
+import { SlideMultiple24Regular, ArrowUp24Regular, ArrowDown24Regular } from '@vicons/fluent'
 // 运行时 props 定义
 const props = defineProps({
   item: { type: Object, required: true },
@@ -221,13 +229,30 @@ function nextPage() {
 }
 
 .sort-controls {
-  border-radius: 8px;
-  background: #f2f2f2;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
   padding: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+
+  .n-button {
+    width: 30px;
+    height: 46px;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(24, 160, 88, 0.4);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
 }
 .title {
   display: flex;
