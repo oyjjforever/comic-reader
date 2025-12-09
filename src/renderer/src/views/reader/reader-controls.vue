@@ -77,8 +77,37 @@
     <!-- 主体内容插槽 -->
     <slot />
 
+    <!-- 左右切换按钮 -->
+    <button
+      v-if="totalPages > 1"
+      class="nav-button nav-left"
+      :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledPrevComputed }"
+      @click="$emit('prev')"
+      :disabled="disabledPrevComputed"
+      @mouseenter="onControlsEnter"
+      @mouseleave="onControlsLeave"
+    >
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+      </svg>
+    </button>
+
+    <button
+      v-if="totalPages > 1"
+      class="nav-button nav-right"
+      :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledNextComputed }"
+      @click="$emit('next')"
+      :disabled="disabledNextComputed"
+      @mouseenter="onControlsEnter"
+      @mouseleave="onControlsLeave"
+    >
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
+      </svg>
+    </button>
     <!-- 底部进度条 -->
     <div
+      v-if="totalPages > 1"
       class="bottom-progress"
       :class="{ 'controls-hidden': !effectiveShowControls }"
       @mouseenter="onControlsEnter"
@@ -97,48 +126,6 @@
         />
       </div>
     </div>
-
-    <!-- 左右切换按钮 -->
-    <button
-      class="nav-button nav-left"
-      :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledPrevComputed }"
-      @click="$emit('prev')"
-      :disabled="disabledPrevComputed"
-      @mouseenter="onControlsEnter"
-      @mouseleave="onControlsLeave"
-    >
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-      </svg>
-    </button>
-
-    <button
-      class="nav-button nav-right"
-      :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledNextComputed }"
-      @click="$emit('next')"
-      :disabled="disabledNextComputed"
-      @mouseenter="onControlsEnter"
-      @mouseleave="onControlsLeave"
-    >
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
-      </svg>
-    </button>
-
-    <!-- 快捷键提示（桌面端） -->
-    <div
-      v-if="showKeyboardHints"
-      class="keyboard-hints desktop-only"
-      :class="{ 'controls-hidden': !effectiveShowControls }"
-      @mouseenter="onControlsEnter"
-      @mouseleave="onControlsLeave"
-    >
-      <slot name="keyboard-hints">
-        <div class="hint-item" v-for="(hint, idx) in keyboardHints" :key="idx">
-          {{ hint }}
-        </div>
-      </slot>
-    </div>
   </div>
 </template>
 
@@ -156,12 +143,7 @@ export default defineComponent({
     showZoomControls: { type: Boolean, default: false },
     zoomPercent: { type: Number, default: 100 },
     disabledPrev: { type: Boolean, default: undefined },
-    disabledNext: { type: Boolean, default: undefined },
-    showKeyboardHints: { type: Boolean, default: true },
-    keyboardHints: {
-      type: Array as () => string[],
-      default: () => ['滚轮翻页', 'ESC 退出']
-    }
+    disabledNext: { type: Boolean, default: undefined }
   },
   emits: [
     'back',
@@ -180,7 +162,7 @@ export default defineComponent({
   ],
   setup(props, { emit }) {
     // 内部控制显示/隐藏（当父组件未传 showControls 时启用）
-    const showControlsInternal = ref(true)
+    const showControlsInternal = ref(false)
     const AUTO_HIDE_DELAY = 3000
     const autoHideTimer = ref<number | null>(null)
     const isHoveringControls = ref(false)
@@ -305,6 +287,7 @@ export default defineComponent({
   /* 顶部控制栏（通用） */
   .top-controls {
     @apply absolute top-5 left-0 right-0 flex items-center justify-between p-6 z-10;
+    z-index: 100;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
     transition:
       opacity 0.3s ease,
@@ -354,7 +337,10 @@ export default defineComponent({
 
   /* 底部进度条（通用） */
   .bottom-progress {
-    @apply absolute bottom-14 left-2 right-2 z-10;
+    @apply absolute bottom-0 left-2 right-2 z-10;
+    height: 60px;
+    padding: 15px 0;
+    background: #000;
     &.controls-hidden {
       opacity: 0;
       transform: translateY(100%);

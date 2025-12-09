@@ -8,6 +8,7 @@
       :show-zoom-controls="false"
       :zoom-percent="zoomLevel * 100"
       @back="goBack"
+      @toggleFullscreen="toggleFullscreen"
       @toggleAutoPlay="toggleAutoPlay"
       @prev="prevPage"
       @next="nextPage"
@@ -55,8 +56,14 @@ onUnmounted(() => {
 })
 const fetchData = async () => {
   try {
-    page.list = await window.book.getFiles(decodeURIComponent(route.query.folderPath))
-    page.total = page.list.length
+    if (route.query.folderPath) {
+      page.list = await window.book.getFiles(decodeURIComponent(route.query.folderPath))
+      page.total = page.list.length
+    }
+    if (route.query.filePath) {
+      page.list = [await window.file.getFileInfo(decodeURIComponent(route.query.filePath))]
+      page.total = 1
+    }
     jumpToPage(0)
   } catch (error) {
     message.error(error.message)
@@ -117,6 +124,16 @@ const stopAutoPlay = () => {
     autoPlayTimer.value = null
   }
 }
+// 全屏功能
+const toggleFullscreen = () => {
+  const readerElement = document.querySelector('.general-reader')
+  if (!document.fullscreenElement) {
+    readerElement.requestFullscreen()
+  } else {
+    document.exitFullscreen()
+  }
+}
+
 // 返回功能
 const goBack = () => {
   stopAutoPlay()

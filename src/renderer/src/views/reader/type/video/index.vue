@@ -1,5 +1,5 @@
 <template>
-  <div class="video-player" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
+  <div class="video-player" @click="onPlayerClick">
     <!-- 视频播放器 -->
     <video
       ref="videoRef"
@@ -14,20 +14,30 @@
     </video>
 
     <!-- 时间点收藏按钮 -->
-    <div class="bookmark-controls" :class="{ visible: showControls }">
+    <div
+      class="bookmark-controls"
+      :class="{ 'controls-hidden': !showControls }"
+      @mouseenter="onControlsEnter"
+      @mouseleave="onControlsLeave"
+    >
       <n-space>
-        <n-button type="primary" size="small" @click="addBookmark" :disabled="!currentTime">
+        <n-button type="primary" @click="addBookmark" :disabled="!currentTime">
           <template #icon>
             <n-icon :component="BookmarkIcon" />
           </template>
           收藏当前时间点
         </n-button>
-        <n-button size="small" @click="openCast"> 投屏 </n-button>
+        <n-button type="info" @click="openCast"> 投屏 </n-button>
       </n-space>
     </div>
 
     <!-- 时间点收藏列表 -->
-    <div class="bookmarks-panel" :class="{ visible: showControls && bookmarks.length > 0 }">
+    <div
+      class="bookmarks-panel"
+      :class="{ 'controls-hidden': !showControls || bookmarks.length === 0 }"
+      @mouseenter="onControlsEnter"
+      @mouseleave="onControlsLeave"
+    >
       <div class="bookmarks-header">
         <h3>时间点收藏</h3>
         <span class="bookmark-count">{{ bookmarks.length }}</span>
@@ -164,29 +174,54 @@ function onCastPlayed() {
   message.success('投屏播放已启动')
 }
 // 鼠标控制相关
-let mouseTimer: NodeJS.Timeout | null = null
+const AUTO_HIDE_DELAY = 3000
+const autoHideTimer = ref<number | null>(null)
+const isHoveringControls = ref(false)
 
-// 鼠标移动事件
-const onMouseMove = () => {
-  showControls.value = true
+// 播放器点击事件
+const onPlayerClick = () => {
+  // 切换控制栏显示状态
+  showControls.value = !showControls.value
 
-  // 清除之前的定时器
-  if (mouseTimer) {
-    clearTimeout(mouseTimer)
+  // 如果显示控制栏，设置定时器自动隐藏
+  if (showControls.value) {
+    resetAutoHideTimer()
+  } else {
+    // 如果隐藏控制栏，清除定时器
+    if (autoHideTimer.value) {
+      clearTimeout(autoHideTimer.value)
+      autoHideTimer.value = null
+    }
   }
-
-  // 3秒后隐藏控制栏
-  mouseTimer = setTimeout(() => {
-    showControls.value = false
-  }, 3000)
 }
 
-// 鼠标离开事件
-const onMouseLeave = () => {
-  if (mouseTimer) {
-    clearTimeout(mouseTimer)
+// 重置自动隐藏定时器
+const resetAutoHideTimer = () => {
+  if (isHoveringControls.value) return
+  if (autoHideTimer.value) {
+    clearTimeout(autoHideTimer.value)
   }
-  showControls.value = false
+  autoHideTimer.value = setTimeout(() => {
+    if (!isHoveringControls.value) {
+      showControls.value = false
+    }
+  }, AUTO_HIDE_DELAY) as unknown as number
+}
+
+// 控制栏鼠标进入事件
+const onControlsEnter = () => {
+  isHoveringControls.value = true
+  if (autoHideTimer.value) {
+    clearTimeout(autoHideTimer.value)
+    autoHideTimer.value = null
+  }
+  showControls.value = true
+}
+
+// 控制栏鼠标离开事件
+const onControlsLeave = () => {
+  isHoveringControls.value = false
+  resetAutoHideTimer()
 }
 
 // 视频时间更新
@@ -322,8 +357,8 @@ onMounted(() => {
 
 // 组件卸载时清理定时器
 onUnmounted(() => {
-  if (mouseTimer) {
-    clearTimeout(mouseTimer)
+  if (autoHideTimer.value) {
+    clearTimeout(autoHideTimer.value)
   }
 })
 </script>
@@ -349,22 +384,24 @@ onUnmounted(() => {
   .bookmark-controls {
     position: absolute;
     top: 20px;
-    left: 20px;
-    opacity: 0;
-    transform: translateY(-10px);
-    transition: all 0.3s ease;
-    z-index: 10;
+    left: 80px;
+    z-index: 110;
+    backdrop-filter: blur(10px);
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
 
-    &.visible {
-      opacity: 1;
-      transform: translateY(0);
+    &.controls-hidden {
+      opacity: 0;
+      transform: translateY(-100%);
+      pointer-events: none;
     }
   }
 
   // 收藏列表面板
   .bookmarks-panel {
     position: absolute;
-    top: 20px;
+    top: 60px;
     right: 20px;
     width: 300px;
     max-height: 400px;
@@ -372,14 +409,15 @@ onUnmounted(() => {
     backdrop-filter: blur(10px);
     border-radius: 8px;
     padding: 16px;
-    opacity: 0;
-    transform: translateX(20px);
-    transition: all 0.3s ease;
     z-index: 10;
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
 
-    &.visible {
-      opacity: 1;
-      transform: translateX(0);
+    &.controls-hidden {
+      opacity: 0;
+      transform: translateX(20px);
+      pointer-events: none;
     }
 
     .bookmarks-header {

@@ -57,9 +57,9 @@ const provideVideoFavorites = async () => {
 const toRead = (book: FolderInfo) => {
   // 跳转到阅读页面
   router.push({
-    name: 'video.play',
+    name: 'book.read',
     query: {
-      fullPath: encodeURIComponent(book.fullPath)
+      filePath: encodeURIComponent(book.fullPath)
     }
   })
 }

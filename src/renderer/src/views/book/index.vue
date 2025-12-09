@@ -73,9 +73,7 @@ const toRead = (book: FolderInfo) => {
   router.push({
     name: 'book.read',
     query: {
-      folderPath: encodeURIComponent(book.fullPath),
-      contentType: book.contentType,
-      page: '1'
+      folderPath: encodeURIComponent(book.fullPath)
     }
   })
 }
