@@ -14,7 +14,7 @@ export default [
             },
             {
                 path: '/book',
-                name: "book.read",
+                name: "reader",
                 component: () => import('@renderer/views/reader/index.vue'),
             },
             {
@@ -26,11 +26,6 @@ export default [
                 path: '/video',
                 name: "video",
                 component: () => import('@renderer/views/video/index.vue'),
-            },
-            {
-                path: '/video/player',
-                name: "video.play",
-                component: () => import('@renderer/views/video/player.vue'),
             },
             {
                 path: '/special-attention',
