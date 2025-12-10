@@ -2,8 +2,7 @@ import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import fs from 'fs'
 import systemInterface from './plugins/systemInterface'
-import book from './plugins/book'
-import video from './plugins/video'
+import media from './plugins/media'
 import appData from './plugins/appData'
 import favorite from './plugins/favorite'
 import videoBookmarks from './plugins/video-bookmarks'
@@ -29,8 +28,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('favorite', favorite)
     contextBridge.exposeInMainWorld('videoBookmarks', videoBookmarks)
     contextBridge.exposeInMainWorld('dlna', dlna)
-    contextBridge.exposeInMainWorld('book', book)
-    contextBridge.exposeInMainWorld('video', video)
+    contextBridge.exposeInMainWorld('media', media)
     contextBridge.exposeInMainWorld('jmtt', jmtt)
     contextBridge.exposeInMainWorld('pixiv', pixiv)
     contextBridge.exposeInMainWorld('twitter', twitter)

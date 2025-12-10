@@ -18,18 +18,18 @@ declare global {
       openExplorer: (path: string) => void
       unzip: (path: string) => void
     }
-    book: {
-      getFolderTree: (dirPath: string) => Promise<FolderInfo[]>
+    media: {
+      getFolderTree: (dirPath: string, noLeaf: boolean) => Promise<FolderInfo[]>
       getFolderList: (dirPath: string) => Promise<FolderInfo[]>
-      getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => Promise<FileInfo[]>
-      getFolderInfo: (filePath: string) => Promise<FolderInfo>
-      getFolderCoverInfo: (filePath: string) => Promise<{ coverPath?: string; coverFileName?: string }>
-    },
-    video: {
-      getFolderTree: (dirPath: string) => Promise<FolderInfo[]>
+      getFiles: (dirPath: string, sortOptions?: any, filterExtensions?: string[], mediaType?: 'image' | 'video' | 'all') => Promise<FileInfo[]>
+      getFolderInfo: (filePath: string, sortOptions?: any) => Promise<FolderInfo>
       getFileInfo: (dirPath: string) => Promise<FileInfo>
-      getFiles: (dirPath: string, sortOptions?: any, includeSubfolders?: boolean) => Promise<FileInfo[]>
-    }
+      getFolderCoverInfo: (filePath: string) => Promise<{ coverPath?: string; coverFileName?: string }>
+      // 工具函数
+      isImageFile: (file: FileInfo) => boolean
+      isVideoFile: (file: FileInfo) => boolean
+      determineMediaType: (files: FileInfo[]) => 'image' | 'video' | 'mixed' | 'empty' | string
+    },
     favorite: {
       getFavorites: (order: string, module: string) => Promise<any[]>
       getFavorite: (id: number, module: string) => Promise<any | null>

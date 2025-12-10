@@ -33,10 +33,10 @@ const videoResourcePath = computed(() => settingStore.setting.videoResourcePath)
 
 // 抽象的数据提供者（视频）
 const provideVideoTree = async (rootPath: string) => {
-  return await window.video.getFolderTree(rootPath)
+  return await window.media.getFolderTree(rootPath, false)
 }
 const provideVideoList = async (folderPath: string) => {
-  return await window.video.getFiles(folderPath)
+  return await window.media.getFiles(folderPath, undefined, undefined, 'video')
 }
 const provideVideoFavorites = async () => {
   const favorites = await window.favorite.getFavorites('id DESC', 'video')
@@ -44,7 +44,7 @@ const provideVideoFavorites = async () => {
   // 使用 Promise.all 并行获取所有收藏项信息
   const promises = favorites.map(async (fav) => {
     try {
-      const info = await window.video.getFileInfo(fav.fullPath)
+      const info = await window.media.getFileInfo(fav.fullPath)
       return info ? { ...info, isBookmarked: true } : null
     } catch (e) {
       console.warn(`Failed to load favorite: ${fav.fullPath}`, e)

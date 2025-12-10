@@ -33,10 +33,13 @@ const resourcePath = computed(() => settingStore.setting.resourcePath)
 
 // 抽象的数据提供者
 const provideBookTree = async (rootPath: string) => {
-  return await window.book.getFolderTree(rootPath)
+  return await window.media.getFolderTree(rootPath, true)
 }
 const provideBookList = async (folderPath: string) => {
-  return await window.book.getFolderList(folderPath)
+  console.time(`provideBookList: ${folderPath}`)
+  const result = await window.media.getFolderList(folderPath)
+  console.timeEnd(`provideBookList: ${folderPath}`)
+  return result
 }
 const provideBookFavorites = async () => {
   const favorites = await window.favorite.getFavorites('id DESC', 'book')
@@ -44,7 +47,7 @@ const provideBookFavorites = async () => {
   // 使用 Promise.all 并行获取所有收藏项信息
   const promises = favorites.map(async (fav) => {
     try {
-      const info = await window.book.getFolderInfo(fav.fullPath)
+      const info = await window.media.getFolderInfo(fav.fullPath)
       return info ? { ...info, isBookmarked: true } : null
     } catch (e) {
       console.warn(`Failed to load favorite: ${fav.fullPath}`, e)
