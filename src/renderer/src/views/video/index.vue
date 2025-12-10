@@ -7,9 +7,11 @@
     :build-context-menu="handleContextMenu"
   >
     <template #card="{ item }">
-      <video-card
+      <media-card
         :folder="item"
         class="grid-item"
+        @to-read="toRead(item)"
+        @bookmark="handleBookmark"
         @click="toRead(item)"
         @contextmenu="(e) => handleContextMenu(e, item)"
       />
@@ -17,9 +19,9 @@
   </resource-browser>
 </template>
 
-<script setup lang="ts" name="book">
+<script setup lang="ts" name="video">
 import type { FolderInfo } from '@/typings/file'
-import videoCard from './video-card.vue'
+import MediaCard from '@renderer/components/media-card.vue'
 import ResourceBrowser from '@renderer/components/resource-browser.vue'
 import { useSettingStore } from '@renderer/plugins/store'
 import ContextMenu from '@imengyu/vue3-context-menu'
@@ -62,6 +64,11 @@ const toRead = (book: FolderInfo) => {
       filePath: encodeURIComponent(book.fullPath)
     }
   })
+}
+
+const handleBookmark = (folder: FolderInfo, bookmarked: boolean) => {
+  // 可以在这里添加收藏状态变化的处理逻辑
+  console.log('收藏状态变化:', folder.name, bookmarked)
 }
 
 function handleContextMenu(e: MouseEvent, folder: FolderInfo) {

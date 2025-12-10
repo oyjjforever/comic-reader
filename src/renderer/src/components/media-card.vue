@@ -1,24 +1,29 @@
 <template>
-  <div class="comic-card" ref="cardRef">
+  <div class="media-card" ref="cardRef" @mouseenter="onMouseenter" @mouseleave="onMouseleave">
     <!-- 封面区域 -->
     <div class="cover-container">
       <!-- 封面图片 -->
       <div class="cover-image-wrapper">
-        <img
-          v-if="coverImageSrc && !imageError"
-          :src="coverImageSrc"
-          :alt="folder.name"
-          class="cover-image"
-          @error="onImageError"
-        />
-        <div v-else-if="isLoadingCover" class="loading-cover">
-          <n-icon :component="FolderIcon" size="32" />
-          <div class="loading-text">加载中...</div>
-        </div>
-        <div v-else class="default-cover">
-          <n-icon :component="FolderIcon" size="48" />
-          <div class="default-text">{{ folder.name }}</div>
-        </div>
+        <template v-if="!isHover || !enableHoverPreview || mediaType !== 'video'">
+          <img
+            v-if="coverImageSrc && !imageError"
+            :src="coverImageSrc"
+            :alt="folder.name"
+            class="cover-image"
+            @error="onImageError"
+          />
+          <div v-else-if="isLoadingCover" class="loading-cover">
+            <n-icon :component="FolderIcon" size="32" />
+            <div class="loading-text">加载中...</div>
+          </div>
+          <div v-else class="default-cover">
+            <n-icon :component="FolderIcon" size="48" />
+            <div class="default-text">{{ folder.name }}</div>
+          </div>
+        </template>
+        <video v-else-if="mediaType === 'video'" muted loop preload="metadata" ref="videoRef">
+          <source :src="`file://${folder.fullPath}`" type="video/mp4" />
+        </video>
       </div>
 
       <!-- 收藏按钮 -->
@@ -29,13 +34,25 @@
       >
         <n-icon :component="isBookmarked ? BookmarkIcon : BookmarkOutlineIcon" size="16" />
       </button>
+
+      <!-- 文件夹类型标识 -->
+      <!-- <div
+        v-if="showTypeBadge && folder.contentType"
+        class="folder-type-badge"
+        :class="`type-${folder.contentType}`"
+      >
+        {{ getFolderTypeText(folder.contentType) }}
+      </div> -->
+
+      <!-- 文件数量显示 -->
+      <div v-if="showFileCount && folder.fileCount" class="info__pages">
+        <n-icon :component="SlideMultiple24Regular" size="12" />{{ folder.fileCount }}
+      </div>
     </div>
-    <div class="info__pages">
-      <n-icon :component="SlideMultiple24Regular" size="12" />{{ folder.fileCount }}
-    </div>
+
     <!-- 信息展示区 -->
     <div class="info-section">
-      <h3 class="comic-title" :title="folder.name">
+      <h3 class="media-title" :title="folder.name">
         {{ folder.name }}
       </h3>
     </div>
@@ -59,6 +76,9 @@ interface FolderInfoWithCover extends FolderInfo {
 
 interface Props {
   folder: FolderInfoWithCover
+  showFileCount?: boolean
+  showTypeBadge?: boolean
+  enableHoverPreview?: boolean
 }
 
 interface Emits {
@@ -66,7 +86,27 @@ interface Emits {
   (e: 'bookmark', folder: FolderInfoWithCover, bookmarked: boolean): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showFileCount: true,
+  showTypeBadge: true,
+  enableHoverPreview: false
+})
+
+// 自动判断媒体类型
+const mediaType = computed(() => {
+  // 否则检查文件扩展名是否为视频格式
+  const videoExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v']
+  const coverPath = props.folder.coverPath || ''
+  const extension = coverPath.toLowerCase().substring(coverPath.lastIndexOf('.'))
+
+  if (videoExtensions.includes(extension)) {
+    return 'video'
+  }
+
+  // 默认返回 book 类型
+  return 'book'
+})
+
 const emit = defineEmits<Emits>()
 
 const imageError = ref(false)
@@ -76,10 +116,12 @@ const isBookmarked = ref(props.folder.isBookmarked || false)
 const cardRef = ref<HTMLElement>()
 const observer = ref<IntersectionObserver>()
 const hasCoverLoaded = ref(false)
+const isHover = ref(false)
+const videoRef = ref<HTMLVideoElement>()
 
 const toggleBookmark = async () => {
   try {
-    const result = await window.favorite.toggleFavorite(props.folder.fullPath, 'book')
+    const result = await window.favorite.toggleFavorite(props.folder.fullPath, mediaType.value)
     isBookmarked.value = result
     emit('bookmark', props.folder, isBookmarked.value)
   } catch (error) {
@@ -103,6 +145,45 @@ const getFolderTypeText = (contentType: string) => {
   return typeMap[contentType] || contentType
 }
 
+// 获取视频缩略图
+const getVideoThumbnail = (path: string) => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    // 注意处理文件路径，确保正确访问
+    video.src = `file://${path}`
+    video.crossOrigin = 'anonymous'
+
+    video.addEventListener('loadedmetadata', () => {
+      // 尝试定位到第5秒获取封面
+      video.currentTime = 5
+    })
+
+    video.addEventListener('seeked', () => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+
+      // 设置 canvas 尺寸与视频帧一致
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+
+      // 绘制视频帧到 canvas
+      ctx && ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      try {
+        // 获取 JPEG 格式的 base64 数据
+        const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.9)
+        resolve(thumbnailDataUrl)
+      } catch (error) {
+        reject(new Error('Failed to create data URL.'))
+      }
+    })
+
+    video.addEventListener('error', () => {
+      reject(new Error('Failed to load video.'))
+    })
+  })
+}
+
 // 懒加载封面信息
 const loadCoverInfo = async () => {
   if (hasCoverLoaded.value) return
@@ -110,9 +191,18 @@ const loadCoverInfo = async () => {
   try {
     isLoadingCover.value = true
     imageError.value = false
-    // 如果有封面路径，加载封面图片
+
     if (props.folder.coverPath) {
-      coverImageSrc.value = `file://${props.folder.coverPath}`
+      if (mediaType.value === 'video') {
+        // 视频类型：生成缩略图
+        coverImageSrc.value = await getVideoThumbnail(props.folder.coverPath)
+      } else {
+        // 漫画类型：使用封面路径
+        coverImageSrc.value = `file://${props.folder.coverPath}`
+      }
+    } else {
+      // 封面路径为空，使用默认封面
+      coverImageSrc.value = await getVideoThumbnail(props.folder.fullPath)
     }
 
     hasCoverLoaded.value = true
@@ -150,13 +240,35 @@ const setupIntersectionObserver = () => {
   observer.value.observe(cardRef.value)
 }
 
+const onMouseenter = async () => {
+  if (props.enableHoverPreview && mediaType.value === 'video') {
+    isHover.value = true
+    await nextTick()
+    const video = videoRef.value
+    if (video) {
+      video.play()
+    }
+  }
+}
+
+const onMouseleave = async () => {
+  if (props.enableHoverPreview && mediaType.value === 'video') {
+    isHover.value = false
+    const video = videoRef.value
+    if (video) {
+      video.pause()
+      video.currentTime = 0
+    }
+  }
+}
+
 // 组件挂载时设置观察器和检查收藏状态
 onMounted(async () => {
   setupIntersectionObserver()
 
   // 检查当前文件夹的收藏状态
   try {
-    const isFavorited = await window.favorite.isFavorited(props.folder.fullPath, 'book')
+    const isFavorited = await window.favorite.isFavorited(props.folder.fullPath, mediaType.value)
     isBookmarked.value = isFavorited
   } catch (error) {
     console.error('检查收藏状态失败:', error)
@@ -172,8 +284,14 @@ onUnmounted(() => {
 })
 </script>
 
+<script lang="ts">
+export default {
+  name: 'MediaCard'
+}
+</script>
+
 <style lang="scss" scoped>
-.comic-card {
+.media-card {
   background: #f8f9fa;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -210,6 +328,15 @@ onUnmounted(() => {
   position: relative;
   border-radius: 12px 12px 0 0;
   overflow: hidden;
+
+  video {
+    transition: opacity 0.2s ease;
+    position: absolute;
+    bottom: -50%;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
 /* 封面图片 */
@@ -300,9 +427,9 @@ onUnmounted(() => {
 
 /* 文件夹类型标识 */
 .folder-type-badge {
-  // position: absolute;
-  // top: 16px;
-  // right: 16px;
+  position: absolute;
+  top: 16px;
+  right: 16px;
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 10px;
@@ -339,6 +466,8 @@ onUnmounted(() => {
     background: rgba(142, 142, 147, 0.9);
   }
 }
+
+/* 文件数量显示 */
 .info__pages {
   width: fit-content;
   display: flex;
@@ -354,41 +483,29 @@ onUnmounted(() => {
   border-radius: 5px;
   font-size: 12px;
   padding: 0px 4px;
+  z-index: 2;
 }
+
 /* 信息展示区 */
 .info-section {
-  padding: 10px;
+  padding: 16px;
   background: white;
   border-radius: 0 0 12px 12px;
   flex-shrink: 0;
 }
 
-/* 漫画标题 */
-.comic-title {
+/* 媒体标题 */
+.media-title {
   font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
   line-height: 1.3;
-  // margin: 0 0 8px 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 2.6em; /* 确保双行高度 */
   word-break: break-all;
-}
-.comic-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-/* 页数信息 */
-.page-count {
-  font-size: 12px;
-  color: #666666;
-  margin: 0;
-  font-weight: 400;
 }
 
 /* 动画效果 */
@@ -405,7 +522,7 @@ onUnmounted(() => {
 }
 
 /* 卡片进入动画 */
-.comic-card {
+.media-card {
   animation: cardFadeIn 0.4s ease-out;
 }
 
@@ -422,7 +539,7 @@ onUnmounted(() => {
 
 /* 夜间模式支持 */
 @media (prefers-color-scheme: dark) {
-  .comic-card {
+  .media-card {
     background: #2f2f2f;
   }
 
@@ -430,12 +547,8 @@ onUnmounted(() => {
     background: #2f2f2f;
   }
 
-  .comic-title {
+  .media-title {
     color: #e0e0e0;
-  }
-
-  .page-count {
-    color: #999;
   }
 
   .loading-cover {
@@ -445,7 +558,7 @@ onUnmounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .comic-card {
+  .media-card {
     border-radius: 8px;
   }
 
@@ -458,12 +571,8 @@ onUnmounted(() => {
     border-radius: 0 0 8px 8px;
   }
 
-  .comic-title {
+  .media-title {
     font-size: 14px;
-  }
-
-  .page-count {
-    font-size: 11px;
   }
 
   .bookmark-btn {
@@ -475,7 +584,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 480px) {
-  .comic-card {
+  .media-card {
     border-radius: 6px;
   }
 

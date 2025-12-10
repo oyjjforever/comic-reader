@@ -27,7 +27,7 @@ async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<F
     } else {
       contentType = Array.from(extensions)[0].toString().slice(1)
     }
-    const coverPath = contentType === 'image' ? files[0]?.fullPath : ''
+    const coverPath = files[0]?.fullPath
     return {
       ...folder,
       fileCount: files.length,
