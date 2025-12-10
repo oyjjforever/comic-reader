@@ -7,6 +7,7 @@
     :gap="gap"
     :key-field="keyField"
     :overscan="overscan"
+    @scroll="$emit('scroll', $event)"
   >
     <template #default="{ item, index }">
       <slot :item="item" :index="index" />
@@ -37,6 +38,10 @@ const props = withDefaults(defineProps<ResponsiveVirtualGridProps>(), {
   aspectRatio: 0.75, // 3:4 比例
   gap: 24
 })
+
+const emit = defineEmits<{
+  scroll: [event: Event]
+}>()
 
 const virtualGridRef = ref()
 const screenWidth = ref(window.innerWidth)

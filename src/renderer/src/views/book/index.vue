@@ -2,7 +2,6 @@
   <resource-browser
     :resource-path="resourcePath"
     :provide-tree="provideBookTree"
-    :provide-list="provideBookList"
     :provide-favorites="provideBookFavorites"
     :build-context-menu="handleContextMenu"
   >
@@ -35,12 +34,6 @@ const resourcePath = computed(() => settingStore.setting.resourcePath)
 const provideBookTree = async (rootPath: string) => {
   return await window.media.getFolderTree(rootPath, true)
 }
-const provideBookList = async (folderPath: string) => {
-  console.time(`provideBookList: ${folderPath}`)
-  const result = await window.media.getFolderList(folderPath)
-  console.timeEnd(`provideBookList: ${folderPath}`)
-  return result
-}
 const provideBookFavorites = async () => {
   const favorites = await window.favorite.getFavorites('id DESC', 'book')
 
@@ -60,6 +53,12 @@ const provideBookFavorites = async () => {
 }
 
 const toRead = (book: FolderInfo) => {
+  // 检查文件夹是否还在加载中
+  if (book.contentType === 'loading') {
+    message.warning('文件夹信息正在加载中，请稍后再试')
+    return
+  }
+
   if (book.contentType === 'empty') {
     // 使用 naive-ui 的消息提示
     message.warning('该文件夹不包含任何文件')

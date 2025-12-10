@@ -57,7 +57,7 @@ onUnmounted(() => {
 const fetchData = async () => {
   try {
     if (route.query.folderPath) {
-      page.list = await window.book.getFiles(decodeURIComponent(route.query.folderPath))
+      page.list = await window.media.getFiles(decodeURIComponent(route.query.folderPath))
       page.total = page.list.length
     }
     if (route.query.filePath) {

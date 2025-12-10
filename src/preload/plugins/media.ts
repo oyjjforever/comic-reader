@@ -12,6 +12,26 @@ const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.sv
 const VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.ogg', '.ogv']
 
 /**
+ * 基本文件夹信息接口（用于快速加载）
+ */
+interface BasicFolderInfo {
+    name: string
+    fullPath: string
+    createdTime: Date
+    modifiedTime: Date
+    parentPath?: string
+    contentType: 'loading'
+    fileCount: number
+    isLeaf?: boolean
+}
+
+/**
+ * 文件夹信息缓存
+ */
+const folderInfoCache = new Map<string, { info: FolderInfo, timestamp: number }>()
+const CACHE_TTL = 5 * 60 * 1000 // 5分钟缓存
+
+/**
  * 判断文件是否为图片
  */
 function isImageFile(file: FileInfo): boolean {
@@ -105,6 +125,102 @@ async function getFolderList(
         return folderInfo
     } catch (error) {
         throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+}
+
+/**
+ * 分页获取文件夹列表
+ * @param dirPath 目录路径
+ * @param page 页码（从0开始）
+ * @param pageSize 每页大小
+ * @returns 文件夹列表和是否还有更多数据
+ */
+async function getFolderListPaginated(
+    dirPath: string,
+    page: number = 0,
+    pageSize: number = 50
+): Promise<{ folders: FolderInfo[], hasMore: boolean }> {
+    try {
+        const allFolders = (await File.getDirectFoldersFromPath(dirPath)).filter(_ => _.isLeaf)
+        const startIndex = page * pageSize
+        const endIndex = startIndex + pageSize
+        const paginatedFolders = allFolders.slice(startIndex, endIndex)
+
+        // 只处理当前页的文件夹
+        const folderInfo = await Promise.all(
+            paginatedFolders.map(async (folder) => {
+                return await getFolderInfoCached(folder.fullPath)
+            })
+        )
+
+        return {
+            folders: folderInfo,
+            hasMore: endIndex < allFolders.length
+        }
+    } catch (error) {
+        throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+}
+
+/**
+ * 快速获取基本文件夹信息（不扫描内容）
+ * @param dirPath 目录路径
+ * @returns 基本文件夹信息数组
+ */
+async function getFolderListBasic(dirPath: string): Promise<BasicFolderInfo[]> {
+    try {
+        const folders = (await File.getDirectFoldersFromPath(dirPath)).filter(_ => _.isLeaf)
+        return folders.map(folder => ({
+            name: folder.name,
+            fullPath: folder.fullPath,
+            createdTime: folder.createdTime || new Date(),
+            modifiedTime: folder.modifiedTime || new Date(),
+            parentPath: folder.parentPath,
+            contentType: 'loading' as const,
+            fileCount: 0,
+            isLeaf: folder.isLeaf
+        }))
+    } catch (error) {
+        throw new Error(`获取文件夹列表失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+}
+
+/**
+ * 按需加载文件夹详细信息
+ * @param folderPath 文件夹路径
+ * @returns 完整的文件夹信息
+ */
+async function loadFolderDetails(folderPath: string): Promise<FolderInfo> {
+    return await getFolderInfoCached(folderPath)
+}
+
+/**
+ * 带缓存的获取文件夹信息
+ * @param folderPath 文件夹路径
+ * @returns 文件夹信息
+ */
+async function getFolderInfoCached(folderPath: string): Promise<FolderInfo> {
+    const cached = folderInfoCache.get(folderPath)
+    const now = Date.now()
+
+    if (cached && (now - cached.timestamp) < CACHE_TTL) {
+        return cached.info
+    }
+
+    const info = await getFolderInfo(folderPath)
+    folderInfoCache.set(folderPath, { info, timestamp: now })
+    return info
+}
+
+/**
+ * 清除过期的缓存条目
+ */
+function clearExpiredCache(): void {
+    const now = Date.now()
+    for (const [key, value] of folderInfoCache.entries()) {
+        if (now - value.timestamp >= CACHE_TTL) {
+            folderInfoCache.delete(key)
+        }
     }
 }
 
@@ -229,10 +345,15 @@ async function getFolderCoverInfo(filePath: string): Promise<{ coverPath?: strin
 export default {
     getFolderTree,
     getFolderList,
+    getFolderListPaginated,
+    getFolderListBasic,
+    loadFolderDetails,
     getFiles,
     getFolderInfo,
+    getFolderInfoCached,
     getFileInfo,
     getFolderCoverInfo,
+    clearExpiredCache,
     // 工具函数
     isImageFile,
     isVideoFile,

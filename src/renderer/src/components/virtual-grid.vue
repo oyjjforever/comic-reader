@@ -40,6 +40,10 @@ const props = withDefaults(defineProps<VirtualGridProps>(), {
   overscan: 2
 })
 
+const emit = defineEmits<{
+  scroll: [event: Event]
+}>()
+
 const containerRef = ref<HTMLElement>()
 const scrollTop = ref(0)
 const containerWidth = ref(0)
@@ -129,6 +133,8 @@ const getItemKey = (item: any) => {
 const handleScroll = throttle((event: Event) => {
   const target = event.target as HTMLElement
   scrollTop.value = target.scrollTop
+  // 向父组件发送滚动事件
+  emit('scroll', event)
 }, 16) // 约60fps
 
 // 容器尺寸监听

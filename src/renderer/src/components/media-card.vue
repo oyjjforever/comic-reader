@@ -192,6 +192,12 @@ const loadCoverInfo = async () => {
     isLoadingCover.value = true
     imageError.value = false
 
+    // 检查文件夹是否处于加载状态
+    if (props.folder.contentType === 'loading') {
+      // 如果文件夹还在加载中，不尝试加载封面
+      return
+    }
+
     if (props.folder.coverPath) {
       if (mediaType.value === 'video') {
         // 视频类型：生成缩略图
@@ -201,8 +207,14 @@ const loadCoverInfo = async () => {
         coverImageSrc.value = `file://${props.folder.coverPath}`
       }
     } else {
-      // 封面路径为空，使用默认封面
-      coverImageSrc.value = await getVideoThumbnail(props.folder.fullPath)
+      // 封面路径为空，检查是否有文件
+      if (props.folder.fileCount && props.folder.fileCount > 0) {
+        // 有文件但没有封面路径，尝试使用文件夹路径作为视频封面
+        coverImageSrc.value = await getVideoThumbnail(props.folder.fullPath)
+      } else {
+        // 没有文件，使用默认封面
+        imageError.value = true
+      }
     }
 
     hasCoverLoaded.value = true
@@ -223,10 +235,13 @@ const setupIntersectionObserver = () => {
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting && !hasCoverLoaded.value) {
-          // 卡片进入视口，开始加载封面
-          loadCoverInfo()
-          // 加载完成后停止观察
-          observer.value?.unobserve(entry.target)
+          // 卡片进入视口，检查文件夹状态后再加载封面
+          if (props.folder.contentType !== 'loading') {
+            // 只有当文件夹不是加载状态时才加载封面
+            loadCoverInfo()
+            // 加载完成后停止观察
+            observer.value?.unobserve(entry.target)
+          }
         }
       })
     },
@@ -275,11 +290,24 @@ onMounted(async () => {
   }
 })
 
+// 监听文件夹状态变化，当详细信息加载完成后重新加载封面
+watch(
+  () => props.folder.contentType,
+  (newContentType, oldContentType) => {
+    // 当文件夹从加载状态变为其他状态时，尝试加载封面
+    if (oldContentType === 'loading' && newContentType !== 'loading' && !hasCoverLoaded.value) {
+      loadCoverInfo()
+    }
+  }
+)
+
 // 组件卸载时清理观察器
 onUnmounted(() => {
   if (observer.value && cardRef.value) {
     observer.value.unobserve(cardRef.value)
     observer.value.disconnect()
+    // 重置封面加载状态，确保组件重新挂载时可以重新加载
+    hasCoverLoaded.value = false
   }
 })
 </script>

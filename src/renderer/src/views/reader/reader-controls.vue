@@ -337,9 +337,13 @@ export default defineComponent({
 
   /* 底部进度条（通用） */
   .bottom-progress {
-    @apply absolute bottom-0 left-2 right-2 z-10;
+    position: absolute;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
+    z-index: 10;
     height: 60px;
-    padding: 15px 0;
+    padding: 15px 20px;
     background: #000;
     &.controls-hidden {
       opacity: 0;

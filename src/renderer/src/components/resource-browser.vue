@@ -61,6 +61,7 @@
             :max-item-width="maxItemWidth"
             :aspect-ratio="aspectRatio"
             :gap="gridGap"
+            @scroll="handleScroll"
           >
             <template #default="{ item }">
               <slot name="card" :item="item" />
@@ -133,6 +134,8 @@ const isSidebarHidden = ref(false)
 
 // 性能优化
 const isLoading = ref(false)
+const loadingMore = ref(false)
+const hasMore = ref(true)
 const virtualGridRef = ref()
 
 // 数据状态
@@ -276,9 +279,18 @@ const onTreeNodeClick = async (folderPath: string) => {
   }
   isLoading.value = true
   tree.currentKey = folderPath
+
   try {
-    grid.filterRows = grid.rows = await props.provideList(folderPath)
-    query()
+    if (props.provideList) {
+      grid.filterRows = grid.rows = await props.provideList(folderPath)
+    } else {
+      // 第一阶段：快速加载基本信息
+      const basicFolders = await window.media.getFolderListBasic(folderPath)
+      grid.filterRows = grid.rows = basicFolders
+      query()
+      // 第二阶段：渐进式加载详细信息
+      loadDetailsProgressively(basicFolders)
+    }
     dataCache.currentPath = folderPath
     dataCache.isDataLoaded = true
     dataCache.lastLoadTime = Date.now()
@@ -288,6 +300,70 @@ const onTreeNodeClick = async (folderPath: string) => {
     dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
+  }
+}
+
+// 渐进式加载详细信息
+const loadDetailsProgressively = async (folders: any[]) => {
+  const batchSize = 10 // 每批处理10个文件夹
+  for (let i = 0; i < folders.length; i += batchSize) {
+    const batch = folders.slice(i, i + batchSize)
+    await Promise.all(
+      batch.map(async (folder) => {
+        try {
+          const details = await window.media.loadFolderDetails(folder.fullPath)
+          // 更新对应的文件夹信息
+          const index = grid.rows.findIndex((f) => f.fullPath === folder.fullPath)
+          if (index !== -1) {
+            grid.rows[index] = { ...grid.rows[index], ...details }
+            // 同时更新 filterRows 中的对应项
+            const filterIndex = grid.filterRows.findIndex((f) => f.fullPath === folder.fullPath)
+            if (filterIndex !== -1) {
+              grid.filterRows[filterIndex] = { ...grid.filterRows[filterIndex], ...details }
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to load details for ${folder.fullPath}:`, error)
+        }
+      })
+    )
+
+    // 每批处理后短暂暂停，避免阻塞UI
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+
+  // 重新应用搜索和排序
+  query()
+}
+
+// 预加载下一页数据
+const preloadNextPage = async () => {
+  if (loadingMore.value || !hasMore.value || !dataCache.currentPath) return
+  loadingMore.value = true
+  try {
+    const nextPage = await window.media.getFolderListPaginated(
+      dataCache.currentPath,
+      Math.ceil(grid.rows.length / 50),
+      50
+    )
+    grid.rows.push(...nextPage.folders)
+    hasMore.value = nextPage.hasMore
+    query()
+  } catch (error) {
+    console.error('预加载失败:', error)
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+// 滚动事件处理
+const handleScroll = (event: Event) => {
+  const target = event.target as HTMLElement
+  const { scrollTop, scrollHeight, clientHeight } = target
+
+  // 当滚动到底部60%时开始预加载
+  if (scrollTop + clientHeight >= scrollHeight * 0.6) {
+    preloadNextPage()
   }
 }
 

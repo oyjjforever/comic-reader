@@ -36,7 +36,8 @@ const provideVideoTree = async (rootPath: string) => {
   return await window.media.getFolderTree(rootPath, false)
 }
 const provideVideoList = async (folderPath: string) => {
-  return await window.media.getFiles(folderPath, undefined, undefined, 'video')
+  const data = await window.media.getFiles(folderPath, undefined, undefined, 'video')
+  return data.map((_) => ({ ..._, coverPath: _.fullPath }))
 }
 const provideVideoFavorites = async () => {
   const favorites = await window.favorite.getFavorites('id DESC', 'video')
@@ -45,7 +46,7 @@ const provideVideoFavorites = async () => {
   const promises = favorites.map(async (fav) => {
     try {
       const info = await window.media.getFileInfo(fav.fullPath)
-      return info ? { ...info, isBookmarked: true } : null
+      return info ? { ...info, coverPath: info.fullPath, isBookmarked: true } : null
     } catch (e) {
       console.warn(`Failed to load favorite: ${fav.fullPath}`, e)
       return null

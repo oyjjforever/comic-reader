@@ -21,10 +21,15 @@ declare global {
     media: {
       getFolderTree: (dirPath: string, noLeaf: boolean) => Promise<FolderInfo[]>
       getFolderList: (dirPath: string) => Promise<FolderInfo[]>
+      getFolderListPaginated: (dirPath: string, page: number, pageSize: number) => Promise<{ folders: FolderInfo[], hasMore: boolean }>
+      getFolderListBasic: (dirPath: string) => Promise<any[]>
+      loadFolderDetails: (folderPath: string) => Promise<FolderInfo>
       getFiles: (dirPath: string, sortOptions?: any, filterExtensions?: string[], mediaType?: 'image' | 'video' | 'all') => Promise<FileInfo[]>
       getFolderInfo: (filePath: string, sortOptions?: any) => Promise<FolderInfo>
+      getFolderInfoCached: (folderPath: string) => Promise<FolderInfo>
       getFileInfo: (dirPath: string) => Promise<FileInfo>
       getFolderCoverInfo: (filePath: string) => Promise<{ coverPath?: string; coverFileName?: string }>
+      clearExpiredCache: () => void
       // 工具函数
       isImageFile: (file: FileInfo) => boolean
       isVideoFile: (file: FileInfo) => boolean
