@@ -7,7 +7,9 @@
     :gap="gap"
     :key-field="keyField"
     :overscan="overscan"
+    :draggable="draggable"
     @scroll="$emit('scroll', $event)"
+    @sort-change="handleSortChange"
   >
     <template #default="{ item, index }">
       <slot :item="item" :index="index" />
@@ -28,6 +30,7 @@ interface ResponsiveVirtualGridProps {
   maxItemWidth?: number
   aspectRatio?: number // 宽高比
   gap?: number
+  draggable?: boolean // 是否启用拖拽排序
 }
 
 const props = withDefaults(defineProps<ResponsiveVirtualGridProps>(), {
@@ -36,11 +39,13 @@ const props = withDefaults(defineProps<ResponsiveVirtualGridProps>(), {
   minItemWidth: 160,
   maxItemWidth: 240,
   aspectRatio: 0.75, // 3:4 比例
-  gap: 24
+  gap: 24,
+  draggable: false
 })
 
 const emit = defineEmits<{
   scroll: [event: Event]
+  'sort-change': [fromIndex: number, toIndex: number]
 }>()
 
 const virtualGridRef = ref()
@@ -85,6 +90,9 @@ const handleResize = debounce(() => {
   screenWidth.value = window.innerWidth
 }, 150)
 
+function handleSortChange(fromIndex, toIndex) {
+  emit('sort-change', fromIndex, toIndex)
+}
 onMounted(() => {
   window.addEventListener('resize', handleResize)
 })
@@ -115,6 +123,13 @@ defineExpose({
   },
   getStats: () => {
     return virtualGridRef.value?.getStats()
+  },
+  // 暴露 virtual-grid 的拖动方法
+  handleDragStart: (index: number, event: DragEvent) => {
+    virtualGridRef.value?.handleDragStart(index, event)
+  },
+  handleDragEnd: () => {
+    virtualGridRef.value?.handleDragEnd()
   }
 })
 </script>

@@ -5,7 +5,6 @@ const settingStore = useSettingStore(pinia)
 
 async function downloadArtwork(comicId) {
   const downloadPath = settingStore.setting?.downloadPathJmtt || settingStore.setting?.downloadPath
-  console.log('🚀 ~ downloadArtwork ~ downloadPath:', downloadPath)
   // 获取漫画详情
   let comicInfo
   try {

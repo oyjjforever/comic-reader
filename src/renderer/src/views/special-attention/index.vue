@@ -9,8 +9,8 @@
             v-model:value="searchQuery"
             type="text"
             size="small"
+            clearable
             placeholder="请输入作者名称进行搜索"
-            class="search-input"
           />
           <div class="control-buttons">
             <n-select
@@ -32,10 +32,17 @@
         :max-item-width="630"
         :aspect-ratio="2.5"
         :gap="20"
+        :draggable="true"
         key-field="id"
+        @sort-change="handleSortChange"
       >
-        <template #default="{ item }">
-          <AuthorCard :item="item" @remove="onRemove" />
+        <template #default="{ item, index }">
+          <AuthorCard
+            :item="item"
+            @remove="onRemove"
+            @dragstart="(event) => handleDragStart(index, event)"
+            @dragend="handleDragEnd"
+          />
         </template>
       </ResponsiveVirtualGrid>
     </div>
@@ -88,6 +95,48 @@ async function onRemove(id: number) {
   await refresh()
 }
 
+// 拖动事件处理
+const draggedIndex = ref<number | null>(null)
+
+function handleDragStart(index: number, event: DragEvent) {
+  draggedIndex.value = index
+
+  // 调用 virtual-grid 的 handleDragStart 方法
+  if (virtualGridRef.value && virtualGridRef.value.handleDragStart) {
+    virtualGridRef.value.handleDragStart(index, event)
+  }
+}
+
+function handleDragEnd() {
+  draggedIndex.value = null
+
+  // 调用 virtual-grid 的 handleDragEnd 方法
+  if (virtualGridRef.value && virtualGridRef.value.handleDragEnd) {
+    virtualGridRef.value.handleDragEnd()
+  }
+}
+
+async function handleSortChange(fromIndex: number, toIndex: number) {
+  const fromItem = filteredItems.value[fromIndex]
+  const toItem = filteredItems.value[toIndex]
+
+  if (fromItem && toItem && fromItem.id !== toItem.id) {
+    try {
+      // 使用 swapPriority 方法直接交换两个项目的优先级
+      const success = await window.specialAttention.swapPriority(fromItem.id, toItem.id)
+      if (success) {
+        await refresh()
+        message.success(`交换成功`)
+      } else {
+        message.error('排序失败，请重试')
+      }
+    } catch (error) {
+      console.error('排序失败:', error)
+      message.error('排序失败，请重试')
+    }
+  }
+}
+
 onMounted(async () => {
   await refresh()
 })
@@ -122,16 +171,6 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-
-.search-input-container {
-  position: relative;
-  flex: 1;
-}
-
-.search-input {
-  width: 100%;
-  height: 32px;
 }
 
 .control-buttons {

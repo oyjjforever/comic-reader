@@ -5,7 +5,21 @@
       <!-- 实际渲染的内容区域 -->
       <div class="virtual-content" :style="contentStyle">
         <div class="virtual-grid" :style="gridStyle">
-          <div v-for="item in visibleItems" :key="getItemKey(item.data)" class="virtual-grid-item">
+          <div
+            v-for="item in visibleItems"
+            :key="getItemKey(item.data)"
+            class="virtual-grid-item"
+            :class="{
+              dragging: draggedIndex === item.index,
+              'drag-over': draggedOverIndex === item.index && draggedIndex !== item.index
+            }"
+            @dragstart="handleDragStart(item.index, $event)"
+            @dragend="handleDragEnd"
+            @dragover.prevent="handleDragOver(item.index, $event)"
+            @drop="handleDrop(item.index, $event)"
+            @dragenter="handleDragEnter(item.index)"
+            @dragleave="handleDragLeave(item.index)"
+          >
             <slot :item="item.data" :index="item.index" />
           </div>
         </div>
@@ -24,6 +38,7 @@ interface VirtualGridProps {
   gap: number
   keyField?: string
   overscan?: number // 预渲染的额外行数
+  draggable?: boolean // 是否启用拖拽排序
 }
 
 interface VirtualItem {
@@ -37,17 +52,26 @@ interface VirtualItem {
 
 const props = withDefaults(defineProps<VirtualGridProps>(), {
   keyField: 'id',
-  overscan: 2
+  overscan: 2,
+  draggable: false
 })
 
 const emit = defineEmits<{
   scroll: [event: Event]
+  'sort-change': [fromIndex: number, toIndex: number]
 }>()
 
 const containerRef = ref<HTMLElement>()
 const scrollTop = ref(0)
 const containerWidth = ref(0)
 const containerHeight = ref(0)
+
+// 拖拽相关状态
+const draggedIndex = ref<number | null>(null)
+const draggedOverIndex = ref<number | null>(null)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const dragElement = ref<HTMLElement | null>(null)
 
 // keep-alive 状态管理
 const savedScrollTop = ref(0)
@@ -127,6 +151,77 @@ const gridStyle = computed(() => ({
 // 获取项目的唯一键
 const getItemKey = (item: any) => {
   return props.keyField ? item[props.keyField] : item
+}
+
+// 拖拽事件处理函数
+const handleDragStart = (index: number, event: DragEvent) => {
+  if (!props.draggable) return
+
+  draggedIndex.value = index
+  dragStartX.value = event.clientX || 0
+  dragStartY.value = event.clientY || 0
+  dragElement.value = event.target as HTMLElement
+
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    // 设置拖拽数据
+    event.dataTransfer.setData('text/html', (event.target as HTMLElement).innerHTML)
+  }
+}
+
+const handleDragEnd = () => {
+  if (!props.draggable) return
+
+  // 重置拖拽状态
+  draggedIndex.value = null
+  draggedOverIndex.value = null
+  dragElement.value = null
+}
+
+const handleDragOver = (index: number, event: DragEvent) => {
+  if (!props.draggable || draggedIndex.value === null) return
+
+  // 防止默认行为以允许放置
+  event.preventDefault()
+
+  if (draggedIndex.value !== index) {
+    draggedOverIndex.value = index
+  }
+}
+
+const handleDrop = (index: number, event: DragEvent) => {
+  if (!props.draggable || draggedIndex.value === null) return
+
+  event.preventDefault()
+
+  const fromIndex = draggedIndex.value
+  // 使用 draggedOverIndex 作为目标索引，如果为空则使用传入的 index
+  const toIndex = draggedOverIndex.value !== null ? draggedOverIndex.value : index
+
+  // 只有当索引不同时才触发排序事件
+  if (fromIndex !== toIndex) {
+    emit('sort-change', fromIndex, toIndex)
+  }
+
+  // 重置拖拽状态
+  handleDragEnd()
+}
+
+const handleDragEnter = (index: number) => {
+  if (!props.draggable || draggedIndex.value === null) return
+
+  if (draggedIndex.value !== index) {
+    draggedOverIndex.value = index
+  }
+}
+
+const handleDragLeave = (index: number) => {
+  if (!props.draggable || draggedIndex.value === null) return
+
+  // 只有当离开的元素不是当前拖拽经过的元素时才重置
+  if (draggedOverIndex.value === index) {
+    draggedOverIndex.value = null
+  }
 }
 
 // 滚动处理
@@ -263,6 +358,8 @@ const performanceStats = computed(() => ({
 
 // 暴露方法给父组件
 defineExpose({
+  handleDragStart,
+  handleDragEnd,
   scrollToTop: () => {
     if (containerRef.value) {
       containerRef.value.scrollTop = 0
@@ -330,6 +427,30 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+/* 拖拽样式 */
+.virtual-grid-item.dragging {
+  opacity: 0.5;
+  transform: scale(1.05);
+  z-index: 1000;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.virtual-grid-item.drag-over {
+  border: 2px dashed #4a90e2;
+  background-color: rgba(74, 144, 226, 0.1);
+}
+
+/* .virtual-grid-item[draggable='true'] {
+  cursor: move;
+} */
+
+.virtual-grid-item[draggable='true']:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 /* 优化滚动性能 */

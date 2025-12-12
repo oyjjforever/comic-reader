@@ -7,6 +7,14 @@
         <h3 class="author-name">{{ item.authorName || item.authorId }}({{ item.authorId }})</h3>
         <p class="works-count">{{ item.source === 'twitter' ? '--' : page.total }} 个作品</p>
       </div>
+      <div
+        class="author-move"
+        draggable="true"
+        @dragstart="handleDragStart"
+        @dragend="handleDragEnd"
+      >
+        <n-icon :component="ArrowMove24Regular" size="16" />
+      </div>
     </div>
     <!-- 作品预览区域 -->
     <div class="works-section">
@@ -50,10 +58,6 @@
     <!-- 操作按钮区域 -->
     <div class="action-buttons">
       <div class="button-group">
-        <button @mousedown="startDrag" class="action-button drag-button">
-          <i class="fas fa-grip-lines"></i>
-          拖拽排序
-        </button>
         <button @click="$emit('remove', item.id)" class="action-button unfollow-button">
           <i class="fas fa-user-times"></i>
           取消关注
@@ -65,7 +69,8 @@
       </div>
       <div class="pagination-buttons">
         <div class="pagination-info">
-          {{ page.index + 1 }} / {{ Math.ceil(page.total / page.size) }}
+          {{ page.index + 1 }} /
+          {{ item.source === 'twitter' ? '--' : Math.ceil(page.total / page.size) }}
         </div>
         <button @click="prevPage" class="pagination-button">
           <n-icon :component="ChevronLeft24Filled" size="12" />
@@ -93,12 +98,24 @@ import {
   ArrowUp24Regular,
   ArrowDown24Regular,
   ChevronLeft24Filled,
-  ChevronRight24Filled
+  ChevronRight24Filled,
+  ArrowMove24Regular
 } from '@vicons/fluent'
 import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
 const props = defineProps<{
   item: { type: Object; required: true }
 }>()
+
+// 拖动事件处理
+const emit = defineEmits(['dragstart', 'dragend'])
+
+function handleDragStart(event: DragEvent) {
+  emit('dragstart', event)
+}
+
+function handleDragEnd(event: DragEvent) {
+  emit('dragend', event)
+}
 function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'jmtt') return jmttImg
   if (site === 'pixiv') return pixivImg
@@ -246,7 +263,11 @@ function nextPage() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
+.author-move {
+  cursor: move;
+  color: #6b7280;
+  padding-bottom: 20px;
+}
 .works-count {
   font-size: 0.75rem;
   color: #6b7280;
