@@ -5,9 +5,7 @@
       <img class="author-avatar" :src="siteIcon(item.source)" />
       <div class="author-info">
         <h3 class="author-name">{{ item.authorName || item.authorId }}({{ item.authorId }})</h3>
-        <p class="works-count">
-          {{ item.source === 'twitter' ? '--' : page.total * page.size }} 个作品
-        </p>
+        <p class="works-count">{{ item.source === 'twitter' ? '--' : page.total }} 个作品</p>
       </div>
     </div>
     <!-- 作品预览区域 -->
@@ -60,13 +58,15 @@
           <i class="fas fa-user-times"></i>
           取消关注
         </button>
-        <button @click="$emit('download-all', item)" class="action-button download-all-button">
+        <button @click="onDownloadAll" class="action-button download-all-button">
           <i class="fas fa-download"></i>
           全部下载
         </button>
       </div>
       <div class="pagination-buttons">
-        <div class="pagination-info">{{ page.index + 1 }} / {{ page.total }}</div>
+        <div class="pagination-info">
+          {{ page.index + 1 }} / {{ Math.ceil(page.total / page.size) }}
+        </div>
         <button @click="prevPage" class="pagination-button">
           <n-icon :component="ChevronLeft24Filled" size="12" />
         </button>
@@ -154,62 +154,36 @@ async function pagingImage() {
 async function onDownload(row) {
   try {
     if (props.item.source === 'pixiv') {
-      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
-      queue.addTask({
-        site: 'pixiv',
-        title: `[${row.author}]${row.title}`,
-        payload: {
-          artworkId: row.artworkId,
-          artworkInfo: {
-            author: row.author,
-            title: row.title,
-            illustType: row.illustType
-          },
-          baseDir: defaultDownloadPath
-        },
-        onSuccess() {
-          row.downloaded = true
-        }
-      })
+      await PixivUtil.downloadArtwork(row.artworkId)
+      row.downloaded = true
     } else if (props.item.source === 'twitter') {
-      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
-      const author = props.item.authorName
-      queue.addTask({
-        site: 'twitter',
-        title: `[${author}]${row.title}`,
-        payload: {
-          author,
-          userId: props.item.authorId,
-          artworkInfo: {
-            author,
-            title: row.title,
-            url: row.url
-          },
-          baseDir: defaultDownloadPath
-        },
-        onSuccess() {
-          row.downloaded = true
-        }
-      })
+      const authorName = props.item.authorName
+      const authorId = props.item.authorId
+      await TwitterUtil.downloadImage(authorName, authorId, row.title, row.url)
+      row.downloaded = true
     } else if (props.item.source === 'jmtt') {
-      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
-      const comicInfo = row.comicInfo
-      const chapter = comicInfo.chapter_infos[0]
-      queue.addTask({
-        site: 'jmtt',
-        title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
-        payload: {
-          chapter,
-          comicInfo,
-          baseDir: defaultDownloadPath
-        },
-        onSuccess() {
-          row.downloaded = true
-        }
-      })
+      await JmttUtil.downloadArtwork(row.artworkId)
+      row.downloaded = true
     }
   } catch (error) {
-    console.log('🚀 ~ onDownload ~ error:', error)
+    console.log('🚀 ~ onDownload ~ error:', error.message)
+  }
+}
+async function onDownloadAll(row) {
+  try {
+    if (props.item.source === 'pixiv') {
+      const authorId = props.item.authorId
+      await PixivUtil.downloadIllusts(authorId)
+    } else if (props.item.source === 'twitter') {
+      const authorName = props.item.authorName
+      const authorId = props.item.authorId
+      await TwitterUtil.downloadAllMedia(authorName, authorId)
+    } else if (props.item.source === 'jmtt') {
+      const authorName = props.item.authorName
+      await JmttUtil.downloadAll(authorName)
+    }
+  } catch (error) {
+    console.log('🚀 ~ onDownload ~ error:', error.message)
   }
 }
 function prevPage() {
@@ -251,8 +225,8 @@ function nextPage() {
 }
 
 .author-avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;

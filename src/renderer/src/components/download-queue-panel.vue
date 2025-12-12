@@ -85,18 +85,18 @@
           </div>
           <div class="progress-text">
             <template v-if="['success', 'running'].includes(t.status) && t.progress">
-              <span style="color: green">{{ t.progress.success || 0 }}</span>
+              <div style="color: green">{{ t.progress.success || 0 }}</div>
               /
-              <span style="color: red">{{ t.progress.fail || 0 }}</span>
+              <div style="color: red">{{ t.progress.fail || 0 }}</div>
               /
-              <span>{{ t.progress.total || 0 }}</span>
+              <div>{{ t.progress.total || 0 }}</div>
             </template>
-            <span v-if="t.status === 'error' && t.errorMessage" class="error-msg">{{
-              t.errorMessage
-            }}</span>
-            <span v-if="t.status === 'existed'" @click="onOpenLocalFile(t.localFilePath)">{{
-              t.localFilePath
-            }}</span>
+            <div v-if="t.status === 'error' && t.errorMessage" class="error-msg">
+              {{ t.errorMessage }}
+            </div>
+            <n-ellipsis v-if="t.localFilePath" style="max-width: 100%; cursor: pointer">
+              <span @click="onOpenLocalFile(t.localFilePath)">{{ t.localFilePath }}</span>
+            </n-ellipsis>
           </div>
         </div>
       </div>
@@ -252,10 +252,16 @@ function onOpenLocalFile(path) {
 .progress-text {
   font-size: 12px;
   color: #666;
-  margin-top: 2px;
+  margin-top: 3px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  div {
+    white-space: nowrap;
+    &:nth-child(3) {
+      margin-right: 20px;
+    }
+  }
 }
 .status-tag {
   margin-left: auto;

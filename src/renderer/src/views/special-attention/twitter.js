@@ -1,7 +1,54 @@
 const { twitter, file } = window
+import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
 let cursors = {}
+async function downloadImage(authorName, authorId, title, url) {
+  const downloadPath =
+    settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
+  queue.addTask({
+    site: 'twitter',
+    title: `[${authorName}]${title}`,
+    payload: {
+      author: authorName,
+      userId: authorId,
+      artworkInfo: {
+        author: authorName,
+        title: title,
+        url: url
+      },
+      baseDir: downloadPath
+    }
+  })
+}
+async function downloadAllMedia(authorName, authorId) {
+  const downloadPath =
+    settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
+  queue.addTask({
+    site: 'twitter',
+    title: `[${authorName}]的媒体库`,
+    payload: {
+      author: authorName,
+      userId: authorId,
+      baseDir: downloadPath
+    }
+  })
+}
+async function downloadVideo(authorName, twitterId) {
+  const downloadPath =
+    settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
+  const videoUrls = await twitter.getVideoUrls(twitterId)
+  queue.addTask({
+    site: 'twitter',
+    title: `[${authorName}]的视频(${twitterId})`,
+    payload: {
+      author: authorName,
+      twitterId,
+      videoUrl: videoUrls.pop().url,
+      baseDir: downloadPath
+    }
+  })
+}
 async function fetchArtworks(authorId) {
   // 获取作品集
   const profile = await pixiv.getArtworksByUserId(authorId)
@@ -112,11 +159,14 @@ async function pagingImage(authorName, authorId, grid, page) {
 
 function isLocalDownloaded(authorName, workName) {
   const downloadPath =
-    settingStore.setting?.downloadPathPixiv || settingStore.setting?.defaultDownloadPath
+    settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
   const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
   return file.pathExists(localPath)
 }
 export default {
+  downloadImage,
+  downloadAllMedia,
+  downloadVideo,
   fetchArtworks,
   pagingImage,
   isLocalDownloaded

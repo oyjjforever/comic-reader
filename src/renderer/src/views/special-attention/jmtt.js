@@ -1,7 +1,38 @@
 const { jmtt, file } = window
+import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
 
+async function downloadArtwork(comicId) {
+  const downloadPath = settingStore.setting?.downloadPathJmtt || settingStore.setting?.downloadPath
+  console.log('🚀 ~ downloadArtwork ~ downloadPath:', downloadPath)
+  // 获取漫画详情
+  let comicInfo
+  try {
+    comicInfo = await jmtt.getComicInfo(comicId)
+  } catch (e) {
+    tip.error(`获取章节失败：${e?.message || e}`)
+    return
+  }
+  queue.addTask(
+    comicInfo.chapter_infos.map((chapter) => ({
+      site: 'jmtt',
+      title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
+      payload: {
+        chapter,
+        comicInfo,
+        baseDir: downloadPath
+      }
+    }))
+  )
+}
+async function downloadAll(authorName) {
+  const res = await jmtt.getComicsByAuthor(authorName)
+  const comics = res?.data?.content || []
+  for (const comic of comics) {
+    downloadArtwork(comic.id)
+  }
+}
 async function fetchArtworks(authorId) {
   // 获取作品集
   const res = await jmtt.getComicsByAuthor(authorId)
@@ -23,7 +54,7 @@ async function pagingImage(authorName, grid, page) {
       return {
         artworkId: id,
         author: authorName,
-        comicInfo,
+        // comicInfo,
         title: comicInfo.name || '',
         cover: coverUrl,
         pages: firstComicImages.length,
@@ -39,11 +70,13 @@ async function pagingImage(authorName, grid, page) {
 
 function isLocalDownloaded(authorName, workName) {
   const downloadPath =
-    settingStore.setting?.downloadPathPixiv || settingStore.setting?.defaultDownloadPath
+    settingStore.setting?.downloadPathJmtt || settingStore.setting?.defaultDownloadPath
   const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
   return file.pathExists(localPath)
 }
 export default {
+  downloadArtwork,
+  downloadAll,
   fetchArtworks,
   pagingImage,
   isLocalDownloaded

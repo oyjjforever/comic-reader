@@ -1,7 +1,36 @@
 const { pixiv, file } = window
+import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
-
+async function addToQueue(artworkIds) {
+  const downloadPath =
+    settingStore.setting?.downloadPathPixiv || settingStore.setting?.defaultDownloadPath
+  for (const artworkId of artworkIds) {
+    const artworkInfo = await pixiv.getArtworkInfo(artworkId)
+    queue.addTask({
+      site: 'pixiv',
+      title: `[${artworkInfo.author}]${artworkInfo.title}`,
+      payload: {
+        artworkId,
+        artworkInfo,
+        baseDir: downloadPath
+      }
+    })
+  }
+}
+async function downloadArtwork(artworkId) {
+  addToQueue([artworkId])
+}
+async function downloadIllusts(userId) {
+  const profile = await pixiv.getArtworksByUserId(userId)
+  const artworkIds = profile.illusts
+  addToQueue(artworkIds)
+}
+async function downloadManaga(mangaId) {
+  const mangaInfo = await pixiv.getMangaInfo(mangaId)
+  const artworkIds = mangaInfo.series
+  addToQueue(artworkIds)
+}
 async function fetchArtworks(authorId) {
   // 获取作品集
   const profile = await pixiv.getArtworksByUserId(authorId)
@@ -45,6 +74,9 @@ function isLocalDownloaded(authorName, workName) {
   return file.pathExists(localPath)
 }
 export default {
+  downloadArtwork,
+  downloadIllusts,
+  downloadManaga,
   fetchArtworks,
   pagingImage,
   isLocalDownloaded

@@ -35,13 +35,13 @@
         key-field="id"
       >
         <template #default="{ item }">
-          <AuthorCard :item="item" @remove="onRemove" @download-all="onDownloadAll" />
+          <AuthorCard :item="item" @remove="onRemove" />
         </template>
       </ResponsiveVirtualGrid>
     </div>
   </div>
 </template>
-<script lang="ts" setup>
+<script lang="ts" setup name="specialAttention">
 import AuthorCard from './author-card.vue'
 import { NButton, NInput, NSelect, useMessage } from 'naive-ui'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
@@ -87,7 +87,7 @@ async function onRemove(id: number) {
   message.success('取消关注成功')
   await refresh()
 }
-async function onDownloadAll(item) {}
+
 onMounted(async () => {
   await refresh()
 })

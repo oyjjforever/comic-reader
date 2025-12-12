@@ -152,7 +152,7 @@ async function runJmtt(task) {
         task.onSuccess?.()
       }
     )
-    updateTask(task, { status: 'success' })
+    updateTask(task, { status: 'success', localFilePath: chapterFolder })
   } catch (e) {
     console.log('🚀 ~ runJmtt ~ e:', e)
     if (task._cancel) {
@@ -204,7 +204,7 @@ async function runPixiv(task) {
         }
       )
     }
-    updateTask(task, { status: 'success' })
+    updateTask(task, { status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ runPixiv ~ e:', e)
     if (task._cancel) {
@@ -270,7 +270,7 @@ async function runTwitter(task) {
         }
       )
     }
-    updateTask(task, { status: 'success' })
+    updateTask(task, { status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ runTwitter ~ e:', e)
     if (task._cancel) {
