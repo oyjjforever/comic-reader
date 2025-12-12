@@ -2,142 +2,227 @@
   <div class="author-card">
     <!-- 作者头部信息 -->
     <div class="author-header">
-      <img :src="author.avatar" :alt="author.name" class="author-avatar" />
+      <img class="author-avatar" :src="siteIcon(item.source)" />
       <div class="author-info">
-        <h3 class="author-name">{{ author.name }}</h3>
-        <p class="works-count">{{ author.works.length }} 个作品</p>
+        <h3 class="author-name">{{ item.authorName || item.authorId }}({{ item.authorId }})</h3>
+        <p class="works-count">
+          {{ item.source === 'twitter' ? '--' : page.total * page.size }} 个作品
+        </p>
       </div>
     </div>
     <!-- 作品预览区域 -->
     <div class="works-section">
       <div class="works-container">
-        <div class="works-list">
-          <div v-for="(work, index) in visibleWorks" :key="index" class="work-item">
-            <img
-              :src="work.image"
-              :alt="work.title"
-              class="work-image"
-              @click="openWorkModal(work)"
-            />
-            <div class="work-overlay">
-              <button @click="downloadWork(work)" class="download-button">
-                <i class="fas fa-download"></i>
+        <n-carousel
+          class="artwork-carousel"
+          :slides-per-view="6"
+          :space-between="10"
+          :loop="false"
+          :show-dots="false"
+          :show-arrows="false"
+        >
+          <div
+            v-for="row in grid.rows"
+            :key="row.artworkId"
+            class="artwork-item"
+            :class="{ 'artwork-item--downloaded': row.downloaded }"
+          >
+            <!-- <img :src="row.cover" /> -->
+            <n-image :src="row.cover">
+              <template #error>
+                <img :src="errorImg" />
+              </template>
+            </n-image>
+            <div class="hover-ops">
+              <div class="artwork-item__pages">
+                <n-icon :component="SlideMultiple24Regular" size="12" />{{ row.pages }}
+              </div>
+              <button size="small" @click="onDownload(row)">
+                <n-icon :component="CloudDownload" size="24" />
+              </button>
+              <button size="small" @click="onDetail(row)">
+                <n-icon :component="InformationCircle" size="24" />
               </button>
             </div>
+            <!-- <div class="artwork-title">{{ row.title || '作品' }}</div> -->
           </div>
-        </div>
-      </div>
-      <!-- 分页指示器 -->
-      <div class="pagination-controls">
-        <div class="works-info">
-          {{ Math.min(visibleWorks.length, author.works.length) }} /
-          {{ author.works.length }}
-        </div>
-        <div class="pagination-buttons">
-          <button @click="prevPage" class="pagination-button">
-            <i class="fas fa-chevron-left"></i>
-          </button>
-          <button @click="nextPage" class="pagination-button">
-            <i class="fas fa-chevron-right"></i>
-          </button>
-        </div>
+        </n-carousel>
       </div>
     </div>
     <!-- 操作按钮区域 -->
     <div class="action-buttons">
-      <button @click="unfollowAuthor" class="action-button unfollow-button">
-        <i class="fas fa-user-times"></i>
-        取消关注
-      </button>
-      <button @click="downloadAllWorks" class="action-button download-all-button">
-        <i class="fas fa-download"></i>
-        全部下载
-      </button>
-      <button @mousedown="startDrag" class="action-button drag-button">
-        <i class="fas fa-grip-lines"></i>
-        拖拽排序
-      </button>
+      <div class="button-group">
+        <button @mousedown="startDrag" class="action-button drag-button">
+          <i class="fas fa-grip-lines"></i>
+          拖拽排序
+        </button>
+        <button @click="$emit('remove', item.id)" class="action-button unfollow-button">
+          <i class="fas fa-user-times"></i>
+          取消关注
+        </button>
+        <button @click="$emit('download-all', item)" class="action-button download-all-button">
+          <i class="fas fa-download"></i>
+          全部下载
+        </button>
+      </div>
+      <div class="pagination-buttons">
+        <div class="pagination-info">{{ page.index + 1 }} / {{ page.total }}</div>
+        <button @click="prevPage" class="pagination-button">
+          <n-icon :component="ChevronLeft24Filled" size="12" />
+        </button>
+        <button @click="nextPage" class="pagination-button">
+          <n-icon :component="ChevronRight24Filled" size="12" />
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, computed } from 'vue'
-
-// 定义组件的props
-interface Work {
-  id: string
-  title: string
-  image: string
-}
-
-interface Author {
-  id: string
-  name: string
-  avatar: string
-  works: Work[]
-  followedAt: Date
-}
-
+import { queue } from '@renderer/plugins/store/downloadQueue'
+import { getDefaultDownloadPath } from '../site/utils'
+import errorImg from '@renderer/assets/error.png'
+import jmttImg from '@renderer/assets/jmtt.jpg'
+import pixivImg from '@renderer/assets/pixiv.jpg'
+import twitterImg from '@renderer/assets/twitter.jpg'
+import PixivUtil from './pixiv.js'
+import TwitterUtil from './twitter.js'
+import JmttUtil from './jmtt.js'
+import {
+  SlideMultiple24Regular,
+  ArrowUp24Regular,
+  ArrowDown24Regular,
+  ChevronLeft24Filled,
+  ChevronRight24Filled
+} from '@vicons/fluent'
+import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
 const props = defineProps<{
-  author: Author
-  currentPage: number
+  item: { type: Object; required: true }
 }>()
-
-// 定义组件的事件
-const emit = defineEmits<{
-  'unfollow-author': [authorId: string]
-  'download-work': [work: Work]
-  'download-all-works': [authorId: string]
-  'open-work-modal': [work: Work]
-  'start-drag': [event: MouseEvent, author: Author]
-  'page-change': [authorId: string, page: number]
-}>()
-const pageSize = 5
-// 计算当前页显示的作品
-const visibleWorks = computed(() => {
-  const startIndex = (props.currentPage - 1) * pageSize
-  return props.author.works.slice(startIndex, startIndex + pageSize)
+function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
+  if (site === 'jmtt') return jmttImg
+  if (site === 'pixiv') return pixivImg
+  return twitterImg
+}
+const page = reactive({
+  total: 0,
+  index: 0,
+  size: 6
+})
+const grid = reactive({
+  allRows: [],
+  rows: [],
+  loading: false
 })
 
-// 分页方法
-const totalPages = computed(() => Math.ceil(props.author.works.length / pageSize))
-
-const prevPage = () => {
-  if (props.currentPage > 1) {
-    emit('page-change', props.author.id, props.currentPage - 1)
+onMounted(async () => {
+  await fetchData()
+  await pagingImage()
+})
+async function fetchData() {
+  if (props.item.source === 'pixiv') {
+    const artworks = await PixivUtil.fetchArtworks(props.item.authorId)
+    grid.allRows = artworks
+    page.total = artworks.length
+  } else if (props.item.source === 'twitter') {
+    page.total = 1000000
+  } else if (props.item.source === 'jmtt') {
+    const artworks = await JmttUtil.fetchArtworks(props.item.authorId)
+    grid.allRows = artworks
+    page.total = artworks.length
   }
 }
-
-const nextPage = () => {
-  if (props.currentPage < totalPages.value) {
-    emit('page-change', props.author.id, props.currentPage + 1)
+async function pagingImage() {
+  grid.loading = true
+  try {
+    if (props.item.source === 'pixiv') {
+      grid.rows = await PixivUtil.pagingImage(props.item.authorName, grid, page)
+    } else if (props.item.source === 'twitter') {
+      grid.rows = await TwitterUtil.pagingImage(
+        props.item.authorName,
+        props.item.authorId,
+        grid,
+        page
+      )
+    } else if (props.item.source === 'jmtt') {
+      grid.rows = await JmttUtil.pagingImage(props.item.authorName, grid, page)
+    }
+  } finally {
+    grid.loading = false
   }
 }
-
-// 操作方法
-const unfollowAuthor = () => {
-  emit('unfollow-author', props.author.id)
+async function onDownload(row) {
+  try {
+    if (props.item.source === 'pixiv') {
+      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
+      queue.addTask({
+        site: 'pixiv',
+        title: `[${row.author}]${row.title}`,
+        payload: {
+          artworkId: row.artworkId,
+          artworkInfo: {
+            author: row.author,
+            title: row.title,
+            illustType: row.illustType
+          },
+          baseDir: defaultDownloadPath
+        },
+        onSuccess() {
+          row.downloaded = true
+        }
+      })
+    } else if (props.item.source === 'twitter') {
+      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
+      const author = props.item.authorName
+      queue.addTask({
+        site: 'twitter',
+        title: `[${author}]${row.title}`,
+        payload: {
+          author,
+          userId: props.item.authorId,
+          artworkInfo: {
+            author,
+            title: row.title,
+            url: row.url
+          },
+          baseDir: defaultDownloadPath
+        },
+        onSuccess() {
+          row.downloaded = true
+        }
+      })
+    } else if (props.item.source === 'jmtt') {
+      const defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
+      const comicInfo = row.comicInfo
+      const chapter = comicInfo.chapter_infos[0]
+      queue.addTask({
+        site: 'jmtt',
+        title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
+        payload: {
+          chapter,
+          comicInfo,
+          baseDir: defaultDownloadPath
+        },
+        onSuccess() {
+          row.downloaded = true
+        }
+      })
+    }
+  } catch (error) {
+    console.log('🚀 ~ onDownload ~ error:', error)
+  }
 }
-
-const downloadWork = (work: Work) => {
-  emit('download-work', work)
+function prevPage() {
+  if (page.index > 0) page.index -= 1
+  pagingImage()
 }
-
-const downloadAllWorks = () => {
-  emit('download-all-works', props.author.id)
-}
-
-const openWorkModal = (work: Work) => {
-  emit('open-work-modal', work)
-}
-
-const startDrag = (event: MouseEvent) => {
-  emit('start-drag', event, props.author)
+function nextPage() {
+  if ((page.index + 1) * page.size < page.total) page.index += 1
+  pagingImage()
 }
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
 .author-card {
   width: 100%;
   height: 100%;
@@ -166,8 +251,8 @@ const startDrag = (event: MouseEvent) => {
 }
 
 .author-avatar {
-  width: 3rem;
-  height: 3rem;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
@@ -225,63 +310,105 @@ const startDrag = (event: MouseEvent) => {
   scrollbar-width: none;
 }
 
-.work-item {
-  flex-shrink: 0;
-  position: relative;
-
-  &:hover .work-overlay {
-    opacity: 1;
-  }
+.artwork-carousel {
+  padding: 0 10px;
 }
-
-.work-image {
-  width: 100%;
+.artwork-item {
   height: 100%;
-  object-fit: cover;
-  border-radius: 0.5rem;
-  cursor: pointer;
-}
-
-.work-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  background: #f5f5f5;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-  border-radius: 0.5rem;
-}
-
-.download-button {
-  color: white;
-
-  &:hover {
-    color: #93c5fd;
-  }
-}
-
-// 分页指示器
-.pagination-controls {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 0.5rem;
-  flex-shrink: 0;
-}
-
-.works-info {
-  font-size: 0.75rem;
-  color: #6b7280;
+  position: relative;
+  &:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    .hover-ops {
+      opacity: 1;
+    }
+  }
+  .n-image {
+    width: 100%;
+    height: 100%;
+  }
+  img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover !important;
+  }
+  &--downloaded img {
+    opacity: 0.5;
+  }
+  &__pages {
+    width: fit-content;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 2px;
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    color: #fff;
+    background: #00000071;
+    backdrop-filter: blur(10px);
+    border-radius: 5px;
+    font-size: 12px;
+    padding: 0px 4px;
+  }
+  /* 悬浮操作栏 */
+  .hover-ops {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 10%;
+    gap: 5px;
+    justify-content: flex-end;
+    align-items: center;
+    background: #000000ad;
+    color: #fff;
+    transition: opacity 0.25s ease;
+    z-index: 9999;
+    .n-button-group {
+      width: 100%;
+      .n-button {
+        flex: 1;
+      }
+    }
+  }
+  .artwork-title {
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    font-size: 14px;
+    text-align: center;
+    font-weight: 700;
+    padding: 5px;
+    color: #fff;
+    background: #0000004d;
+    backdrop-filter: blur(10px);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+  }
 }
 
 .pagination-buttons {
   display: flex;
   gap: 0.25rem;
+  .pagination-info {
+    color: #6b7280;
+    margin-right: 10px;
+  }
 }
 
 .pagination-button {
@@ -291,12 +418,13 @@ const startDrag = (event: MouseEvent) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f3f4f6;
+  background-color: #00000029; //#f3f4f6;
   cursor: pointer;
   font-size: 0.75rem;
-
+  transition-duration: 0.3s;
   &:hover {
     background-color: #e5e7eb;
+    transition-duration: 0.3s;
   }
 }
 
@@ -308,6 +436,10 @@ const startDrag = (event: MouseEvent) => {
   justify-content: space-between;
   border-top: 1px solid #f3f4f6;
   flex-shrink: 0;
+  .button-group {
+    display: flex;
+    gap: 20px;
+  }
 }
 
 .action-button {
