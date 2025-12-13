@@ -49,14 +49,20 @@ async function downloadVideo(authorName, twitterId) {
     }
   })
 }
-async function fetchArtworks(authorId) {
-  // 获取作品集
-  const profile = await pixiv.getArtworksByUserId(authorId)
-  return profile.illusts
-}
 async function previewImage(url) {
   const blobUrl = await twitter.getImage(url)
   return blobUrl
+}
+async function hasNewArtwork(authorName, authorId) {
+  try {
+    const res = await twitter.getMediaPerPage(authorId, null, 10)
+    const images = twitter.extractItemsFromJson(res) || []
+    const image = images[0]
+    const downloaded = isLocalDownloaded(authorName, image.title)
+    return !downloaded
+  } catch (error) {
+    return false
+  }
 }
 async function pagingImage(authorName, authorId, grid, page) {
   const pageSize = page?.size || 20
@@ -172,8 +178,8 @@ export default {
   downloadImage,
   downloadAllMedia,
   downloadVideo,
-  fetchArtworks,
   pagingImage,
   previewImage,
+  hasNewArtwork,
   isLocalDownloaded
 }

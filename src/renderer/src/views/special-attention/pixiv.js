@@ -40,6 +40,17 @@ async function previewImage(url) {
   const blobUrl = await pixiv.getImage(url)
   return blobUrl
 }
+async function hasNewArtwork(authorName, authorId) {
+  try {
+    const ids = await fetchArtworks(authorId)
+    const id = ids[0]
+    const info = await pixiv.getArtworkInfo(id)
+    const downloaded = isLocalDownloaded(authorName, info.title)
+    return !downloaded
+  } catch (error) {
+    return false
+  }
+}
 async function pagingImage(authorName, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
@@ -84,5 +95,6 @@ export default {
   fetchArtworks,
   pagingImage,
   previewImage,
+  hasNewArtwork,
   isLocalDownloaded
 }

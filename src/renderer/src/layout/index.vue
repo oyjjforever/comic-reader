@@ -26,6 +26,13 @@
             <component :is="item.icon" />
           </n-icon>
           <img v-if="item.image" :src="item.image" width="30" height="30" />
+          <!-- 新作品提示徽章 -->
+          <div
+            v-if="item.name === 'special-attention' && newArtworkCount > 0"
+            class="new-artwork-badge"
+          >
+            {{ newArtworkCount > 99 ? '99+' : newArtworkCount }}
+          </div>
         </div>
       </div>
 
@@ -123,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
@@ -148,6 +155,7 @@ import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
+import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import twitter from '../views/special-attention/twitter'
 const route = useRoute()
 const router = useRouter()
@@ -170,6 +178,14 @@ const completedCount = computed(
 const pendingCount = computed(
   () => queue.tasks.filter((t: any) => t.status === 'pending').length || 0
 )
+
+// 使用新作品检测store
+const newArtworkDetector = useNewArtworkDetectorStore()
+
+// 新作品数量
+const newArtworkCount = computed(() => {
+  return newArtworkDetector.newArtworkCount
+})
 // 菜单项配置
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
@@ -362,6 +378,26 @@ $background-color: #322f3b;
     &:active::after {
       width: 48px;
       height: 48px;
+    }
+
+    // 新作品提示徽章
+    .new-artwork-badge {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      min-width: 18px;
+      height: 18px;
+      background: #ef4444;
+      color: white;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 0 4px;
+      z-index: 10;
+      animation: pulse 2s infinite;
     }
   }
 }
@@ -597,6 +633,21 @@ $background-color: #322f3b;
   100% {
     box-shadow: 0 0 0 rgba(96, 165, 250, 0);
     transform: scale(0.8);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 </style>

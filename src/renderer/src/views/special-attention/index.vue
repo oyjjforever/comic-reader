@@ -4,6 +4,17 @@
       <!-- 页面标题与搜索区域 -->
       <div class="header-section">
         <h1 class="page-title">特别关注</h1>
+        <!-- 新作品提示 -->
+        <div v-if="newArtworkCount > 0" class="new-artwork-notification">
+          <n-icon :component="Alert24Regular" size="18" />
+          <span>发现 {{ newArtworkCount }} 位作者有新作品</span>
+          <div class="notification-buttons">
+            <n-button size="tiny" @click="toggleOnlyNewArtworks">{{
+              showOnlyNew ? '显示全部' : '只显示更新'
+            }}</n-button>
+            <n-button size="tiny" @click="clearAllNewArtworkMarks">清除标记</n-button>
+          </div>
+        </div>
         <div class="search-controls">
           <n-input
             v-model:value="searchQuery"
@@ -50,9 +61,15 @@
 </template>
 <script lang="ts" setup name="specialAttention">
 import AuthorCard from './author-card.vue'
-import { NButton, NInput, NSelect, useMessage } from 'naive-ui'
+import { NButton, NInput, NSelect, useMessage, NIcon } from 'naive-ui'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
+import { Alert24Regular } from '@vicons/fluent'
+import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 const message = useMessage()
+
+// 使用新作品检测store
+const newArtworkDetector = useNewArtworkDetectorStore()
 
 const sourceOptions = [
   { label: '全部', value: null },
@@ -74,6 +91,12 @@ const sortOptions = [
 const items = ref([])
 const searchQuery = ref('')
 const sourceFilter = ref(null)
+const showOnlyNew = ref(false)
+
+// 新作品数量
+const newArtworkCount = computed(() => {
+  return newArtworkDetector.newArtworkCount
+})
 const filteredItems = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   return items.value.filter((u) => {
@@ -82,7 +105,12 @@ const filteredItems = computed(() => {
       (u.authorName || '').toLowerCase().includes(q) ||
       (u.authorId || '').toLowerCase().includes(q)
     const matchSource = !sourceFilter.value || u.source === sourceFilter.value
-    return matchName && matchSource
+
+    // 如果启用了"只显示新作品"，则只显示有新作品的作者
+    const hasNewArtwork = newArtworkDetector.hasNewArtwork(u.source, u.authorId)
+    const showItem = !showOnlyNew.value || hasNewArtwork
+
+    return matchName && matchSource && showItem
   })
 })
 async function refresh() {
@@ -137,6 +165,18 @@ async function handleSortChange(fromIndex: number, toIndex: number) {
   }
 }
 
+// 清除所有新作品标记
+function clearAllNewArtworkMarks() {
+  newArtworkDetector.clearAllNewArtworkMarks()
+  showOnlyNew.value = false
+  message.success('已清除所有新作品标记')
+}
+
+// 只显示有新作品的作者
+function toggleOnlyNewArtworks() {
+  showOnlyNew.value = !showOnlyNew.value
+}
+
 onMounted(async () => {
   await refresh()
 })
@@ -176,5 +216,35 @@ onMounted(async () => {
 .control-buttons {
   display: flex;
   gap: 0.5rem;
+}
+
+// 新作品提示样式
+.new-artwork-notification {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+
+  .n-icon {
+    color: #dc2626;
+  }
+
+  .notification-buttons {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+
+    .n-button {
+      font-size: 12px;
+      height: 24px;
+      padding: 0 8px;
+    }
+  }
 }
 </style>

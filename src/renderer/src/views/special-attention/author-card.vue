@@ -1,5 +1,5 @@
 <template>
-  <div class="author-card">
+  <div class="author-card" :class="{ 'has-new-artwork': hasNewArtwork }">
     <!-- 作者头部信息 -->
     <div class="author-header">
       <img class="author-avatar" :src="siteIcon(item.source)" />
@@ -90,6 +90,7 @@
 
 <script lang="ts" setup>
 import { queue } from '@renderer/plugins/store/downloadQueue'
+import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import { getDefaultDownloadPath } from '../site/utils'
 import previewDialog from './preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
@@ -108,13 +109,16 @@ import {
   ArrowMove24Regular
 } from '@vicons/fluent'
 import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
-import { reactive } from 'vue'
+import { reactive, computed, onMounted } from 'vue'
 const props = defineProps<{
   item: { type: Object; required: true }
 }>()
 
 // 拖动事件处理
 const emit = defineEmits(['dragstart', 'dragend'])
+
+// 使用新作品检测store
+const newArtworkDetector = useNewArtworkDetectorStore()
 
 function handleDragStart(event: DragEvent) {
   emit('dragstart', event)
@@ -137,6 +141,11 @@ const grid = reactive({
   allRows: [],
   rows: [],
   loading: false
+})
+
+// 检查是否有新作品
+const hasNewArtwork = computed(() => {
+  return newArtworkDetector.hasNewArtwork(props.item.source, props.item.authorId)
 })
 
 onMounted(async () => {
@@ -488,5 +497,11 @@ function onPreview(row) {
   &:hover {
     color: #2563eb;
   }
+}
+
+// 新作品提示样式
+.has-new-artwork {
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 </style>
