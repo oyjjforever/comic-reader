@@ -24,7 +24,6 @@
           </div>
         </div>
       </div>
-      <!-- 作者列表 - 使用虚拟滚动 -->
       <ResponsiveVirtualGrid
         ref="virtualGridRef"
         :items="filteredItems"
@@ -34,6 +33,7 @@
         :gap="20"
         :draggable="true"
         key-field="id"
+        mode="lazy"
         @sort-change="handleSortChange"
       >
         <template #default="{ item, index }">

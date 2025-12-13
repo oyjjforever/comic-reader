@@ -39,6 +39,7 @@ interface VirtualGridProps {
   keyField?: string
   overscan?: number // 预渲染的额外行数
   draggable?: boolean // 是否启用拖拽排序
+  mode?: 'virtual' | 'lazy' // 虚拟列表模式或懒加载模式
 }
 
 interface VirtualItem {
@@ -53,7 +54,8 @@ interface VirtualItem {
 const props = withDefaults(defineProps<VirtualGridProps>(), {
   keyField: 'id',
   overscan: 2,
-  draggable: false
+  draggable: false,
+  mode: 'virtual'
 })
 
 const emit = defineEmits<{
@@ -102,9 +104,9 @@ const visibleRange = computed(() => {
   )
 
   return {
-    startRow,
+    startRow: props.mode === 'virtual' ? startRow : 0,
     endRow,
-    startIndex: startRow * columnsCount.value,
+    startIndex: props.mode === 'virtual' ? startRow * columnsCount.value : 0,
     endIndex: Math.min(props.items.length - 1, (endRow + 1) * columnsCount.value - 1)
   }
 })

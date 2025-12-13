@@ -8,6 +8,7 @@
     :key-field="keyField"
     :overscan="overscan"
     :draggable="draggable"
+    :mode="mode"
     @scroll="$emit('scroll', $event)"
     @sort-change="handleSortChange"
   >
@@ -31,6 +32,7 @@ interface ResponsiveVirtualGridProps {
   aspectRatio?: number // 宽高比
   gap?: number
   draggable?: boolean // 是否启用拖拽排序
+  mode?: 'virtual' | 'lazy' // 虚拟列表模式或懒加载模式
 }
 
 const props = withDefaults(defineProps<ResponsiveVirtualGridProps>(), {
@@ -40,7 +42,8 @@ const props = withDefaults(defineProps<ResponsiveVirtualGridProps>(), {
   maxItemWidth: 240,
   aspectRatio: 0.75, // 3:4 比例
   gap: 24,
-  draggable: false
+  draggable: false,
+  mode: 'virtual'
 })
 
 const emit = defineEmits<{
