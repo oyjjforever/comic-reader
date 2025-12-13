@@ -46,7 +46,7 @@
               <button size="small" @click="onDownload(row)">
                 <n-icon :component="CloudDownload" size="24" />
               </button>
-              <button size="small" @click="onDetail(row)">
+              <button size="small" @click="onPreview(row)">
                 <n-icon :component="InformationCircle" size="24" />
               </button>
             </div>
@@ -80,12 +80,18 @@
         </button>
       </div>
     </div>
+    <preview-dialog
+      v-if="previewer.show"
+      :dialog="previewer"
+      @download="onDownload"
+    ></preview-dialog>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { getDefaultDownloadPath } from '../site/utils'
+import previewDialog from './preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
@@ -102,6 +108,7 @@ import {
   ArrowMove24Regular
 } from '@vicons/fluent'
 import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
+import { reactive } from 'vue'
 const props = defineProps<{
   item: { type: Object; required: true }
 }>()
@@ -210,6 +217,16 @@ function prevPage() {
 function nextPage() {
   if ((page.index + 1) * page.size < page.total) page.index += 1
   pagingImage()
+}
+
+const previewer = reactive({
+  show: false,
+  data: {}
+})
+function onPreview(row) {
+  row.source = props.item.source
+  previewer.data = row
+  previewer.show = true
 }
 </script>
 
@@ -371,10 +388,11 @@ function nextPage() {
     color: #fff;
     transition: opacity 0.25s ease;
     z-index: 9999;
-    .n-button-group {
-      width: 100%;
-      .n-button {
-        flex: 1;
+    button {
+      transition-duration: 0.3s;
+      &:hover {
+        transition-duration: 0.3s;
+        transform: scale(1.2);
       }
     }
   }

@@ -36,7 +36,10 @@ async function fetchArtworks(authorId) {
   const profile = await pixiv.getArtworksByUserId(authorId)
   return profile.illusts
 }
-
+async function previewImage(url) {
+  const blobUrl = await pixiv.getImage(url)
+  return blobUrl
+}
 async function pagingImage(authorName, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
@@ -49,7 +52,7 @@ async function pagingImage(authorName, grid, page) {
       // 检测本地是否已下载
       const downloaded = isLocalDownloaded(authorName, info.title)
       // 获取图片流并转换为Blob URL
-      const coverUrl = await pixiv.getImage(images[0].urls.small) //thumb_mini
+      const coverUrl = await previewImage(images[0].urls.small) //thumb_mini
       return {
         artworkId: id,
         author: authorName,
@@ -57,6 +60,7 @@ async function pagingImage(authorName, grid, page) {
         illustType: info.illustType,
         cover: coverUrl,
         pages: images.length,
+        imageUrls: images.map((image) => image.urls.original),
         downloaded
       }
     } catch (error) {
@@ -79,5 +83,6 @@ export default {
   downloadManaga,
   fetchArtworks,
   pagingImage,
+  previewImage,
   isLocalDownloaded
 }

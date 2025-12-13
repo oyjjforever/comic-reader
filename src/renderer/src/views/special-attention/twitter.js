@@ -54,7 +54,10 @@ async function fetchArtworks(authorId) {
   const profile = await pixiv.getArtworksByUserId(authorId)
   return profile.illusts
 }
-
+async function previewImage(url) {
+  const blobUrl = await twitter.getImage(url)
+  return blobUrl
+}
 async function pagingImage(authorName, authorId, grid, page) {
   const pageSize = page?.size || 20
   const pageIndex = page?.index || 0
@@ -91,7 +94,7 @@ async function pagingImage(authorName, authorId, grid, page) {
   const promises = currentPageImages.map(async (image) => {
     try {
       const downloaded = isLocalDownloaded(authorName, image.title)
-      const coverUrl = await twitter.getImage(image.url)
+      const coverUrl = await previewImage(image.url)
       return {
         artworkId: image.id,
         author: authorName,
@@ -99,6 +102,7 @@ async function pagingImage(authorName, authorId, grid, page) {
         cover: coverUrl,
         url: image.url,
         pages: 1,
+        imageUrls: [image.url],
         downloaded
       }
     } catch (error) {
@@ -133,7 +137,7 @@ async function pagingImage(authorName, authorId, grid, page) {
           nextImages.map(async (image) => {
             try {
               const downloaded = isLocalDownloaded(authorName, image.title)
-              const coverUrl = await twitter.getImage(image.url)
+              const coverUrl = await previewImage(image.url)
               return {
                 artworkId: image.id,
                 author: authorName,
@@ -141,6 +145,7 @@ async function pagingImage(authorName, authorId, grid, page) {
                 cover: coverUrl,
                 url: image.url,
                 pages: 1,
+                imageUrls: [image.url],
                 downloaded
               }
             } catch {
@@ -169,5 +174,6 @@ export default {
   downloadVideo,
   fetchArtworks,
   pagingImage,
+  previewImage,
   isLocalDownloaded
 }

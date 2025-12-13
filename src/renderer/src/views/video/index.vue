@@ -11,7 +11,6 @@
         :folder="item"
         class="grid-item"
         @to-read="toRead(item)"
-        @bookmark="handleBookmark"
         @click="toRead(item)"
         @contextmenu="(e) => handleContextMenu(e, item)"
       />
@@ -66,12 +65,6 @@ const toRead = (book: FolderInfo) => {
     }
   })
 }
-
-const handleBookmark = (folder: FolderInfo, bookmarked: boolean) => {
-  // 可以在这里添加收藏状态变化的处理逻辑
-  console.log('收藏状态变化:', folder.name, bookmarked)
-}
-
 function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   //prevent the browser's default menu
   e.preventDefault()

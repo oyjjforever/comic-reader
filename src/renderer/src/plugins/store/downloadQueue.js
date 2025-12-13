@@ -218,10 +218,11 @@ async function runPixiv(task) {
 async function runTwitter(task) {
   const { author, userId, baseDir, artworkInfo, videoUrl } = task.payload
   try {
+    let workDir
     updateTask(task, { status: 'running', errorMessage: undefined })
     // 视频下载
     if (videoUrl) {
-      const workDir = `${baseDir}/${file.simpleSanitize(author)}/${task.payload.twitterId}.mp4`
+      workDir = `${baseDir}/${file.simpleSanitize(author)}/${task.payload.twitterId}.mp4`
       await isPathExists(workDir, task)
       try {
         await twitter.downloadImage(videoUrl, workDir, (value) => {
@@ -235,7 +236,7 @@ async function runTwitter(task) {
     }
     // 单图片下载
     else if (artworkInfo) {
-      const workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}`
+      workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}`
       await isPathExists(workDir, task)
       await twitter.downloadImage(artworkInfo.url, workDir)
       updateTask(task, { progress: { success: 1, total: 1 } })
@@ -243,7 +244,7 @@ async function runTwitter(task) {
     }
     // 媒体库下载
     else {
-      const workDir = `${baseDir}/${file.simpleSanitize(author)}`
+      workDir = `${baseDir}/${file.simpleSanitize(author)}`
       await isPathExists(workDir, task)
       let images = [],
         cursor = null

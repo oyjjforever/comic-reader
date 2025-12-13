@@ -9,6 +9,7 @@
 ## 功能特性
 
 - 漫画阅读模块
+
   - 图片阅读器：翻页、缩放、键鼠操作、自动播放
   - 支持图片格式
     - jpg/jpeg/png/webp
@@ -17,12 +18,14 @@
   - 资源浏览器：本地文件夹扫描、收藏夹、右键打开本地文件
 
 - 视频模块
+
   - 资源浏览：指定资源路径下的树/文件列表与收藏
   - 播放器：原生 video 播放（本地文件），进度管理
   - 书签功能：时间点收藏、增删改查
   - DLNA 投屏：局域网设备发现与投屏
 
 - 第三方网站浏览与下载
+
   - JM
     - WebView 浏览
     - 章节选择下载、自动解压
@@ -54,6 +57,7 @@
   ![Image Reader](docs/download-queue.png)
 - 特别关注
   ![Image Reader](docs/special-attention.png)
+  ![Image Reader](docs/preview.png)
 
 ## 快速开始
 

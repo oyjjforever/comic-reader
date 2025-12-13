@@ -37,7 +37,10 @@ async function fetchArtworks(authorId) {
   const res = await jmtt.getComicsByAuthor(authorId)
   return res?.data?.content.filter((_) => _.author === authorId).map((_) => _.id) || []
 }
-
+async function previewImage(url) {
+  const blobUrl = await jmtt.getImage([url[0], url[1]])
+  return blobUrl
+}
 async function pagingImage(authorName, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
@@ -49,7 +52,7 @@ async function pagingImage(authorName, grid, page) {
       const downloaded = isLocalDownloaded(authorName, comicInfo.name)
       // 获取图片流并转换为Blob URL
       const firstComicImages = await jmtt.getChapterImages(firstComic.id)
-      const coverUrl = await jmtt.getImage(firstComicImages[0])
+      const coverUrl = await previewImage(firstComicImages[0])
       return {
         artworkId: id,
         author: authorName,
@@ -57,6 +60,7 @@ async function pagingImage(authorName, grid, page) {
         title: comicInfo.name || '',
         cover: coverUrl,
         pages: firstComicImages.length,
+        imageUrls: firstComicImages,
         downloaded
       }
     } catch (error) {
@@ -78,5 +82,6 @@ export default {
   downloadAll,
   fetchArtworks,
   pagingImage,
+  previewImage,
   isLocalDownloaded
 }

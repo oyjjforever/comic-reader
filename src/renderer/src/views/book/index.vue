@@ -10,7 +10,6 @@
         :folder="item"
         class="grid-item"
         @to-read="toRead(item)"
-        @bookmark="handleBookmark"
         @click="toRead(item)"
         @contextmenu="(e) => handleContextMenu(e, item)"
       />
