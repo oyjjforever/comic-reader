@@ -5,6 +5,7 @@ import systemInterface from './plugins/systemInterface'
 import media from './plugins/media'
 import appData from './plugins/appData'
 import favorite from './plugins/favorite'
+import tag from './plugins/tag'
 import videoBookmarks from './plugins/video-bookmarks'
 import dlna from './plugins/dlna'
 import file from './plugins/file'
@@ -26,6 +27,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('systemInterface', systemInterface)
     contextBridge.exposeInMainWorld('appData', appData)
     contextBridge.exposeInMainWorld('favorite', favorite)
+    contextBridge.exposeInMainWorld('tag', tag)
     contextBridge.exposeInMainWorld('videoBookmarks', videoBookmarks)
     contextBridge.exposeInMainWorld('dlna', dlna)
     contextBridge.exposeInMainWorld('media', media)

@@ -30,7 +30,7 @@ const openDatabase = (): Promise<Database<sqlite3.Database, sqlite3.Statement>> 
                 driver: sqlite3.Database
             })
 
-            createTable()
+            await createTable()
 
             resolve(db)
         } catch (error) {
@@ -38,11 +38,15 @@ const openDatabase = (): Promise<Database<sqlite3.Database, sqlite3.Statement>> 
         }
     })
 }
+async function hasCol(table: string, name: string) {
+    const cols = await db?.all<{ name: string }[]>(`PRAGMA table_info('${table}')`)
+    return Array.isArray(cols) && cols.some((c: any) => c.name === name)
+}
 
 /**
  * @description: 创建表
  */
-const createTable = () => {
+const createTable = async () => {
     // 创建App数据表
     db?.exec(`
         CREATE TABLE IF NOT EXISTS app_data (
@@ -57,6 +61,20 @@ const createTable = () => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fullPath TEXT NOT NULL UNIQUE,
             module TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    `)
+    if (!await hasCol('favorites', 'tags')) {
+        db?.exec(`
+            ALTER TABLE favorites ADD COLUMN tags TEXT
+        `)
+    }
+
+    // 创建标签表
+    db?.exec(`
+        CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            label TEXT NOT NULL UNIQUE,
             created_at TEXT NOT NULL
         )
     `)

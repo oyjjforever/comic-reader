@@ -20,5 +20,13 @@ export type appData = {
 export type favorites = {
     id?: number, // ID
     fullPath: string, // 文件/文件夹完整路径
+    module: string, // 模块类型，例如'book'或'video'
+    tags?: string, // 关联的标签ID，多个用逗号分隔，如"1,2,3"
+    created_at?: Date, // 创建时间
+}
+
+export type tags = {
+    id?: number, // ID
+    label: string, // 标签名称
     created_at?: Date, // 创建时间
 }
