@@ -35,7 +35,8 @@ async function downloadAll(authorName) {
 async function fetchArtworks(authorId) {
   // 获取作品集
   const res = await jmtt.getComicsByAuthor(authorId)
-  return res?.data?.content.filter((_) => _.author === authorId).map((_) => _.id) || []
+  // return res?.data?.content.filter((_) => _.author === authorId).map((_) => _.id) || []
+  return res?.data?.content.map((_) => _.id) || []
 }
 async function previewImage(url) {
   const blobUrl = await jmtt.getImage([url[0], url[1]])
