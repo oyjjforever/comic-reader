@@ -1,58 +1,18 @@
 <template>
   <div class="site">
     <webview ref="webviewRef" :src="url" partition="persist:thirdparty" allowpopups />
-    <NModal
-      v-model:show="showChapterDialog"
-      preset="card"
-      title="选择章节"
-      style="max-width: 640px; width: 90%"
-    >
-      <NScrollbar style="max-height: 50vh; width: 100%">
-        <NCheckboxGroup
-          v-model:value="selected"
-          style="display: grid; grid-template-columns: repeat(6, 100px)"
-        >
-          <template v-for="c in comicInfoRef?.chapter_infos || []" :key="c.id">
-            <NCheckbox :value="c.id" :disabled="downloadedChapterIds.has(c.id)">
-              {{ c.name || '未命名' }}
-            </NCheckbox>
-          </template>
-        </NCheckboxGroup>
-      </NScrollbar>
-      <template #action>
-        <div style="display: flex; justify-content: flex-end; gap: 12px">
-          <NButton @click="onChapterDialogCancel">取消</NButton>
-          <NButton type="primary" @click="onChapterDialogConfirm">开始下载</NButton>
-        </div>
-      </template>
-    </NModal>
   </div>
 </template>
 
 <script setup lang="ts" name="jmtt">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useMessage, NCheckbox, NCheckboxGroup, NScrollbar, NModal, NButton } from 'naive-ui'
+import { useMessage } from 'naive-ui'
 const message = useMessage()
 import { getDefaultDownloadPath, Tip } from './utils'
-import { queue } from '@renderer/plugins/store/downloadQueue'
 const { jmtt, file } = window as any
-
+import jmttUtil from '@renderer/views/special-attention/jmtt.js'
 const url = ref('https://jmcomic-zzz.one/')
-const showChapterDialog = ref(false)
-const comicInfoRef = ref<any>(null)
-const selected = ref<Array<number | string>>([])
-const downloadedChapterIds = ref<Set<number | string>>(new Set())
-let resolveChapterDialog: ((ok: boolean) => void) | null = null
-function onChapterDialogConfirm() {
-  showChapterDialog.value = false
-  resolveChapterDialog?.(true)
-  resolveChapterDialog = null
-}
-function onChapterDialogCancel() {
-  showChapterDialog.value = false
-  resolveChapterDialog?.(false)
-  resolveChapterDialog = null
-}
+
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
 const canAttention = ref(false)
@@ -84,26 +44,6 @@ function updateCanDownload() {
     canAttention.value = false
   }
 }
-async function refreshDownloadedChapters(comicFolderPath: string) {
-  downloadedChapterIds.value.clear()
-  const chapters = comicInfoRef.value?.chapter_infos || []
-  if (!chapters.length) return
-  try {
-    const folders = await window.file.getDirectFoldersFromPath(comicFolderPath)
-    const folderNames = new Set(folders.map((f: any) => f.name))
-    if (chapters.length === 1) {
-      // 单章：没有章节文件夹也视为已下载
-      downloadedChapterIds.value.add(chapters[0].id)
-    } else {
-      chapters.forEach((c: any) => {
-        const folderName = `第${c.index}章`
-        if (folderNames.has(folderName)) downloadedChapterIds.value.add(c.id)
-      })
-    }
-  } catch (e) {
-    console.warn('读取已下载章节失败', e)
-  }
-}
 async function addSpecialAttention() {
   const tip = new Tip()
   try {
@@ -119,64 +59,9 @@ async function addSpecialAttention() {
 }
 async function download() {
   if (downloadType === 'one') {
-    await singleDownload(comicId.value)
+    await jmttUtil.downloadArtwork(null, comicId.value)
   } else if (downloadType === 'batch') {
-    await batchDownload()
-  }
-}
-async function singleDownload(comicId) {
-  const tip = new Tip()
-  const defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
-  // 获取漫画详情
-  let comicInfo
-  try {
-    comicInfo = await jmtt.getComicInfo(comicId)
-  } catch (e: any) {
-    tip.error(`获取章节失败：${e?.message || e}`)
-    return
-  }
-  let toDownload = []
-  const comicFolder = `${defaultDownloadPath}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
-  // 如果只有一章，则直接下载
-  if (comicInfo.chapter_infos.length === 1) {
-    toDownload = [comicInfo.chapter_infos[0]]
-  } else {
-    // 选择需要下载的章节（模板弹窗）
-    comicInfoRef.value = comicInfo
-    selected.value = comicInfo.chapter_infos.map((c: any) => c.id) // 默认全选
-    await refreshDownloadedChapters(comicFolder)
-    showChapterDialog.value = true
-    const confirmed = await new Promise<boolean>((resolve) => {
-      resolveChapterDialog = resolve
-    })
-    if (!confirmed) {
-      tip.error('已取消下载')
-      return
-    }
-
-    toDownload = comicInfo.chapter_infos.filter((c: any) => selected.value.includes(c.id))
-    if (toDownload.length === 0) {
-      tip.error('未选择任何章节')
-      return
-    }
-  }
-  queue.addTask(
-    toDownload.map((chapter) => ({
-      site: 'jmtt',
-      title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
-      payload: {
-        chapter,
-        comicInfo,
-        baseDir: defaultDownloadPath
-      }
-    }))
-  )
-}
-async function batchDownload() {
-  const res = await window.jmtt.getComicsByAuthor(searchQuery.value)
-  const comics = res?.data?.content || []
-  for (const comic of comics) {
-    singleDownload(comic.id)
+    await jmttUtil.downloadAll(searchQuery.value)
   }
 }
 const onDownloadPrepare = async (event: any, data: any) => {

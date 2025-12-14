@@ -6,9 +6,9 @@
 
 <script setup lang="ts" name="twitter">
 import { ref, onMounted, defineExpose } from 'vue'
-import { getDefaultDownloadPath, Tip } from './utils'
-import { queue } from '@renderer/plugins/store/downloadQueue'
-const { twitter, file } = window as any
+import { Tip } from './utils'
+const { twitter } = window as any
+import twitterUtil from '@renderer/views/special-attention/twitter.js'
 const url = ref('https://x.com/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
@@ -55,31 +55,11 @@ async function download() {
     if (!author) throw new Error('无法从当前URL解析 screen_name')
     const userId = await twitter.getUserIdByName(author)
     if (!userId) throw new Error('未获取到用户ID')
-    const defaultDownloadPath = await getDefaultDownloadPath('downloadPathTwitter')
     if (downloadType === 'media') {
-      // 将媒体页作为一个任务加入队列
-      queue.addTask({
-        site: 'twitter',
-        title: `[${author}]的媒体库`,
-        payload: {
-          author,
-          userId,
-          baseDir: defaultDownloadPath
-        }
-      })
+      await twitterUtil.downloadAllMedia(author, userId)
     } else if (downloadType === 'video') {
       const twitterId = extractFromUrl('status')
-      const videoUrls = await window.twitter.getVideoUrls(twitterId)
-      queue.addTask({
-        site: 'twitter',
-        title: `[${author}]的视频(${twitterId})`,
-        payload: {
-          author,
-          twitterId,
-          videoUrl: videoUrls.pop().url,
-          baseDir: defaultDownloadPath
-        }
-      })
+      await twitterUtil.downloadVideo(author, twitterId)
     }
   } catch (error) {
     tip.error(error)

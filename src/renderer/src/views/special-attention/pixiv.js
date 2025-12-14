@@ -26,7 +26,7 @@ async function downloadIllusts(userId) {
   const artworkIds = profile.illusts
   addToQueue(artworkIds)
 }
-async function downloadManaga(mangaId) {
+async function downloadManga(mangaId) {
   const mangaInfo = await pixiv.getMangaInfo(mangaId)
   const artworkIds = mangaInfo.series
   addToQueue(artworkIds)
@@ -91,7 +91,7 @@ function isLocalDownloaded(authorName, workName) {
 export default {
   downloadArtwork,
   downloadIllusts,
-  downloadManaga,
+  downloadManga,
   fetchArtworks,
   pagingImage,
   previewImage,

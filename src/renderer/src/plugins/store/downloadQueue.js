@@ -129,7 +129,7 @@ async function runJmtt(task) {
   const { chapter, comicInfo, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-    const workDir = `${baseDir}/${comicInfo.author[0]}/${file.simpleSanitize(comicInfo.name)}`
+    const workDir = `${baseDir}/${file.simpleSanitize(comicInfo.author)}/${file.simpleSanitize(comicInfo.name)}`
     const chapterFolder =
       (comicInfo.chapter_infos?.length || 0) > 1 ? `${workDir}/第${chapter.index}章` : workDir
     await isPathExists(chapterFolder, task)

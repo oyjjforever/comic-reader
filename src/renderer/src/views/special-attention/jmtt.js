@@ -9,6 +9,7 @@ async function downloadArtwork(authorName, comicId) {
   let comicInfo
   try {
     comicInfo = await jmtt.getComicInfo(comicId)
+    comicInfo.author = authorName || comicInfo.author[0] // 使用搜索时的作者名，避免简繁体转换问题
   } catch (e) {
     tip.error(`获取章节失败：${e?.message || e}`)
     return
@@ -16,7 +17,7 @@ async function downloadArtwork(authorName, comicId) {
   queue.addTask(
     comicInfo.chapter_infos.map((chapter) => ({
       site: 'jmtt',
-      title: `[${authorName}]${comicInfo.name} - 第${chapter.index}章`,
+      title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
       payload: {
         chapter,
         comicInfo,

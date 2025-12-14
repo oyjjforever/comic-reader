@@ -6,9 +6,9 @@
 
 <script setup lang="ts" name="pixiv">
 import { ref, onMounted } from 'vue'
-import { getDefaultDownloadPath, Tip } from './utils'
-import { queue } from '@renderer/plugins/store/downloadQueue'
-const { pixiv, file } = window as any
+import { Tip } from './utils'
+const { pixiv } = window as any
+import pixivUtil from '@renderer/views/special-attention/pixiv.js'
 const url = ref('https://www.pixiv.net/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
@@ -67,38 +67,23 @@ async function addSpecialAttention() {
 async function download() {
   const tip = new Tip()
   try {
-    let artworkIds: string[] = []
     // 单作品
     if (downloadType === 'artwork') {
       const artworkId = extractFromUrl('artworks')
-      if (artworkId) artworkIds = [artworkId]
+      if (!artworkId) throw new Error('未获取到作品ID')
+      await pixivUtil.downloadArtwork(artworkId)
     }
     // 插画集
     else if (downloadType === 'illusts') {
       const userId = extractFromUrl('users')
-      if (!userId) throw new Error('无法从当前URL解析 未解析到作者ID')
-      const profile = await pixiv.getArtworksByUserId(userId)
-      artworkIds = profile.illusts
+      if (!userId) throw new Error('未获取到用户ID')
+      await pixivUtil.downloadIllusts(userId)
     }
     // 漫画集
     else if (downloadType === 'managa') {
       const mangaId = extractFromUrl('series')
-      const mangaInfo = await pixiv.getMangaInfo(mangaId)
-      artworkIds = mangaInfo.series
-    }
-    const defaultDownloadPath = await getDefaultDownloadPath('downloadPathPixiv')
-    // 每个作品加入队列任务
-    for (const artworkId of artworkIds) {
-      const artworkInfo = await pixiv.getArtworkInfo(artworkId)
-      queue.addTask({
-        site: 'pixiv',
-        title: `[${artworkInfo.author}]${artworkInfo.title}`,
-        payload: {
-          artworkId,
-          artworkInfo,
-          baseDir: defaultDownloadPath
-        }
-      })
+      if (!mangaId) throw new Error('未获取到漫画ID')
+      await pixivUtil.downloadManga(mangaId)
     }
   } catch (error) {
     tip.error(error)

@@ -3,7 +3,7 @@
     <div class="content-container">
       <!-- 页面标题与搜索区域 -->
       <div class="header-section">
-        <h1 class="page-title">特别关注</h1>
+        <h1 class="page-title">特别关注({{ filteredItems.length }})</h1>
         <!-- 新作品提示 -->
         <div v-if="newArtworkCount > 0" class="new-artwork-notification">
           <n-icon :component="Alert24Regular" size="18" />
