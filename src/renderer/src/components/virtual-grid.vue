@@ -93,22 +93,25 @@ const rowsCount = computed(() => {
 const totalHeight = computed(() => {
   return rowsCount.value * (props.itemHeight + props.gap) - props.gap
 })
-
+let latestEndRow = -1
 // 计算可见区域
 const visibleRange = computed(() => {
   const itemHeightWithGap = props.itemHeight + props.gap
   const startRow = Math.max(0, Math.floor(scrollTop.value / itemHeightWithGap) - props.overscan)
-  const endRow = Math.min(
+  const _endRow = Math.min(
     rowsCount.value - 1,
     Math.ceil((scrollTop.value + containerHeight.value) / itemHeightWithGap) + props.overscan
   )
 
-  return {
+  const endRow = props.mode === 'virtual' ? _endRow : Math.max(_endRow, latestEndRow)
+  latestEndRow = endRow
+  const res = {
     startRow: props.mode === 'virtual' ? startRow : 0,
     endRow,
     startIndex: props.mode === 'virtual' ? startRow * columnsCount.value : 0,
     endIndex: Math.min(props.items.length - 1, (endRow + 1) * columnsCount.value - 1)
   }
+  return res
 })
 
 // 计算可见的项目

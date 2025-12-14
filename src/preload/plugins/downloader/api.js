@@ -21,7 +21,7 @@ function buildAxios(config) {
   return instance
 }
 // 简单重试封装：最多 totalMs 时间窗口内每秒重试一次（或固定重试次数）
-async function withRetry(fn, { maxRetries = 2, delayMs = 1000 } = {}) {
+async function withRetry(fn, { maxRetries = 3, delayMs = 3000 } = {}) {
   let lastErr
   for (let i = 0; i <= maxRetries; i++) {
     try {

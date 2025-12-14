@@ -94,11 +94,13 @@ function buildImgAxios(config) {
 }
 
 // 简单重试封装：最多 totalMs 时间窗口内每秒重试一次（或固定重试次数）
-async function withRetry(fn, { maxRetries = 2, delayMs = 1000 } = {}) {
+async function withRetry(fn, { maxRetries = 3, delayMs = 3000 } = {}) {
   let lastErr
   for (let i = 0; i <= maxRetries; i++) {
     try {
-      return await fn()
+      const resp = await fn()
+      if (resp.status !== 200) throw new Error(`${resp.status} ${resp.statusText}`)
+      return resp
     } catch (e) {
       lastErr = e
       if (i === maxRetries) break

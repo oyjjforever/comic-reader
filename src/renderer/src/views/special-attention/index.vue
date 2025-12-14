@@ -185,7 +185,7 @@ onMounted(async () => {
 <style scoped lang="scss">
 // 页面容器
 .page-container {
-  height: 100vh;
+  height: 100%;
   background-color: #f9fafb;
   padding: 10px;
 }

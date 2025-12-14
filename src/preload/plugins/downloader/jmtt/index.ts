@@ -1,7 +1,6 @@
 import { JmClient } from './jm_client.js'
 
-const jm = new JmClient({ proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 }) // 或 { proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 }
-// await jm.login('odoj', '83212789')
+const jm = new JmClient({ proxyMode: 'Custom', proxyHost: '127.0.0.1', proxyPort: 7890 })
 
 async function getComicsByAuthor(author) {
   const comics = await jm.search(author, 1, 'hot', 2)

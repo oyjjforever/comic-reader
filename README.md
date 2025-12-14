@@ -29,6 +29,7 @@
     ![Image Reader](docs/dlna.png)
 
 - 第三方网站浏览与下载
+  **注意：内置代理地址固定为127.0.0.1:7890**
 
   ![Image Reader](docs/download-queue.png)
 
