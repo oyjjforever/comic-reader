@@ -42,6 +42,7 @@
         :max-item-width="630"
         :aspect-ratio="2.5"
         :gap="20"
+        :overscan="0"
         :draggable="true"
         key-field="id"
         mode="lazy"

@@ -195,7 +195,8 @@ async function onDownload(row) {
       await TwitterUtil.downloadImage(authorName, authorId, row.title, row.url)
       row.downloaded = true
     } else if (props.item.source === 'jmtt') {
-      await JmttUtil.downloadArtwork(row.artworkId)
+      const authorName = props.item.authorName
+      await JmttUtil.downloadArtwork(authorName, row.artworkId)
       row.downloaded = true
     }
   } catch (error) {

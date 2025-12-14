@@ -16,7 +16,9 @@
                     </n-space>
                 </n-radio-group>
             </n-form-item> -->
-
+      <n-form-item path="enableAuthorUpdateCheck" label="特别关注更新通知">
+        <n-switch v-model:value="formData.enableAuthorUpdateCheck" />
+      </n-form-item>
       <n-form-item path="resourcePath" label="漫画书资源路径">
         <n-input-group>
           <n-input
@@ -133,8 +135,6 @@ const selectResourcePath = async (key: keyof setting) => {
     const result = await window.electron.ipcRenderer.invoke('dialog:openDirectory')
     if (result && !result.canceled && result.filePaths.length > 0) {
       formData.value[key] = result.filePaths[0]
-      settingStore.setSetting(formData.value)
-      message.success('设置成功')
     }
   } catch (error) {
     message.error('选择文件夹失败')
@@ -145,6 +145,14 @@ const selectResourcePath = async (key: keyof setting) => {
 onMounted(async () => {
   await settingStore.updateSetting()
   formData.value = settingStore.setting
+  watch(
+    () => formData.value,
+    (newValue: setting, oldValue: setting) => {
+      settingStore.setSetting(newValue)
+      message.success('设置成功')
+    },
+    { deep: true, immediate: false }
+  )
 })
 </script>
 

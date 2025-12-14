@@ -8,14 +8,12 @@ export type setting = {
     resourcePath: string
     // 电影资源路径
     videoResourcePath: string
-    // 文件夹返回数据类型
-    folderStructureType: 'flat' | 'tree'
     // 默认下载路径（可选）
     defaultDownloadPath?: string
     // 站点专属下载路径（可选）
     downloadPathJmtt?: string
     downloadPathPixiv?: string
     downloadPathTwitter?: string
-    // 第三方网页地址（可选）
-    thirdPartyUrl?: string
+    // 是否启用更新检测
+    enableAuthorUpdateCheck?: boolean
 }

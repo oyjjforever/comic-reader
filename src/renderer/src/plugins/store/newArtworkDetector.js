@@ -130,19 +130,16 @@ export const useNewArtworkDetectorStore = defineStore('newArtworkDetector', {
      * @param {number} interval - 检测间隔（毫秒），默认30分钟
      * @param {Function} onNewArtworkFound - 发现新作品时的回调函数
      */
-    startPeriodicCheck(interval = 30 * 60 * 1000, onNewArtworkFound = null) {
+    async startPeriodicCheck(interval = 30 * 60 * 1000, onNewArtworkFound = null) {
       // 清除现有的定时器
       this.stopPeriodicCheck()
-
-      // 立即执行一次检测
-      this.detectNewArtworks(onNewArtworkFound)
-
       // 设置定时检测
       this.checkInterval = setInterval(() => {
         this.detectNewArtworks(onNewArtworkFound)
       }, interval)
-
       console.log(`启动定时检测，间隔 ${interval / 1000 / 60} 分钟`)
+      // 立即执行一次检测
+      return await this.detectNewArtworks(onNewArtworkFound)
     },
 
     /**

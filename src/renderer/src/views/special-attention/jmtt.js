@@ -3,7 +3,7 @@ import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
 
-async function downloadArtwork(comicId) {
+async function downloadArtwork(authorName, comicId) {
   const downloadPath = settingStore.setting?.downloadPathJmtt || settingStore.setting?.downloadPath
   // 获取漫画详情
   let comicInfo
@@ -16,7 +16,7 @@ async function downloadArtwork(comicId) {
   queue.addTask(
     comicInfo.chapter_infos.map((chapter) => ({
       site: 'jmtt',
-      title: `[${comicInfo.author}]${comicInfo.name} - 第${chapter.index}章`,
+      title: `[${authorName}]${comicInfo.name} - 第${chapter.index}章`,
       payload: {
         chapter,
         comicInfo,
@@ -29,7 +29,7 @@ async function downloadAll(authorName) {
   const res = await jmtt.getComicsByAuthor(authorName)
   const comics = res?.data?.content || []
   for (const comic of comics) {
-    downloadArtwork(comic.id)
+    downloadArtwork(authorName, comic.id)
   }
 }
 async function fetchArtworks(authorId) {
