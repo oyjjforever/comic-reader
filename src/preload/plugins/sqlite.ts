@@ -75,9 +75,23 @@ const createTable = async () => {
         CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             label TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL DEFAULT 'normal',
+            folderPath TEXT,
             created_at TEXT NOT NULL
         )
     `)
+
+    // 检查并添加新字段（兼容旧版本）
+    if (!await hasCol('tags', 'type')) {
+        db?.exec(`
+            ALTER TABLE tags ADD COLUMN type TEXT NOT NULL DEFAULT 'normal'
+        `)
+    }
+    if (!await hasCol('tags', 'folderPath')) {
+        db?.exec(`
+            ALTER TABLE tags ADD COLUMN folderPath TEXT
+        `)
+    }
 
     // 创建视频时间点收藏表
     db?.exec(`

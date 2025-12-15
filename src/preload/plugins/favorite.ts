@@ -253,10 +253,10 @@ const getFavoriteTags = async (id: number): Promise<tags[]> => {
         }
 
         // 将标签ID字符串转换为数字数组
-        const tagIds = existingFavorite.tags.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
+        // const tagIds = existingFavorite.tags.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
 
         // 获取标签详情
-        return await tagPlugin.getTagsByIds(tagIds)
+        return await tagPlugin.getTagsByIds(existingFavorite.tags)
     } catch (error) {
         throw error
     }
@@ -310,12 +310,13 @@ const getFavoritesByTags = async (tagIdstr: string, order?: string, module?: str
             if (!favorite.tags) return false
 
             const favoriteTagIds = favorite.tags.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
-            return tagIds.every(tagId => favoriteTagIds.includes(tagId))
+            return tagIds.every(tagId => favoriteTagIds.includes(parseInt(tagId)))
         })
     } catch (error) {
         throw error
     }
 }
+
 
 export default {
     getFavorites,

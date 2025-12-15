@@ -39,11 +39,29 @@ declare global {
       getFavorites: (order: string, module: string) => Promise<any[]>
       getFavorite: (id: number, module: string) => Promise<any | null>
       isFavorited: (fullPath: string, module: string) => Promise<boolean>
-      addFavorite: (fullPath: string, module: string) => Promise<{ success: boolean; message: string; id?: number }>
-      deleteFavorite: (id: number, module: string) => Promise<{ success: boolean; message: string }>
-      deleteFavoriteByPath: (fullPath: string, module: string) => Promise<{ success: boolean; message: string }>
+      addFavorite: (fullPath: string, module: string, tagIds?: string) => Promise<number>
+      deleteFavorite: (id: number) => Promise<void>
+      deleteFavoriteByPath: (fullPath: string, module: string) => Promise<void>
       toggleFavorite: (fullPath: string, module: string) => Promise<boolean>
-      getFavoriteCount: (module: string) => Promise<number>
+      getFavoriteCount: (module?: string) => Promise<number>
+      updateFavoriteTags: (id: number, tagIds: string) => Promise<void>
+      getFavoriteTags: (id: number) => Promise<any[]>
+      getFavoritesByTags: (tagIdstr: string, order?: string, module?: string) => Promise<any[]>
+    }
+    tag: {
+      getTags: (order?: string) => Promise<any[]>
+      getTag: (id: number) => Promise<any>
+      getTagByLabel: (label: string) => Promise<any | null>
+      addTag: (label: string) => Promise<number>
+      addFolderTag: (label: string, folderPath: string) => Promise<number>
+      getTagByFolderPath: (folderPath: string) => Promise<any | null>
+      getFolderTags: (order?: string) => Promise<any[]>
+      getNormalTags: (order?: string) => Promise<any[]>
+      isFolderTagged: (folderPath: string) => Promise<boolean>
+      updateTag: (id: number, label: string) => Promise<void>
+      deleteTag: (id: number) => Promise<void>
+      getTagCount: () => Promise<number>
+      getTagsByIds: (ids: string) => Promise<any[]>
     }
     videoBookmarks: {
       getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>;

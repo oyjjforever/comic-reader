@@ -28,5 +28,7 @@ export type favorites = {
 export type tags = {
     id?: number, // ID
     label: string, // 标签名称
+    type?: 'normal' | 'folder', // 标签类型：普通标签或文件夹标签
+    folderPath?: string, // 文件夹路径（仅对文件夹标签有效）
     created_at?: Date, // 创建时间
 }

@@ -80,14 +80,22 @@
             </div>
             <div class="tag-filter-list">
               <div v-if="tags.length === 0" class="empty-tags">暂无标签</div>
-              <div v-else class="tag-items">
-                <div v-for="tag in tags" :key="tag.id" class="tag-item">
-                  <n-checkbox
-                    :checked="selectedTagIds.includes(tag.id)"
-                    @update:checked="(checked) => handleTagCheck(tag.id, checked)"
-                  >
-                    {{ tag.label }}
-                  </n-checkbox>
+              <div v-else>
+                <!-- 统一标签列表 -->
+                <div class="tag-items">
+                  <div v-for="tag in tags" :key="tag.id" class="tag-item">
+                    <n-checkbox
+                      :checked="selectedTagIds.includes(tag.id)"
+                      @update:checked="(checked) => handleTagCheck(tag.id, checked)"
+                    >
+                      <template #icon v-if="tag.type === 'folder'">
+                        <n-icon class="folder-icon">
+                          <folder-icon />
+                        </n-icon>
+                      </template>
+                      {{ tag.label }}
+                    </n-checkbox>
+                  </div>
                 </div>
               </div>
             </div>
@@ -134,7 +142,8 @@ import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
   ChevronBackOutline as ChevronLeftIcon,
-  ChevronForwardOutline as ChevronRightIcon
+  ChevronForwardOutline as ChevronRightIcon,
+  Folder as FolderIcon
 } from '@vicons/ionicons5'
 import { ArrowSortDownLines24Regular } from '@vicons/fluent'
 import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage } from 'naive-ui'
@@ -315,6 +324,10 @@ const nodeProps = ({ option }: { option: any }) => {
       currentViewMode.value = 'folders'
       tree.currentNode = option
       onTreeNodeClick(option.fullPath as string)
+    },
+    onContextmenu(e: MouseEvent) {
+      e.preventDefault()
+      handleFolderContextMenu(e, option)
     }
   }
 }
@@ -364,9 +377,10 @@ const getFavorites = async () => {
 const loadTags = async () => {
   try {
     tags.value = await window.tag.getTags()
-    // 默认全选
-    selectedTagIds.value = tags.value.map((tag) => tag.id)
-    allTagsSelected.value = true
+
+    // 默认全选所有标签
+    selectedTagIds.value = [] ///tags.value.map((tag) => tag.id)
+    allTagsSelected.value = false
   } catch (error: any) {
     console.error('加载标签失败:', error)
     message.error('加载标签失败')
@@ -374,7 +388,7 @@ const loadTags = async () => {
 }
 
 // 处理标签选择
-const handleTagCheck = (tagId: number, checked: boolean) => {
+const handleTagCheck = async (tagId: number, checked: boolean) => {
   if (checked) {
     if (!selectedTagIds.value.includes(tagId)) {
       selectedTagIds.value.push(tagId)
@@ -390,7 +404,7 @@ const handleTagCheck = (tagId: number, checked: boolean) => {
   allTagsSelected.value = selectedTagIds.value.length === tags.value.length
 
   // 应用标签筛选
-  debounceQuery()
+  await applyTagFilter()
 }
 
 // 全选/反选标签
@@ -420,24 +434,60 @@ const applyTagFilter = async () => {
       return
     }
 
-    // 根据选中的标签筛选收藏
-    const filteredFavorites = []
-    for (const favorite of grid.value) {
-      // 获取收藏的标签
-      const favoriteTags = await window.favorite.getFavoriteTags(favorite.id as number)
-      const favoriteTagIds = favoriteTags.map((tag) => tag.id)
+    // 获取所有选中的标签信息
+    debugger
+    const selectedTagsInfo = await window.tag.getTagsByIds(selectedTagIds.value.join(','))
 
-      // 检查是否包含所有选中的标签
-      const hasAllSelectedTags = selectedTagIds.value.every((tagId) =>
-        favoriteTagIds.includes(tagId)
-      )
+    // 分离文件夹标签和普通标签
+    const folderTags = selectedTagsInfo.filter((tag) => tag.type === 'folder')
+    const normalTags = selectedTagsInfo.filter((tag) => tag.type === 'normal')
 
-      if (hasAllSelectedTags) {
-        filteredFavorites.push(favorite)
+    let allItems: any[] = []
+
+    // 处理文件夹标签：获取每个文件夹标签下的所有作品
+    for (const folderTag of folderTags) {
+      if (folderTag.folderPath) {
+        const folderItems = await window.media.getFolderListBasic(folderTag.folderPath)
+        loadDetailsProgressively(folderItems)
+        allItems = allItems.concat(folderItems)
       }
     }
 
-    grid.filterRows = filteredFavorites
+    // 处理普通标签：获取收藏列表并筛选
+    if (normalTags.length > 0) {
+      const favorites = await window.favorite.getFavorites('id DESC', 'book')
+
+      for (const favorite of favorites) {
+        // 获取收藏的标签
+        const favoriteTags = await window.favorite.getFavoriteTags(favorite.id)
+        const favoriteTagIds = favoriteTags.map((tag) => tag.id)
+
+        // 检查是否包含所有选中的普通标签
+        const hasAllSelectedNormalTags = normalTags.every((tag) => favoriteTagIds.includes(tag.id))
+
+        if (hasAllSelectedNormalTags) {
+          // 添加收藏信息
+          const favInfo = await window.media.getFolderInfo(favorite.fullPath)
+          allItems.push({ ...favorite, ...favInfo, isBookmarked: true })
+        }
+      }
+    }
+
+    // 去重（基于fullPath）
+    const uniqueItems = allItems.filter(
+      (item, index, self) => index === self.findIndex((t) => t.fullPath === item.fullPath)
+    )
+
+    // 更新显示内容
+    grid.filterRows = grid.rows = uniqueItems
+
+    // 更新当前路径标识
+    dataCache.currentPath = '__tag_filtered__'
+    dataCache.isDataLoaded = true
+    dataCache.lastLoadTime = Date.now()
+
+    // 滚动到顶部
+    virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
     console.error('应用标签筛选失败:', error)
     message.error('应用标签筛选失败')
@@ -570,6 +620,47 @@ function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   e.preventDefault()
   if (props.buildContextMenu) {
     props.buildContextMenu(e, folder)
+  }
+}
+
+// 文件夹右键菜单
+async function handleFolderContextMenu(e: MouseEvent, folder: any) {
+  e.preventDefault()
+
+  try {
+    // 检查文件夹是否已被收藏为标签
+    const isFolderTagged = await window.tag.isFolderTagged(folder.fullPath)
+
+    ContextMenu.showContextMenu({
+      x: e.x,
+      y: e.y,
+      items: [
+        {
+          label: isFolderTagged ? '取消收藏为标签' : '收藏为标签',
+          onClick: async () => {
+            try {
+              if (isFolderTagged) {
+                // 取消收藏为标签
+                const tag = await window.tag.getTagByFolderPath(folder.fullPath)
+                if (tag && tag.id) {
+                  await window.tag.deleteTag(tag.id)
+                  message.success('已取消收藏为标签')
+                }
+              } else {
+                // 收藏为标签
+                const folderName = folder.name || folder.label || '未命名文件夹'
+                await window.tag.addFolderTag(folderName, folder.fullPath)
+                message.success('已收藏为标签')
+              }
+            } catch (error: any) {
+              message.error(`操作失败: ${error.message || error}`)
+            }
+          }
+        }
+      ]
+    })
+  } catch (error: any) {
+    message.error(`操作失败: ${error.message || error}`)
   }
 }
 
@@ -765,5 +856,44 @@ defineExpose({
   & > :not([hidden]) ~ :not([hidden]) {
     margin-top: 0.5rem;
   }
+}
+
+/* 文件夹标签样式 */
+.tag-section {
+  margin-bottom: 1rem;
+}
+
+.tag-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.folder-tag {
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #f3f4f6;
+    border-radius: 4px;
+  }
+}
+
+.folder-tag-content {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+.folder-icon {
+  margin-right: 0.5rem;
+  color: #3b82f6;
+}
+
+.folder-tag-label {
+  font-weight: 500;
 }
 </style>
