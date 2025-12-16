@@ -101,6 +101,7 @@ defineExpose({
 .site {
   padding: 10px;
   height: 100%;
+  width: 100%;
   webview {
     width: 100%;
     height: 100%;

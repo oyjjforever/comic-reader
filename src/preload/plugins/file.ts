@@ -16,6 +16,7 @@ function simpleSanitize(filename, replacement = '') {
   if (typeof filename !== 'string') return ''
   return filename
     .replace(/[#<>:"/\\|?*]/g, replacement) // 移除非法字符
+    .replace(/[\r\n\t\v\f\u0000-\u001F\u007F-\u009F]/g, replacement) // 移除换行符、制表符等控制字符
     .replace(/^[\s.]+|[\s.]+$/g, '') // 移除首尾空格和点
 }
 /**

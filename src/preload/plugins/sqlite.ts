@@ -72,7 +72,7 @@ const createTable = async () => {
 
     // 先删除旧的tags表
     // db?.exec(`DROP TABLE IF EXISTS tags`)
-    
+
     // 创建新的标签表
     db?.exec(`
         CREATE TABLE IF NOT EXISTS tags (
