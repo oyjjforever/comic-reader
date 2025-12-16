@@ -252,7 +252,6 @@ const loadTags = async () => {
     const res = await window.tag.getTags(undefined, props.namespace)
     tags.value = props.mode === 'manage' ? res : res.filter((_) => _.type !== 'folder')
   } catch (error) {
-    console.error('加载标签失败:', error)
     message.error('加载标签失败')
   }
 }
@@ -279,7 +278,6 @@ const loadFavoriteTags = async () => {
       }
     }
   } catch (error) {
-    console.error('加载收藏标签失败:', error)
     message.error('加载收藏标签失败')
   }
 }
@@ -313,7 +311,6 @@ const addNewTag = async () => {
     newTagName.value = ''
     message.success('标签添加成功')
   } catch (error) {
-    console.error('添加标签失败:', error)
     message.error(`添加标签失败: ${error}`)
   } finally {
     isLoading.value = false
@@ -322,6 +319,12 @@ const addNewTag = async () => {
 
 // 确认选择
 const confirmSelection = async () => {
+  // 检查是否已选择标签
+  if (selectedTagIds.value.length === 0) {
+    message.warning('请至少选择一个标签')
+    return
+  }
+
   try {
     if (favoriteId.value) {
       // 已收藏，更新标签
@@ -340,7 +343,6 @@ const confirmSelection = async () => {
     emit('confirm')
     closeModal()
   } catch (error) {
-    console.error('操作失败:', error)
     message.error(`操作失败: ${error}`)
   }
 }
@@ -377,7 +379,6 @@ const saveEdit = async () => {
     editingTagName.value = ''
     message.success('标签更新成功')
   } catch (error) {
-    console.error('更新标签失败:', error)
     message.error(`更新标签失败: ${error}`)
   }
 }
@@ -438,7 +439,6 @@ const deleteTag = async () => {
     tagToDelete.value = null
     message.success('标签删除成功')
   } catch (error) {
-    console.error('删除标签失败:', error)
     message.error(`删除标签失败: ${error}`)
   }
 }
@@ -496,7 +496,6 @@ const moveTagUp = async (tag: Tag) => {
 
     message.success('标签上移成功')
   } catch (error) {
-    console.error('标签上移失败:', error)
     message.error(`标签上移失败: ${error}`)
   }
 }
@@ -524,7 +523,6 @@ const moveTagDown = async (tag: Tag) => {
 
     message.success('标签下移成功')
   } catch (error) {
-    console.error('标签下移失败:', error)
     message.error(`标签下移失败: ${error}`)
   }
 }

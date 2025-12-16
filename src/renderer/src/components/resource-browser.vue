@@ -43,7 +43,13 @@
                   :type="currentViewMode === 'favorites' ? 'primary' : 'default'"
                   @click="switchToFavoritesView"
                 >
-                  我的收藏
+                  收藏
+                </n-button>
+                <n-button
+                  :type="currentViewMode === 'history' ? 'primary' : 'default'"
+                  @click="switchToHistoryView"
+                >
+                  浏览历史
                 </n-button>
               </n-button-group>
             </div>
@@ -226,7 +232,7 @@ const router = useRouter()
 // UI 状态
 const isDarkMode = ref(false)
 const isSidebarHidden = ref(false)
-const currentViewMode = ref<'folders' | 'favorites'>('favorites')
+const currentViewMode = ref<'folders' | 'favorites' | 'history'>('favorites')
 
 // 性能优化
 const isLoading = ref(false)
@@ -253,7 +259,7 @@ const search = reactive<{ keyword: string; sort: string }>({ keyword: '', sort: 
 const showTagFilter = ref(false)
 const tags = ref<any[]>([])
 const selectedTagIds = ref<number[]>([])
-const allTagsSelected = ref(true)
+const allTagsSelected = ref(false)
 const originalFavorites = ref<FolderInfo[]>([])
 const showTagDialog = ref(false)
 
@@ -282,6 +288,14 @@ const switchToFavoritesView = () => {
   grid.filterRows = grid.rows = []
   // 加载收藏夹数据
   getFavorites()
+}
+
+// 切换到浏览历史视图
+const switchToHistoryView = async () => {
+  currentViewMode.value = 'history'
+  grid.filterRows = grid.rows = []
+  // 加载浏览历史数据
+  await getBrowseHistory()
 }
 
 // 处理搜索输入
@@ -430,6 +444,67 @@ const getFavorites = async () => {
     isLoading.value = false
   }
 }
+
+// 获取浏览历史
+const getBrowseHistory = async () => {
+  const historyPath = '__history__'
+  if (dataCache.currentPath === historyPath && dataCache.isDataLoaded) {
+    return
+  }
+
+  try {
+    isLoading.value = true
+    dataCache.currentPath = historyPath
+    dataCache.isDataLoaded = true
+    dataCache.lastLoadTime = Date.now()
+    virtualGridRef.value?.scrollToTop()
+
+    // 获取浏览历史记录
+    const historyRecords = await window.browseHistory.getBrowseHistory(100, props.namespace)
+
+    // 转换为FolderInfo格式
+    const historyFolders: FolderInfo[] = []
+    for (const record of historyRecords) {
+      try {
+        let folderInfo
+        // TODO 不够优雅的区分方式，后续考虑改进
+        if (props.provideList) {
+          folderInfo = await window.media.getFileInfo(record.fullPath)
+          folderInfo.coverPath = folderInfo.fullPath
+        } else {
+          folderInfo = await window.media.getFolderInfo(record.fullPath)
+        }
+        if (folderInfo) {
+          historyFolders.push({
+            ...folderInfo,
+            fullPath: record.fullPath,
+            isBookmarked: false
+          })
+        }
+      } catch (error) {
+        console.warn(`Failed to load folder info for ${record.fullPath}:`, error)
+        // 即使获取详细信息失败，也添加基本信息
+        const pathParts = record.fullPath.split(/[/\\]/)
+        const name = pathParts[pathParts.length - 1] || record.fullPath
+        historyFolders.push({
+          name,
+          fullPath: record.fullPath,
+          fileCount: 0,
+          createdTime: new Date(record.created_at || Date.now()),
+          isBookmarked: false,
+          contentType: 'empty'
+        })
+      }
+    }
+
+    grid.filterRows = grid.rows = historyFolders
+  } catch (error: any) {
+    message.error(`获取浏览历史失败: ${error.message}`)
+    dataCache.isDataLoaded = false
+  } finally {
+    isLoading.value = false
+  }
+}
 const onTagsChange = async () => {
   if (currentViewMode.value === 'favorites') await loadTags()
 }
@@ -445,7 +520,6 @@ const loadTags = async () => {
     // selectedTagIds.value = []
     // allTagsSelected.value = false
   } catch (error: any) {
-    console.error('加载标签失败:', error)
     message.error('加载标签失败')
   }
 }
@@ -594,7 +668,6 @@ const applyTagFilter = debounce(async () => {
     // 滚动到顶部
     virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
-    console.error('应用标签筛选失败:', error)
     message.error('应用标签筛选失败')
   } finally {
     isTagFilterLoading.value = false

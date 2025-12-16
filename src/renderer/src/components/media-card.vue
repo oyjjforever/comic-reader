@@ -1,5 +1,11 @@
 <template>
-  <div class="media-card" ref="cardRef" @mouseenter="onMouseenter" @mouseleave="onMouseleave">
+  <div
+    class="media-card"
+    ref="cardRef"
+    @click="handleCardClick"
+    @mouseenter="onMouseenter"
+    @mouseleave="onMouseleave"
+  >
     <!-- 封面区域 -->
     <div class="cover-container">
       <!-- 封面图片 -->
@@ -84,6 +90,7 @@ interface Props {
 interface Emits {
   (e: 'toRead', folder: FolderInfoWithCover): void
   (e: 'bookmark', folder: FolderInfoWithCover, bookmarked: boolean): void
+  (e: 'click', folder: FolderInfoWithCover): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -108,6 +115,19 @@ const mediaType = computed(() => {
 })
 
 const emit = defineEmits<Emits>()
+
+// 处理卡片点击事件
+const handleCardClick = async () => {
+  // 记录浏览历史
+  try {
+    await window.browseHistory.addBrowseHistory(props.folder.fullPath, mediaType.value)
+  } catch (error) {
+    console.error('记录浏览历史失败:', error)
+  }
+
+  // 触发原有的点击事件
+  emit('click', props.folder)
+}
 
 const imageError = ref(false)
 const coverImageSrc = ref<string>('')

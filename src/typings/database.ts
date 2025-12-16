@@ -34,3 +34,10 @@ export type tags = {
     sort_order?: number, // 排序值
     created_at?: Date, // 创建时间
 }
+
+export type browseHistory = {
+    id?: number, // ID
+    fullPath: string, // 文件/文件夹完整路径
+    module: string, // 模块类型，例如'book'或'video'
+    created_at?: Date, // 创建时间
+}

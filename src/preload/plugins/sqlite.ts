@@ -99,6 +99,16 @@ const createTable = async () => {
             UNIQUE(video_path, time_point)
         )
     `)
+
+    // 创建浏览历史表
+    db?.exec(`
+        CREATE TABLE IF NOT EXISTS browse_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fullPath TEXT NOT NULL,
+            module TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    `)
 }
 
 export default {
