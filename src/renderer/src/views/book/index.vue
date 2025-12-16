@@ -105,6 +105,7 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   ContextMenu.showContextMenu({
     x: e.x,
     y: e.y,
+    theme: 'mac',
     items: [
       {
         label: isFavorited ? '修改标签' : '添加到收藏',

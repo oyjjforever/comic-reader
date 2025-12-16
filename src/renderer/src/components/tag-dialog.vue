@@ -5,13 +5,13 @@
       @update:show="(value) => (showModal = value)"
       :mask-closable="false"
       preset="dialog"
-      title="管理收藏标签"
+      :title="dialogTitle"
       style="width: 500px; max-width: 90vw"
     >
       <template #header>
         <div class="dialog-header">
-          <span>管理收藏标签</span>
-          <span class="media-name">{{ mediaName }}</span>
+          <span>{{ dialogTitle }}</span>
+          <span v-if="mode === 'assign'" class="media-name">{{ mediaName }}</span>
         </div>
       </template>
 
@@ -21,11 +21,11 @@
           <div v-else class="tag-items">
             <div v-for="tag in tags" :key="tag.id" class="tag-item">
               <div class="tag-content">
-                <n-checkbox
-                  :checked="selectedTagIds.includes(tag.id)"
-                  @update:checked="(checked) => handleTagCheck(tag.id, checked)"
-                >
-                  <span v-if="!editingTagId || editingTagId !== tag.id">{{ tag.label }}</span>
+                <!-- 标签维护模式：只显示标签名称和操作按钮 -->
+                <template v-if="mode === 'manage'">
+                  <span v-if="!editingTagId || editingTagId !== tag.id" class="tag-label">{{
+                    tag.label
+                  }}</span>
                   <n-tooltip v-else trigger="hover">
                     回车保存
                     <template #trigger>
@@ -40,43 +40,103 @@
                       />
                     </template>
                   </n-tooltip>
-                </n-checkbox>
-                <div class="tag-actions">
-                  <n-button
-                    v-if="!editingTagId || editingTagId !== tag.id"
-                    size="small"
-                    quaternary
-                    circle
-                    @click="startEdit(tag)"
+                  <div class="tag-actions">
+                    <n-button
+                      v-if="!editingTagId || editingTagId !== tag.id"
+                      size="small"
+                      quaternary
+                      circle
+                      @click="startEdit(tag)"
+                    >
+                      <template #icon>
+                        <n-icon><edit-icon /></n-icon>
+                      </template>
+                    </n-button>
+                    <n-button
+                      v-if="editingTagId === tag.id"
+                      size="small"
+                      quaternary
+                      circle
+                      @click="cancelEdit"
+                    >
+                      <template #icon>
+                        <n-icon><close-icon /></n-icon>
+                      </template>
+                    </n-button>
+                    <n-button
+                      v-if="!editingTagId || editingTagId !== tag.id"
+                      size="small"
+                      quaternary
+                      circle
+                      type="error"
+                      @click="confirmDeleteTag(tag)"
+                    >
+                      <template #icon>
+                        <n-icon><delete-icon /></n-icon>
+                      </template>
+                    </n-button>
+                  </div>
+                </template>
+
+                <!-- 给作品添加标签模式：显示复选框和操作按钮 -->
+                <template v-else>
+                  <n-checkbox
+                    :checked="selectedTagIds.includes(tag.id)"
+                    @update:checked="(checked) => handleTagCheck(tag.id, checked)"
                   >
-                    <template #icon>
-                      <n-icon><edit-icon /></n-icon>
-                    </template>
-                  </n-button>
-                  <n-button
-                    v-if="editingTagId === tag.id"
-                    size="small"
-                    quaternary
-                    circle
-                    @click="cancelEdit"
-                  >
-                    <template #icon>
-                      <n-icon><close-icon /></n-icon>
-                    </template>
-                  </n-button>
-                  <n-button
-                    v-if="!editingTagId || editingTagId !== tag.id"
-                    size="small"
-                    quaternary
-                    circle
-                    type="error"
-                    @click="confirmDeleteTag(tag)"
-                  >
-                    <template #icon>
-                      <n-icon><delete-icon /></n-icon>
-                    </template>
-                  </n-button>
-                </div>
+                    <span v-if="!editingTagId || editingTagId !== tag.id">{{ tag.label }}</span>
+                    <n-tooltip v-else trigger="hover">
+                      回车保存
+                      <template #trigger>
+                        <n-input
+                          :value="editingTagName"
+                          @input="(value) => (editingTagName = value)"
+                          size="small"
+                          style="width: 120px"
+                          @blur="cancelEdit"
+                          @keyup.enter="saveEdit"
+                          @keyup.esc="cancelEdit"
+                        />
+                      </template>
+                    </n-tooltip>
+                  </n-checkbox>
+                  <div class="tag-actions">
+                    <n-button
+                      v-if="!editingTagId || editingTagId !== tag.id"
+                      size="small"
+                      quaternary
+                      circle
+                      @click="startEdit(tag)"
+                    >
+                      <template #icon>
+                        <n-icon><edit-icon /></n-icon>
+                      </template>
+                    </n-button>
+                    <n-button
+                      v-if="editingTagId === tag.id"
+                      size="small"
+                      quaternary
+                      circle
+                      @click="cancelEdit"
+                    >
+                      <template #icon>
+                        <n-icon><close-icon /></n-icon>
+                      </template>
+                    </n-button>
+                    <n-button
+                      v-if="!editingTagId || editingTagId !== tag.id"
+                      size="small"
+                      quaternary
+                      circle
+                      type="error"
+                      @click="confirmDeleteTag(tag)"
+                    >
+                      <template #icon>
+                        <n-icon><delete-icon /></n-icon>
+                      </template>
+                    </n-button>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -100,7 +160,8 @@
         </div>
       </div>
 
-      <template #action>
+      <!-- 只在给作品添加标签模式显示底部按钮 -->
+      <template v-if="mode === 'assign'" #action>
         <n-button @click="closeModal">取消</n-button>
         <n-button type="primary" @click="confirmSelection">确定</n-button>
       </template>
@@ -145,6 +206,7 @@ interface Props {
   mediaPath: string
   mediaName: string
   mediaType: 'book' | 'video'
+  mode?: 'manage' | 'assign' // manage: 标签维护模式, assign: 给作品添加标签模式
 }
 
 interface Emits {
@@ -152,7 +214,9 @@ interface Emits {
   (e: 'confirm'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  mode: 'assign' // 默认为给作品添加标签模式
+})
 const emit = defineEmits<Emits>()
 const message = useMessage()
 const dialog = useDialog()
@@ -160,6 +224,11 @@ const dialog = useDialog()
 const showModal = computed({
   get: () => props.show,
   set: (value) => emit('update:show', value)
+})
+
+// 根据模式确定对话框标题
+const dialogTitle = computed(() => {
+  return props.mode === 'manage' ? '标签管理' : '修改作品标签'
 })
 
 const tags = ref<Tag[]>([])
@@ -182,8 +251,11 @@ const loadTags = async () => {
   }
 }
 
-// 加载当前媒体文件的收藏信息和标签
+// 加载当前媒体文件的收藏信息和标签（仅在给作品添加标签模式）
 const loadFavoriteTags = async () => {
+  // 如果是标签维护模式，不需要加载收藏标签
+  if (props.mode === 'manage') return
+
   try {
     // 检查是否已收藏
     const isFavorited = await window.favorite.isFavorited(props.mediaPath, props.mediaType)
@@ -464,5 +536,11 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.tag-label {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.5;
 }
 </style>

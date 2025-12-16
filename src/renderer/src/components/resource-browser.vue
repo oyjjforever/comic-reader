@@ -66,13 +66,24 @@
             block-line
             class="folder-tree"
             :default-expanded-keys="[props.resourcePath]"
+            :render-label="renderTreeNode"
           />
 
           <!-- 标签树视图 -->
           <div v-else-if="currentViewMode === 'favorites'" class="tag-tree-view">
             <div class="tag-filter-header">
-              <h4 class="tag-filter-title">标签筛选</h4>
+              <h4 class="tag-filter-title">
+                标签筛选
+                <n-tooltip trigger="hover">
+                  左键单选，右键多选
+                  <template #trigger>
+                    <n-icon :component="QuestionCircle24Regular" size="12" />
+                  </template>
+                </n-tooltip>
+              </h4>
+
               <div class="tag-filter-controls">
+                <n-button size="tiny" @click="openTagManager"> 管理 </n-button>
                 <n-button size="tiny" @click="toggleAllTags">
                   {{ allTagsSelected ? '取消' : '全选' }}
                 </n-button>
@@ -83,18 +94,23 @@
               <div v-else>
                 <!-- 统一标签列表 -->
                 <div class="tag-items">
-                  <div v-for="tag in tags" :key="tag.id" class="tag-item">
-                    <n-checkbox
-                      :checked="selectedTagIds.includes(tag.id)"
-                      @update:checked="(checked) => handleTagCheck(tag.id, checked)"
-                    >
-                      <template #icon v-if="tag.type === 'folder'">
-                        <n-icon class="folder-icon">
-                          <folder-icon />
-                        </n-icon>
-                      </template>
-                      {{ tag.label }}
-                    </n-checkbox>
+                  <div
+                    v-for="tag in tags"
+                    :key="tag.id"
+                    class="tag-item"
+                    :class="{ 'tag-selected': selectedTagIds.includes(tag.id) }"
+                    @click="handleTagLeftClick(tag)"
+                    @contextmenu.prevent="handleTagRightClick(tag, $event)"
+                  >
+                    <div class="tag-item-content">
+                      <n-icon
+                        :component="tag.type === 'folder' ? Folder24Regular : Tag20Regular"
+                        class="folder-icon"
+                        :size="16"
+                      />
+
+                      <span class="tag-label">{{ tag.label }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -131,21 +147,39 @@
         </template>
       </n-empty>
     </div>
+
+    <!-- 标签管理对话框 -->
+    <tag-dialog
+      :show="showTagDialog"
+      media-path=""
+      media-name="标签管理"
+      media-type="book"
+      mode="manage"
+      @update:show="showTagDialog = $event"
+      @confirm="handleTagDialogConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { FolderInfo } from '@/typings/file'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
+import TagDialog from '@renderer/components/tag-dialog.vue'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
   ChevronBackOutline as ChevronLeftIcon,
   ChevronForwardOutline as ChevronRightIcon,
-  Folder as FolderIcon
+  Folder as FolderIcon,
+  Settings as SettingsIcon
 } from '@vicons/ionicons5'
-import { ArrowSortDownLines24Regular } from '@vicons/fluent'
+import {
+  ArrowSortDownLines24Regular,
+  QuestionCircle24Regular,
+  Folder24Regular,
+  Tag20Regular
+} from '@vicons/fluent'
 import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage } from 'naive-ui'
 import { debounce } from 'lodash'
 import { ref, reactive, onMounted, onActivated, onDeactivated, h } from 'vue'
@@ -195,6 +229,9 @@ const loadingMore = ref(false)
 const hasMore = ref(true)
 const virtualGridRef = ref()
 
+// 标签筛选加载状态
+const isTagFilterLoading = ref(false)
+
 // 数据状态
 const tree = reactive<{ data: any[]; currentNode: any; currentKey: string }>({
   data: [],
@@ -213,6 +250,7 @@ const tags = ref<any[]>([])
 const selectedTagIds = ref<number[]>([])
 const allTagsSelected = ref(true)
 const originalFavorites = ref<FolderInfo[]>([])
+const showTagDialog = ref(false)
 
 // 侧边栏折叠
 const toggleSidebar = () => {
@@ -222,7 +260,7 @@ const toggleSidebar = () => {
 // 切换到文件夹视图
 const switchToFolderView = () => {
   currentViewMode.value = 'folders'
-  grid.filterRows = []
+  grid.filterRows = grid.rows = []
   // 选中资源目录节点
   if (props.resourcePath) {
     if (!tree.data?.length) {
@@ -236,7 +274,7 @@ const switchToFolderView = () => {
 // 切换到收藏夹视图
 const switchToFavoritesView = () => {
   currentViewMode.value = 'favorites'
-  grid.filterRows = []
+  grid.filterRows = grid.rows = []
   // 加载收藏夹数据
   getFavorites()
 }
@@ -271,13 +309,6 @@ const query = async (keyword?: string) => {
     if (kw) {
       const _kw = kw.toLowerCase()
       list = list.filter((folder) => folder.name?.toLowerCase().includes(_kw))
-    }
-    if (dataCache.currentPath === '__favorites__') {
-      list = list.filter((folder) => {
-        return (
-          !folder.tags?.length || folder.tags?.some((tagId) => selectedTagIds.value.includes(tagId))
-        )
-      })
     }
 
     const sortFunctions: Record<string, (a: FolderInfo, b: FolderInfo) => number> = {
@@ -331,11 +362,32 @@ const nodeProps = ({ option }: { option: any }) => {
     }
   }
 }
+
+// 渲染树节点
+const renderTreeNode = ({ option }: { option: any }) => {
+  return h('div', { class: 'tree-node-content' }, [
+    option.isBookmarked
+      ? h(NIcon, { component: BookmarkIcon, class: 'bookmark-icon', size: 16 })
+      : null,
+    h('span', { class: 'tree-node-label' }, option.name)
+  ])
+}
 // 懒加载处理
 const handleTreeLoad = (node: any) => {
   return new Promise(async (resolve, reject) => {
     try {
       const res = await props.provideTree(node.fullPath)
+
+      // 检查每个子节点是否已被收藏
+      for (const childNode of res) {
+        try {
+          childNode.isBookmarked = await window.tag.isFolderTagged(childNode.fullPath)
+        } catch (error) {
+          console.warn(`Failed to check bookmark status for ${childNode.fullPath}:`, error)
+          childNode.isBookmarked = false
+        }
+      }
+
       node.children = res
       resolve()
     } catch (error: any) {
@@ -354,8 +406,6 @@ const getFavorites = async () => {
   }
   try {
     isLoading.value = true
-    const favorites = await props.provideFavorites()
-    grid.filterRows = grid.rows = favorites
     dataCache.currentPath = favoritesPath
     dataCache.isDataLoaded = true
     dataCache.lastLoadTime = Date.now()
@@ -377,9 +427,7 @@ const getFavorites = async () => {
 const loadTags = async () => {
   try {
     tags.value = await window.tag.getTags()
-
-    // 默认全选所有标签
-    selectedTagIds.value = [] ///tags.value.map((tag) => tag.id)
+    selectedTagIds.value = []
     allTagsSelected.value = false
   } catch (error: any) {
     console.error('加载标签失败:', error)
@@ -387,17 +435,50 @@ const loadTags = async () => {
   }
 }
 
-// 处理标签选择
-const handleTagCheck = async (tagId: number, checked: boolean) => {
-  if (checked) {
-    if (!selectedTagIds.value.includes(tagId)) {
-      selectedTagIds.value.push(tagId)
-    }
+// 检查标签筛选加载状态并提示用户
+const checkTagFilterLoading = () => {
+  if (isTagFilterLoading.value) {
+    message.warning('标签筛选正在进行中，请稍候...')
+    return true
+  }
+  return false
+}
+
+// 处理标签左键点击（单选）
+const handleTagLeftClick = async (tag: any) => {
+  // 如果正在加载中，提示用户并忽略操作
+  if (checkTagFilterLoading()) return
+
+  // 如果当前已选中该标签，则取消选中
+  if (selectedTagIds.value.includes(tag.id)) {
+    selectedTagIds.value = []
   } else {
-    const index = selectedTagIds.value.indexOf(tagId)
+    // 否则只选中当前点击的标签
+    selectedTagIds.value = [tag.id]
+  }
+
+  // 更新全选状态
+  allTagsSelected.value = selectedTagIds.value.length === tags.value.length
+
+  // 应用标签筛选
+  await applyTagFilter()
+}
+
+// 处理标签右键点击（多选）
+const handleTagRightClick = async (tag: any, event: MouseEvent) => {
+  event.preventDefault()
+
+  // 如果正在加载中，提示用户并忽略操作
+  if (checkTagFilterLoading()) return
+
+  // 切换当前标签的选中状态
+  if (selectedTagIds.value.includes(tag.id)) {
+    const index = selectedTagIds.value.indexOf(tag.id)
     if (index > -1) {
       selectedTagIds.value.splice(index, 1)
     }
+  } else {
+    selectedTagIds.value.push(tag.id)
   }
 
   // 更新全选状态
@@ -408,7 +489,10 @@ const handleTagCheck = async (tagId: number, checked: boolean) => {
 }
 
 // 全选/反选标签
-const toggleAllTags = () => {
+const toggleAllTags = async () => {
+  // 如果正在加载中，提示用户并忽略操作
+  if (checkTagFilterLoading()) return
+
   if (allTagsSelected.value) {
     // 反选
     selectedTagIds.value = []
@@ -420,14 +504,17 @@ const toggleAllTags = () => {
   }
 
   // 应用标签筛选
-  debounceQuery()
+  await applyTagFilter()
 }
 
 // 应用标签筛选
 const applyTagFilter = async () => {
-  if (dataCache.currentPath !== '__favorites__') return
+  // 如果正在加载中，忽略操作
+  if (isTagFilterLoading.value) return
 
   try {
+    isTagFilterLoading.value = true
+
     if (selectedTagIds.value.length === 0) {
       // 没有选择任何标签，显示空列表
       grid.filterRows = []
@@ -435,7 +522,6 @@ const applyTagFilter = async () => {
     }
 
     // 获取所有选中的标签信息
-    debugger
     const selectedTagsInfo = await window.tag.getTagsByIds(selectedTagIds.value.join(','))
 
     // 分离文件夹标签和普通标签
@@ -448,8 +534,8 @@ const applyTagFilter = async () => {
     for (const folderTag of folderTags) {
       if (folderTag.folderPath) {
         const folderItems = await window.media.getFolderListBasic(folderTag.folderPath)
-        loadDetailsProgressively(folderItems)
         allItems = allItems.concat(folderItems)
+        await loadDetailsProgressively(allItems, folderItems)
       }
     }
 
@@ -481,16 +567,35 @@ const applyTagFilter = async () => {
     // 更新显示内容
     grid.filterRows = grid.rows = uniqueItems
 
-    // 更新当前路径标识
-    dataCache.currentPath = '__tag_filtered__'
-    dataCache.isDataLoaded = true
-    dataCache.lastLoadTime = Date.now()
+    // // 更新当前路径标识
+    // dataCache.currentPath = '__tag_filtered__'
+    // dataCache.isDataLoaded = true
+    // dataCache.lastLoadTime = Date.now()
 
     // 滚动到顶部
     virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
     console.error('应用标签筛选失败:', error)
     message.error('应用标签筛选失败')
+  } finally {
+    isTagFilterLoading.value = false
+  }
+}
+
+// 打开标签管理对话框
+const openTagManager = () => {
+  showTagDialog.value = true
+}
+
+// 处理标签管理对话框确认
+const handleTagDialogConfirm = async () => {
+  try {
+    // 重新加载标签列表
+    await loadTags()
+    message.success('标签管理操作完成')
+  } catch (error: any) {
+    console.error('刷新标签列表失败:', error)
+    message.error('刷新标签列表失败')
   }
 }
 
@@ -520,9 +625,8 @@ const onTreeNodeClick = async (folderPath: string) => {
       // 第一阶段：快速加载基本信息
       const basicFolders = await window.media.getFolderListBasic(folderPath)
       grid.filterRows = grid.rows = basicFolders
-      query()
       // 第二阶段：渐进式加载详细信息
-      loadDetailsProgressively(basicFolders)
+      loadDetailsProgressively(grid.rows, basicFolders)
     }
     dataCache.currentPath = folderPath
     dataCache.isDataLoaded = true
@@ -537,8 +641,8 @@ const onTreeNodeClick = async (folderPath: string) => {
 }
 
 // 渐进式加载详细信息
-const loadDetailsProgressively = async (folders: any[]) => {
-  const batchSize = 10 // 每批处理10个文件夹
+const loadDetailsProgressively = async (rows: any[], folders: any[]) => {
+  const batchSize = Math.min(10, folders.length) // 每批处理10个文件夹
   for (let i = 0; i < folders.length; i += batchSize) {
     const batch = folders.slice(i, i + batchSize)
     await Promise.all(
@@ -546,27 +650,18 @@ const loadDetailsProgressively = async (folders: any[]) => {
         try {
           const details = await window.media.loadFolderDetails(folder.fullPath)
           // 更新对应的文件夹信息
-          const index = grid.rows.findIndex((f) => f.fullPath === folder.fullPath)
+          const index = rows.findIndex((f) => f.fullPath === folder.fullPath)
           if (index !== -1) {
-            grid.rows[index] = { ...grid.rows[index], ...details }
-            // 同时更新 filterRows 中的对应项
-            const filterIndex = grid.filterRows.findIndex((f) => f.fullPath === folder.fullPath)
-            if (filterIndex !== -1) {
-              grid.filterRows[filterIndex] = { ...grid.filterRows[filterIndex], ...details }
-            }
+            rows[index] = { ...rows[index], ...details }
           }
         } catch (error) {
           console.warn(`Failed to load details for ${folder.fullPath}:`, error)
         }
       })
     )
-
     // 每批处理后短暂暂停，避免阻塞UI
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-
-  // 重新应用搜索和排序
-  query()
 }
 
 // 预加载下一页数据
@@ -591,6 +686,7 @@ const preloadNextPage = async () => {
 
 // 滚动事件处理
 const handleScroll = (event: Event) => {
+  if (currentViewMode === 'favorites') return
   const target = event.target as HTMLElement
   const { scrollTop, scrollHeight, clientHeight } = target
 
@@ -606,6 +702,17 @@ const fetchTreeData = async () => {
   isLoading.value = true
   try {
     const treeData = await props.provideTree(props.resourcePath)
+
+    // 检查每个顶层节点是否已被收藏
+    for (const node of treeData) {
+      try {
+        node.isBookmarked = await window.tag.isFolderTagged(node.fullPath)
+      } catch (error) {
+        console.warn(`Failed to check bookmark status for ${node.fullPath}:`, error)
+        node.isBookmarked = false
+      }
+    }
+
     tree.data = [{ name: '资源目录', fullPath: props.resourcePath, children: treeData }]
     onTreeNodeClick(props.resourcePath as string)
   } catch (error: any) {
@@ -634,9 +741,10 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
     ContextMenu.showContextMenu({
       x: e.x,
       y: e.y,
+      theme: 'mac',
       items: [
         {
-          label: isFolderTagged ? '取消收藏为标签' : '收藏为标签',
+          label: isFolderTagged ? '取消收藏' : '添加到收藏',
           onClick: async () => {
             try {
               if (isFolderTagged) {
@@ -645,12 +753,16 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
                 if (tag && tag.id) {
                   await window.tag.deleteTag(tag.id)
                   message.success('已取消收藏为标签')
+                  // 更新节点状态
+                  updateNodeBookmarkStatus(folder.fullPath, false)
                 }
               } else {
                 // 收藏为标签
                 const folderName = folder.name || folder.label || '未命名文件夹'
                 await window.tag.addFolderTag(folderName, folder.fullPath)
                 message.success('已收藏为标签')
+                // 更新节点状态
+                updateNodeBookmarkStatus(folder.fullPath, true)
               }
             } catch (error: any) {
               message.error(`操作失败: ${error.message || error}`)
@@ -662,6 +774,26 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
   } catch (error: any) {
     message.error(`操作失败: ${error.message || error}`)
   }
+}
+
+// 更新节点收藏状态
+const updateNodeBookmarkStatus = (folderPath: string, isBookmarked: boolean) => {
+  // 递归查找并更新树中匹配的节点
+  const updateNodeInTree = (nodes: any[]) => {
+    for (const node of nodes) {
+      if (node.fullPath === folderPath) {
+        node.isBookmarked = isBookmarked
+        return true // 找到并更新了节点
+      }
+      if (node.children && updateNodeInTree(node.children)) {
+        return true // 在子节点中找到并更新了
+      }
+    }
+    return false // 未找到匹配的节点
+  }
+
+  // 更新树数据
+  updateNodeInTree(tree.data)
 }
 
 // 事件与生命周期
@@ -681,7 +813,7 @@ defineExpose({
 })
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
 /* 复用原页面的样式类名以避免大面积改动 */
 .home-container {
   height: 100%;
@@ -838,6 +970,11 @@ defineExpose({
 .tag-filter-controls {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.hint-text {
+  white-space: nowrap;
 }
 
 .tag-filter-list {
@@ -889,11 +1026,60 @@ defineExpose({
 }
 
 .folder-icon {
-  margin-right: 0.5rem;
-  color: #3b82f6;
+  // margin-right: 2px;
+  color: #aaa;
 }
 
 .folder-tag-label {
   font-weight: 500;
+}
+
+/* 树节点图标样式 */
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bookmark-icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.tree-node-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 标签项样式 */
+.tag-item {
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  user-select: none;
+
+  &:hover {
+    background-color: #f3f4f6;
+  }
+
+  &.tag-selected {
+    background-color: #04f70416;
+    border-left: 3px solid #18a058;
+  }
+}
+
+.tag-item-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.tag-label {
+  flex: 1;
+  margin-left: 0.5rem;
 }
 </style>
