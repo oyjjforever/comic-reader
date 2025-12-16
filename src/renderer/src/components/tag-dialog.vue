@@ -207,15 +207,18 @@ interface Props {
   mediaName: string
   mediaType: 'book' | 'video'
   mode?: 'manage' | 'assign' // manage: 标签维护模式, assign: 给作品添加标签模式
+  namespace?: string // 命名空间，用于区分不同模块的标签集合
 }
 
 interface Emits {
   (e: 'update:show', value: boolean): void
   (e: 'confirm'): void
+  (e: 'change', tags: Tag[]): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  mode: 'assign' // 默认为给作品添加标签模式
+  mode: 'assign', // 默认为给作品添加标签模式
+  namespace: 'default' // 默认命名空间
 })
 const emit = defineEmits<Emits>()
 const message = useMessage()
@@ -244,7 +247,8 @@ const tagToDelete = ref<Tag | null>(null)
 // 加载所有标签
 const loadTags = async () => {
   try {
-    tags.value = await window.tag.getTags()
+    const res = await window.tag.getTags(undefined, props.namespace)
+    tags.value = res.filter(_=>_.type !== 'folder')
   } catch (error) {
     console.error('加载标签失败:', error)
     message.error('加载标签失败')
@@ -299,7 +303,7 @@ const addNewTag = async () => {
 
   try {
     isLoading.value = true
-    const newTagId = await window.tag.addTag(tagName)
+    const newTagId = await window.tag.addTag(tagName, props.namespace)
     // 重新加载标签列表
     await loadTags()
     // 自动选中新添加的标签
@@ -394,7 +398,7 @@ const deleteTag = async () => {
 
   try {
     // 检查标签是否被收藏使用
-    const favorites = await window.favorite.getFavorites()
+    const favorites = await window.favorite.getFavorites('id DESC', props.namespace)
     const favoritesUsingTag = favorites.filter((fav) => {
       if (!fav.tags) return false
       const tagIds = fav.tags
@@ -470,6 +474,15 @@ watch(
       await loadFavoriteTags()
     }
   }
+)
+
+// 监听 tags 变化并抛出 change 事件
+watch(
+  () => tags.value,
+  (newTags) => {
+    emit('change', newTags)
+  },
+  { deep: true }
 )
 </script>
 

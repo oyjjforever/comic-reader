@@ -70,28 +70,21 @@ const createTable = async () => {
         `)
     }
 
-    // 创建标签表
+    // 先删除旧的tags表
+    // db?.exec(`DROP TABLE IF EXISTS tags`)
+    
+    // 创建新的标签表
     db?.exec(`
         CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            label TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
             type TEXT NOT NULL DEFAULT 'normal',
             folderPath TEXT,
-            created_at TEXT NOT NULL
+            namespace TEXT NOT NULL DEFAULT 'default',
+            created_at TEXT NOT NULL,
+            UNIQUE(label, namespace)
         )
     `)
-
-    // 检查并添加新字段（兼容旧版本）
-    if (!await hasCol('tags', 'type')) {
-        db?.exec(`
-            ALTER TABLE tags ADD COLUMN type TEXT NOT NULL DEFAULT 'normal'
-        `)
-    }
-    if (!await hasCol('tags', 'folderPath')) {
-        db?.exec(`
-            ALTER TABLE tags ADD COLUMN folderPath TEXT
-        `)
-    }
 
     // 创建视频时间点收藏表
     db?.exec(`

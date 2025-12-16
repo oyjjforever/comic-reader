@@ -155,8 +155,9 @@
       media-name="标签管理"
       media-type="book"
       mode="manage"
+      :namespace="namespace"
       @update:show="showTagDialog = $event"
-      @confirm="handleTagDialogConfirm"
+      @change="loadTags"
     />
   </div>
 </template>
@@ -200,6 +201,8 @@ interface ResourceBrowserProps {
   maxItemWidth?: number
   aspectRatio?: number
   gridGap?: number
+  // 命名空间，用于区分不同模块的标签集合
+  namespace?: string
 }
 
 const props = withDefaults(defineProps<ResourceBrowserProps>(), {
@@ -212,7 +215,8 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
   minItemWidth: 160,
   maxItemWidth: 250,
   aspectRatio: 0.75,
-  gridGap: 1
+  gridGap: 1,
+  namespace: 'default'
 })
 
 const message = useMessage()
@@ -381,7 +385,10 @@ const handleTreeLoad = (node: any) => {
       // 检查每个子节点是否已被收藏
       for (const childNode of res) {
         try {
-          childNode.isBookmarked = await window.tag.isFolderTagged(childNode.fullPath)
+          childNode.isBookmarked = await window.tag.isFolderTagged(
+            childNode.fullPath,
+            props.namespace
+          )
         } catch (error) {
           console.warn(`Failed to check bookmark status for ${childNode.fullPath}:`, error)
           childNode.isBookmarked = false
@@ -426,7 +433,7 @@ const getFavorites = async () => {
 // 加载所有标签
 const loadTags = async () => {
   try {
-    tags.value = await window.tag.getTags()
+    tags.value = await window.tag.getTags(undefined, props.namespace)
     selectedTagIds.value = []
     allTagsSelected.value = false
   } catch (error: any) {
@@ -450,18 +457,18 @@ const handleTagLeftClick = async (tag: any) => {
   if (checkTagFilterLoading()) return
 
   // 如果当前已选中该标签，则取消选中
-  if (selectedTagIds.value.includes(tag.id)) {
-    selectedTagIds.value = []
-  } else {
-    // 否则只选中当前点击的标签
-    selectedTagIds.value = [tag.id]
-  }
+  // if (selectedTagIds.value.includes(tag.id)) {
+  //   selectedTagIds.value = []
+  // } else {
+  // 否则只选中当前点击的标签
+  selectedTagIds.value = [tag.id]
+  // }
 
   // 更新全选状态
   allTagsSelected.value = selectedTagIds.value.length === tags.value.length
 
   // 应用标签筛选
-  await applyTagFilter()
+  applyTagFilter()
 }
 
 // 处理标签右键点击（多选）
@@ -485,7 +492,7 @@ const handleTagRightClick = async (tag: any, event: MouseEvent) => {
   allTagsSelected.value = selectedTagIds.value.length === tags.value.length
 
   // 应用标签筛选
-  await applyTagFilter()
+  applyTagFilter()
 }
 
 // 全选/反选标签
@@ -504,11 +511,11 @@ const toggleAllTags = async () => {
   }
 
   // 应用标签筛选
-  await applyTagFilter()
+  applyTagFilter()
 }
 
 // 应用标签筛选
-const applyTagFilter = async () => {
+const applyTagFilter = debounce(async () => {
   // 如果正在加载中，忽略操作
   if (isTagFilterLoading.value) return
 
@@ -522,7 +529,10 @@ const applyTagFilter = async () => {
     }
 
     // 获取所有选中的标签信息
-    const selectedTagsInfo = await window.tag.getTagsByIds(selectedTagIds.value.join(','))
+    const selectedTagsInfo = await window.tag.getTagsByIds(
+      selectedTagIds.value.join(','),
+      props.namespace
+    )
 
     // 分离文件夹标签和普通标签
     const folderTags = selectedTagsInfo.filter((tag) => tag.type === 'folder')
@@ -541,7 +551,8 @@ const applyTagFilter = async () => {
 
     // 处理普通标签：获取收藏列表并筛选
     if (normalTags.length > 0) {
-      const favorites = await window.favorite.getFavorites('id DESC', 'book')
+      // 使用props.namespace作为module参数
+      const favorites = await window.favorite.getFavorites('id DESC', props.namespace || 'default')
 
       for (const favorite of favorites) {
         // 获取收藏的标签
@@ -580,23 +591,11 @@ const applyTagFilter = async () => {
   } finally {
     isTagFilterLoading.value = false
   }
-}
+}, 500)
 
 // 打开标签管理对话框
 const openTagManager = () => {
   showTagDialog.value = true
-}
-
-// 处理标签管理对话框确认
-const handleTagDialogConfirm = async () => {
-  try {
-    // 重新加载标签列表
-    await loadTags()
-    message.success('标签管理操作完成')
-  } catch (error: any) {
-    console.error('刷新标签列表失败:', error)
-    message.error('刷新标签列表失败')
-  }
 }
 
 // 缓存（keep-alive）
@@ -706,7 +705,7 @@ const fetchTreeData = async () => {
     // 检查每个顶层节点是否已被收藏
     for (const node of treeData) {
       try {
-        node.isBookmarked = await window.tag.isFolderTagged(node.fullPath)
+        node.isBookmarked = await window.tag.isFolderTagged(node.fullPath, props.namespace)
       } catch (error) {
         console.warn(`Failed to check bookmark status for ${node.fullPath}:`, error)
         node.isBookmarked = false
@@ -736,7 +735,7 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
 
   try {
     // 检查文件夹是否已被收藏为标签
-    const isFolderTagged = await window.tag.isFolderTagged(folder.fullPath)
+    const isFolderTagged = await window.tag.isFolderTagged(folder.fullPath, props.namespace)
 
     ContextMenu.showContextMenu({
       x: e.x,
@@ -749,7 +748,7 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
             try {
               if (isFolderTagged) {
                 // 取消收藏为标签
-                const tag = await window.tag.getTagByFolderPath(folder.fullPath)
+                const tag = await window.tag.getTagByFolderPath(folder.fullPath, props.namespace)
                 if (tag && tag.id) {
                   await window.tag.deleteTag(tag.id)
                   message.success('已取消收藏为标签')
@@ -759,7 +758,7 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
               } else {
                 // 收藏为标签
                 const folderName = folder.name || folder.label || '未命名文件夹'
-                await window.tag.addFolderTag(folderName, folder.fullPath)
+                await window.tag.addFolderTag(folderName, folder.fullPath, props.namespace)
                 message.success('已收藏为标签')
                 // 更新节点状态
                 updateNodeBookmarkStatus(folder.fullPath, true)
@@ -809,7 +808,8 @@ defineExpose({
   restoreScrollPosition: () => virtualGridRef.value?.restoreScrollPosition(),
   getScrollPosition: () => virtualGridRef.value?.getScrollPosition() || 0,
   setScrollPosition: (position: number) => virtualGridRef.value?.setScrollPosition(position),
-  getStats: () => virtualGridRef.value?.getStats()
+  getStats: () => virtualGridRef.value?.getStats(),
+  loadTags
 })
 </script>
 
@@ -866,8 +866,8 @@ defineExpose({
 
 .sidebar {
   background-color: #f9fafb;
-  border-right-width: 1px;
-  border-right-color: #e5e7eb;
+  // border-right-width: 1px;
+  // border-right-color: #e5e7eb;
   display: flex;
   flex-direction: column;
   width: 20%;
@@ -991,7 +991,7 @@ defineExpose({
 
 .tag-items {
   & > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.5rem;
+    margin-top: 4px;
   }
 }
 
@@ -1056,7 +1056,7 @@ defineExpose({
 /* 标签项样式 */
 .tag-item {
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 4px;
   border-radius: 4px;
   transition: background-color 0.2s;
   user-select: none;

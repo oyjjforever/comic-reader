@@ -1,10 +1,12 @@
 <template>
   <resource-browser
+    ref="resourceBrowserRef"
     :resource-path="videoResourcePath"
     :provide-tree="provideVideoTree"
     :provide-list="provideVideoList"
     :provide-favorites="provideVideoFavorites"
     :build-context-menu="handleContextMenu"
+    namespace="video"
   >
     <template #card="{ item }">
       <media-card
@@ -23,7 +25,8 @@
     :media-path="currentFolder.fullPath || ''"
     :media-name="currentFolder.name || ''"
     media-type="video"
-    @confirm="handleTagConfirm"
+    namespace="video"
+    @change="onTagsChange"
   />
 </template>
 
@@ -115,13 +118,13 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   })
 }
 
-// 处理标签弹窗确认
-const handleTagConfirm = () => {
-  // 刷新收藏列表
-  // 这里可以触发事件或调用方法来刷新收藏列表
-  // 例如：provideVideoFavorites()
-}
+const resourceBrowserRef = ref()
 
+const onTagsChange = () => {
+  if (resourceBrowserRef.value) {
+    resourceBrowserRef.value.loadTags()
+  }
+}
 // 页面挂载时加载数据
 onMounted(async () => {})
 
