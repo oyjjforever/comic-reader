@@ -19,6 +19,17 @@
       <n-form-item path="enableAuthorUpdateCheck" label="特别关注更新通知">
         <n-switch v-model:value="formData.enableAuthorUpdateCheck" />
       </n-form-item>
+      <n-form-item path="defaultViewMode" label="默认展示标签页">
+        <n-select
+          v-model:value="formData.defaultViewMode"
+          :options="[
+            { label: '本地目录', value: 'folders' },
+            { label: '收藏', value: 'favorites' },
+            { label: '浏览历史', value: 'history' }
+          ]"
+          placeholder="请选择默认展示的标签页"
+        />
+      </n-form-item>
       <n-form-item path="resourcePath" label="漫画书资源路径">
         <n-input-group>
           <n-input

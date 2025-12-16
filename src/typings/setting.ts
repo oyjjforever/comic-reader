@@ -16,4 +16,6 @@ export type setting = {
     downloadPathTwitter?: string
     // 是否启用更新检测
     enableAuthorUpdateCheck?: boolean
+    // 默认展示标签页
+    defaultViewMode?: 'folders' | 'favorites' | 'history'
 }

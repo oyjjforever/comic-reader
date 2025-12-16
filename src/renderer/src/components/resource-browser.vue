@@ -192,6 +192,7 @@ import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage } from 'naive-ui'
 import { debounce } from 'lodash'
 import { ref, reactive, onMounted, onActivated, onDeactivated, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useSettingStore } from '@renderer/plugins/store'
 
 interface ResourceBrowserProps {
   resourcePath: string | null
@@ -228,11 +229,14 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
 
 const message = useMessage()
 const router = useRouter()
+const settingStore = useSettingStore()
 
 // UI 状态
 const isDarkMode = ref(false)
 const isSidebarHidden = ref(false)
-const currentViewMode = ref<'folders' | 'favorites' | 'history'>('favorites')
+const currentViewMode = ref<'folders' | 'favorites' | 'history'>(
+  settingStore.setting.defaultViewMode || 'favorites'
+)
 
 // 性能优化
 const isLoading = ref(false)
@@ -878,7 +882,19 @@ const updateNodeBookmarkStatus = (folderPath: string, isBookmarked: boolean) => 
 
 // 事件与生命周期
 onMounted(async () => {
-  switchToFavoritesView()
+  // 根据设置中的默认视图模式初始化
+  switch (settingStore.setting.defaultViewMode) {
+    case 'folders':
+      await switchToFolderView()
+      break
+    case 'history':
+      await switchToHistoryView()
+      break
+    case 'favorites':
+    default:
+      await switchToFavoritesView()
+      break
+  }
 })
 
 // 暴露方法

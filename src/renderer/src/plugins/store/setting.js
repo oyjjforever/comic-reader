@@ -7,7 +7,8 @@ export const defaultSetting = {
   resourcePath: '',
   videoResourcePath: '',
   defaultDownloadPath: '',
-  enableAuthorUpdateCheck: false
+  enableAuthorUpdateCheck: false,
+  defaultViewMode: 'favorites'
 }
 
 export const useSettingStore = defineStore('setting', {
