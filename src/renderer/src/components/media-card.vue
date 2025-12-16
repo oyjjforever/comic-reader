@@ -27,13 +27,13 @@
       </div>
 
       <!-- 收藏按钮 -->
-      <button
+      <!-- <button
         class="bookmark-btn"
         :class="{ bookmarked: isBookmarked }"
         @click.stop="toggleBookmark"
       >
         <n-icon :component="isBookmarked ? BookmarkIcon : BookmarkOutlineIcon" size="16" />
-      </button>
+      </button> -->
 
       <!-- 文件夹类型标识 -->
       <!-- <div
@@ -322,7 +322,7 @@ export default {
 .media-card {
   background: #f8f9fa;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 3px 3px 15px rgba(0, 0, 0, 0.16);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;

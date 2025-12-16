@@ -186,6 +186,7 @@ onMounted(async () => {
 // 页面容器
 .page-container {
   height: 100%;
+  width: 100%;
   background-color: #f9fafb;
   padding: 10px;
 }

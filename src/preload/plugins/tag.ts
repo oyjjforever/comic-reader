@@ -17,17 +17,17 @@ const getTags = async (order?: string, namespace?: string): Promise<tags[]> => {
     }
 
     if (!order) {
-        order = 'id DESC'
+        order = 'sort_order ASC, id DESC'
     }
 
     let sql = `SELECT * FROM tags`
     const params: any[] = []
-    
+
     if (namespace) {
         sql += ` WHERE namespace = ?`
         params.push(namespace)
     }
-    
+
     sql += ` ORDER BY ${order}`
     return await db.all<tags[]>(sql, ...params)
 }
@@ -69,12 +69,12 @@ const getTagByLabel = async (label: string, namespace?: string): Promise<tags | 
     try {
         let sql = 'SELECT * FROM tags WHERE label = ?'
         const params: any[] = [label]
-        
+
         if (namespace) {
             sql += ` AND namespace = ?`
             params.push(namespace)
         }
-        
+
         const tag = await db.get<tags>(sql, ...params)
         return tag || null
     } catch (error) {
@@ -96,17 +96,21 @@ const addTag = async (label: string, namespace?: string): Promise<number> => {
     try {
         // 使用默认命名空间如果没有提供
         const tagNamespace = namespace || 'default'
-        
+
         // 检查标签是否已存在
         const existingTag = await getTagByLabel(label, tagNamespace)
         if (existingTag) {
             throw new Error('该标签已存在')
         }
 
+        // 获取当前最大排序值
+        const maxSortOrder = await db.get<{ max_sort: number }>('SELECT MAX(sort_order) as max_sort FROM tags WHERE namespace = ?', tagNamespace)
+        const nextSortOrder = (maxSortOrder?.max_sort || 0) + 1
+
         const result = await db.run(`
-            INSERT INTO tags (label, type, namespace, created_at)
-            VALUES (?, 'normal', ?, ?)
-        `, label, tagNamespace, new Date())
+            INSERT INTO tags (label, type, namespace, sort_order, created_at)
+            VALUES (?, 'normal', ?, ?, ?)
+        `, label, tagNamespace, nextSortOrder, new Date())
 
         if (!result.lastID) {
             throw new Error('添加标签失败')
@@ -133,7 +137,7 @@ const addFolderTag = async (label: string, folderPath: string, namespace?: strin
     try {
         // 使用默认命名空间如果没有提供
         const tagNamespace = namespace || 'default'
-        
+
         // 检查标签是否已存在
         const existingTag = await getTagByLabel(label, tagNamespace)
         if (existingTag) {
@@ -146,10 +150,14 @@ const addFolderTag = async (label: string, folderPath: string, namespace?: strin
             throw new Error('该文件夹已被收藏为标签')
         }
 
+        // 获取当前最大排序值
+        const maxSortOrder = await db.get<{ max_sort: number }>('SELECT MAX(sort_order) as max_sort FROM tags WHERE namespace = ?', tagNamespace)
+        const nextSortOrder = (maxSortOrder?.max_sort || 0) + 1
+
         const result = await db.run(`
-            INSERT INTO tags (label, type, folderPath, namespace, created_at)
-            VALUES (?, 'folder', ?, ?, ?)
-        `, label, folderPath, tagNamespace, new Date())
+            INSERT INTO tags (label, type, folderPath, namespace, sort_order, created_at)
+            VALUES (?, 'folder', ?, ?, ?, ?)
+        `, label, folderPath, tagNamespace, nextSortOrder, new Date())
 
         if (!result.lastID) {
             throw new Error('添加文件夹标签失败')
@@ -175,12 +183,12 @@ const getTagByFolderPath = async (folderPath: string, namespace?: string): Promi
     try {
         let sql = 'SELECT * FROM tags WHERE folderPath = ?'
         const params: any[] = [folderPath]
-        
+
         if (namespace) {
             sql += ` AND namespace = ?`
             params.push(namespace)
         }
-        
+
         const tag = await db.get<tags>(sql, ...params)
         return tag || null
     } catch (error) {
@@ -200,17 +208,17 @@ const getFolderTags = async (order?: string, namespace?: string): Promise<tags[]
     }
 
     if (!order) {
-        order = 'id DESC'
+        order = 'sort_order ASC, id DESC'
     }
 
     let sql = `SELECT * FROM tags WHERE type = 'folder'`
     const params: any[] = []
-    
+
     if (namespace) {
         sql += ` AND namespace = ?`
         params.push(namespace)
     }
-    
+
     sql += ` ORDER BY ${order}`
     return await db.all<tags[]>(sql, ...params)
 }
@@ -227,17 +235,17 @@ const getNormalTags = async (order?: string, namespace?: string): Promise<tags[]
     }
 
     if (!order) {
-        order = 'id DESC'
+        order = 'sort_order ASC, id DESC'
     }
 
     let sql = `SELECT * FROM tags WHERE type = 'normal'`
     const params: any[] = []
-    
+
     if (namespace) {
         sql += ` AND namespace = ?`
         params.push(namespace)
     }
-    
+
     sql += ` ORDER BY ${order}`
     return await db.all<tags[]>(sql, ...params)
 }
@@ -256,12 +264,12 @@ const isFolderTagged = async (folderPath: string, namespace?: string): Promise<b
     try {
         let sql = 'SELECT * FROM tags WHERE folderPath = ?'
         const params: any[] = [folderPath]
-        
+
         if (namespace) {
             sql += ` AND namespace = ?`
             params.push(namespace)
         }
-        
+
         const tag = await db.get<tags>(sql, ...params)
         return !!tag
     } catch (error) {
@@ -292,7 +300,7 @@ const updateTag = async (id: number, label: string): Promise<void> => {
         if (!currentTag) {
             throw new Error('标签不存在')
         }
-        
+
         // 检查新标签名称是否已被其他标签使用
         const tagWithSameLabel = await getTagByLabel(label, currentTag.namespace)
         if (tagWithSameLabel && tagWithSameLabel.id !== id) {
@@ -331,7 +339,7 @@ const deleteTag = async (id: number): Promise<void> => {
         if (!currentTag) {
             throw new Error('标签不存在')
         }
-        
+
         // 获取所有使用该标签的收藏
         const favoritesWithThisTag = await db.all<{ id: number, tags: string, module: string }[]>('SELECT id, tags, module FROM favorites WHERE tags LIKE ?', `%${id}%`)
 
@@ -398,15 +406,77 @@ const getTagsByIds = async (ids: string, namespace?: string): Promise<tags[]> =>
         const placeholders = idArray.map(() => '?').join(',')
         let sql = `SELECT * FROM tags WHERE id IN (${placeholders})`
         const params: any[] = [...idArray]
-        
+
         if (namespace) {
             sql += ` AND namespace = ?`
             params.push(namespace)
         }
-        
-        sql += ` ORDER BY id`
+
+        sql += ` ORDER BY sort_order ASC, id`
         return await db.all<tags[]>(sql, ...params)
     } catch (error) {
+        throw error
+    }
+}
+
+/**
+ * @description: 更新标签排序
+ * @param {number} id 标签ID
+ * @param {number} sortOrder 新的排序值
+ * @return {Promise<void>} 返回更新结果
+ */
+const updateTagSortOrder = async (id: number, sortOrder: number): Promise<void> => {
+    if (!db) {
+        db = await database.openDatabase()
+    }
+
+    try {
+        // 检查标签是否存在
+        const existingTag = await getTag(id)
+        if (!existingTag) {
+            throw new Error('标签不存在')
+        }
+
+        const result = await db.run('UPDATE tags SET sort_order = ? WHERE id = ?', sortOrder, id)
+
+        if (!result.changes) {
+            throw new Error('更新标签排序失败')
+        }
+    } catch (error) {
+        throw error
+    }
+}
+
+/**
+ * @description: 批量更新标签排序
+ * @param {Array<{id: number, sortOrder: number}>} tagSorts 标签ID和排序值的数组
+ * @return {Promise<void>} 返回更新结果
+ */
+const updateTagsSortOrder = async (tagSorts: { id: number, sortOrder: number }[]): Promise<void> => {
+    if (!db) {
+        db = await database.openDatabase()
+    }
+
+    try {
+        await db.run('BEGIN TRANSACTION')
+
+        for (const tagSort of tagSorts) {
+            // 检查标签是否存在
+            const existingTag = await getTag(tagSort.id)
+            if (!existingTag) {
+                throw new Error(`标签ID ${tagSort.id} 不存在`)
+            }
+
+            const result = await db.run('UPDATE tags SET sort_order = ? WHERE id = ?', tagSort.sortOrder, tagSort.id)
+
+            if (!result.changes) {
+                throw new Error(`更新标签ID ${tagSort.id} 的排序失败`)
+            }
+        }
+
+        await db.run('COMMIT')
+    } catch (error) {
+        await db.run('ROLLBACK')
         throw error
     }
 }
@@ -425,4 +495,6 @@ export default {
     deleteTag,
     getTagCount,
     getTagsByIds,
+    updateTagSortOrder,
+    updateTagsSortOrder,
 }

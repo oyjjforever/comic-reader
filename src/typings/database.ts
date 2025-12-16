@@ -31,5 +31,6 @@ export type tags = {
     type?: 'normal' | 'folder', // 标签类型：普通标签或文件夹标签
     folderPath?: string, // 文件夹路径（仅对文件夹标签有效）
     namespace?: string, // 命名空间，用于区分不同模块的标签集合
+    sort_order?: number, // 排序值
     created_at?: Date, // 创建时间
 }

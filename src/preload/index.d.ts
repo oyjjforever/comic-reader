@@ -49,19 +49,21 @@ declare global {
       getFavoritesByTags: (tagIdstr: string, order?: string, module?: string) => Promise<any[]>
     }
     tag: {
-      getTags: (order?: string) => Promise<any[]>
+      getTags: (order?: string, namespace?: string) => Promise<any[]>
       getTag: (id: number) => Promise<any>
-      getTagByLabel: (label: string) => Promise<any | null>
-      addTag: (label: string) => Promise<number>
-      addFolderTag: (label: string, folderPath: string) => Promise<number>
-      getTagByFolderPath: (folderPath: string) => Promise<any | null>
-      getFolderTags: (order?: string) => Promise<any[]>
-      getNormalTags: (order?: string) => Promise<any[]>
-      isFolderTagged: (folderPath: string) => Promise<boolean>
+      getTagByLabel: (label: string, namespace?: string) => Promise<any | null>
+      addTag: (label: string, namespace?: string) => Promise<number>
+      addFolderTag: (label: string, folderPath: string, namespace?: string) => Promise<number>
+      getTagByFolderPath: (folderPath: string, namespace?: string) => Promise<any | null>
+      getFolderTags: (order?: string, namespace?: string) => Promise<any[]>
+      getNormalTags: (order?: string, namespace?: string) => Promise<any[]>
+      isFolderTagged: (folderPath: string, namespace?: string) => Promise<boolean>
       updateTag: (id: number, label: string) => Promise<void>
       deleteTag: (id: number) => Promise<void>
       getTagCount: () => Promise<number>
-      getTagsByIds: (ids: string) => Promise<any[]>
+      getTagsByIds: (ids: string, namespace?: string) => Promise<any[]>
+      updateTagSortOrder: (id: number, sortOrder: number) => Promise<void>
+      updateTagsSortOrder: (tagSorts: { id: number, sortOrder: number }[]) => Promise<void>
     }
     videoBookmarks: {
       getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>;

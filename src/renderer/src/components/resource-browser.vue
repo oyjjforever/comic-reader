@@ -150,14 +150,15 @@
 
     <!-- 标签管理对话框 -->
     <tag-dialog
-      :show="showTagDialog"
+      v-if="showTagDialog"
+      v-model:show="showTagDialog"
       media-path=""
       media-name="标签管理"
       media-type="book"
       mode="manage"
       :namespace="namespace"
       @update:show="showTagDialog = $event"
-      @change="loadTags"
+      @change="onTagsChange"
     />
   </div>
 </template>
@@ -429,13 +430,20 @@ const getFavorites = async () => {
     isLoading.value = false
   }
 }
-
+const onTagsChange = async () => {
+  if (currentViewMode.value === 'favorites') await loadTags()
+}
 // 加载所有标签
 const loadTags = async () => {
   try {
-    tags.value = await window.tag.getTags(undefined, props.namespace)
-    selectedTagIds.value = []
-    allTagsSelected.value = false
+    tags.value = await window.tag.getTags('sort_order ASC', props.namespace)
+    selectedTagIds.value = selectedTagIds.value.filter((tagId) =>
+      tags.value.some((tag) => tag.id === tagId)
+    )
+    // 应用标签筛选
+    applyTagFilter()
+    // selectedTagIds.value = []
+    // allTagsSelected.value = false
   } catch (error: any) {
     console.error('加载标签失败:', error)
     message.error('加载标签失败')
@@ -809,7 +817,7 @@ defineExpose({
   getScrollPosition: () => virtualGridRef.value?.getScrollPosition() || 0,
   setScrollPosition: (position: number) => virtualGridRef.value?.setScrollPosition(position),
   getStats: () => virtualGridRef.value?.getStats(),
-  loadTags
+  onTagsChange
 })
 </script>
 
@@ -828,10 +836,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
-  padding-top: 1rem;
-  padding-bottom: 1rem;
+  padding: 10px 20px;
   background-color: #ffffff;
   border-bottom-width: 1px;
   border-bottom-color: #e5e7eb;
@@ -842,8 +847,6 @@ defineExpose({
   &-center {
     flex: 1 1 0%;
     max-width: 28rem;
-    margin-left: 1.5rem;
-    margin-right: 1.5rem;
 
     .search-input {
       width: 100%;

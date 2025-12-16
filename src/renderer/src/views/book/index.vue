@@ -18,6 +18,7 @@
     </template>
   </resource-browser>
   <tag-dialog
+    v-if="showTagDialog"
     v-model:show="showTagDialog"
     :media-path="currentFolder.fullPath || ''"
     :media-name="currentFolder.name || ''"
@@ -138,7 +139,7 @@ const resourceBrowserRef = ref()
 
 const onTagsChange = () => {
   if (resourceBrowserRef.value) {
-    resourceBrowserRef.value.loadTags()
+    resourceBrowserRef.value.onTagsChange()
   }
 }
 

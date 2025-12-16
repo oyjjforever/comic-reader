@@ -21,70 +21,12 @@
           <div v-else class="tag-items">
             <div v-for="tag in tags" :key="tag.id" class="tag-item">
               <div class="tag-content">
-                <!-- 标签维护模式：只显示标签名称和操作按钮 -->
-                <template v-if="mode === 'manage'">
-                  <span v-if="!editingTagId || editingTagId !== tag.id" class="tag-label">{{
-                    tag.label
-                  }}</span>
-                  <n-tooltip v-else trigger="hover">
-                    回车保存
-                    <template #trigger>
-                      <n-input
-                        :value="editingTagName"
-                        @input="(value) => (editingTagName = value)"
-                        size="small"
-                        style="width: 120px"
-                        @blur="cancelEdit"
-                        @keyup.enter="saveEdit"
-                        @keyup.esc="cancelEdit"
-                      />
-                    </template>
-                  </n-tooltip>
-                  <div class="tag-actions">
-                    <n-button
-                      v-if="!editingTagId || editingTagId !== tag.id"
-                      size="small"
-                      quaternary
-                      circle
-                      @click="startEdit(tag)"
-                    >
-                      <template #icon>
-                        <n-icon><edit-icon /></n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      v-if="editingTagId === tag.id"
-                      size="small"
-                      quaternary
-                      circle
-                      @click="cancelEdit"
-                    >
-                      <template #icon>
-                        <n-icon><close-icon /></n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      v-if="!editingTagId || editingTagId !== tag.id"
-                      size="small"
-                      quaternary
-                      circle
-                      type="error"
-                      @click="confirmDeleteTag(tag)"
-                    >
-                      <template #icon>
-                        <n-icon><delete-icon /></n-icon>
-                      </template>
-                    </n-button>
-                  </div>
-                </template>
-
-                <!-- 给作品添加标签模式：显示复选框和操作按钮 -->
-                <template v-else>
-                  <n-checkbox
-                    :checked="selectedTagIds.includes(tag.id)"
-                    @update:checked="(checked) => handleTagCheck(tag.id, checked)"
-                  >
-                    <span v-if="!editingTagId || editingTagId !== tag.id">{{ tag.label }}</span>
+                <!-- 标签显示/编辑部分 -->
+                <div class="tag-display">
+                  <template v-if="mode === 'manage'">
+                    <span v-if="!editingTagId || editingTagId !== tag.id" class="tag-label">{{
+                      tag.label
+                    }}</span>
                     <n-tooltip v-else trigger="hover">
                       回车保存
                       <template #trigger>
@@ -99,8 +41,34 @@
                         />
                       </template>
                     </n-tooltip>
-                  </n-checkbox>
-                  <div class="tag-actions">
+                  </template>
+                  <template v-else>
+                    <n-checkbox
+                      :checked="selectedTagIds.includes(tag.id)"
+                      @update:checked="(checked) => handleTagCheck(tag.id, checked)"
+                    >
+                      <span v-if="!editingTagId || editingTagId !== tag.id">{{ tag.label }}</span>
+                      <n-tooltip v-else trigger="hover">
+                        回车保存
+                        <template #trigger>
+                          <n-input
+                            :value="editingTagName"
+                            @input="(value) => (editingTagName = value)"
+                            size="small"
+                            style="width: 120px"
+                            @blur="cancelEdit"
+                            @keyup.enter="saveEdit"
+                            @keyup.esc="cancelEdit"
+                          />
+                        </template>
+                      </n-tooltip>
+                    </n-checkbox>
+                  </template>
+                </div>
+
+                <!-- 标签操作按钮 -->
+                <div class="tag-actions">
+                  <template v-if="tag.type !== 'folder'">
                     <n-button
                       v-if="!editingTagId || editingTagId !== tag.id"
                       size="small"
@@ -123,20 +91,42 @@
                         <n-icon><close-icon /></n-icon>
                       </template>
                     </n-button>
-                    <n-button
-                      v-if="!editingTagId || editingTagId !== tag.id"
-                      size="small"
-                      quaternary
-                      circle
-                      type="error"
-                      @click="confirmDeleteTag(tag)"
-                    >
-                      <template #icon>
-                        <n-icon><delete-icon /></n-icon>
-                      </template>
-                    </n-button>
-                  </div>
-                </template>
+                  </template>
+                  <n-button
+                    v-if="!editingTagId || editingTagId !== tag.id"
+                    size="small"
+                    quaternary
+                    circle
+                    type="error"
+                    @click="confirmDeleteTag(tag)"
+                  >
+                    <template #icon>
+                      <n-icon><delete-icon /></n-icon>
+                    </template>
+                  </n-button>
+                  <n-button
+                    size="small"
+                    quaternary
+                    circle
+                    :disabled="isFirstTag(tag)"
+                    @click="moveTagUp(tag)"
+                  >
+                    <template #icon>
+                      <n-icon><arrow-up-icon /></n-icon>
+                    </template>
+                  </n-button>
+                  <n-button
+                    size="small"
+                    quaternary
+                    circle
+                    :disabled="isLastTag(tag)"
+                    @click="moveTagDown(tag)"
+                  >
+                    <template #icon>
+                      <n-icon><arrow-down-icon /></n-icon>
+                    </template>
+                  </n-button>
+                </div>
               </div>
             </div>
           </div>
@@ -186,18 +176,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { NModal, NCheckbox, NButton, NInput, useMessage, NIcon, useDialog } from 'naive-ui'
+import { ref, computed, watch, onMounted } from 'vue'
+import {
+  NModal,
+  NCheckbox,
+  NButton,
+  NInput,
+  useMessage,
+  NIcon,
+  useDialog,
+  NTooltip
+} from 'naive-ui'
 import {
   Create as EditIcon,
   Checkmark as CheckIcon,
   Close as CloseIcon,
-  Trash as DeleteIcon
+  Trash as DeleteIcon,
+  ChevronUpOutline as ArrowUpIcon,
+  ChevronDownOutline as ArrowDownIcon
 } from '@vicons/ionicons5'
 
 interface Tag {
   id: number
   label: string
+  sort_order?: number
   created_at?: Date
 }
 
@@ -248,7 +250,7 @@ const tagToDelete = ref<Tag | null>(null)
 const loadTags = async () => {
   try {
     const res = await window.tag.getTags(undefined, props.namespace)
-    tags.value = res.filter(_=>_.type !== 'folder')
+    tags.value = props.mode === 'manage' ? res : res.filter((_) => _.type !== 'folder')
   } catch (error) {
     console.error('加载标签失败:', error)
     message.error('加载标签失败')
@@ -459,31 +461,90 @@ const showSecondConfirmDialog = (count: number): Promise<boolean> => {
   })
 }
 
-// 监听弹窗显示状态
-watch(
-  () => props.show,
-  async (newShow) => {
-    if (newShow) {
-      // 弹窗打开时加载数据
-      selectedTagIds.value = []
-      favoriteId.value = null
-      newTagName.value = ''
-      editingTagId.value = null
-      editingTagName.value = ''
-      await loadTags()
-      await loadFavoriteTags()
-    }
-  }
-)
+// 检查是否为第一个标签
+const isFirstTag = (tag: Tag): boolean => {
+  const sortedTags = [...tags.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  return sortedTags[0]?.id === tag.id
+}
 
-// 监听 tags 变化并抛出 change 事件
-watch(
-  () => tags.value,
-  (newTags) => {
-    emit('change', newTags)
-  },
-  { deep: true }
-)
+// 检查是否为最后一个标签
+const isLastTag = (tag: Tag): boolean => {
+  const sortedTags = [...tags.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  return sortedTags[sortedTags.length - 1]?.id === tag.id
+}
+
+// 上移标签
+const moveTagUp = async (tag: Tag) => {
+  try {
+    const sortedTags = [...tags.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    const currentIndex = sortedTags.findIndex((t) => t.id === tag.id)
+
+    if (currentIndex <= 0) return // 已经是第一个了
+
+    const previousTag = sortedTags[currentIndex - 1]
+
+    // 交换排序值
+    const tagSorts = [
+      { id: tag.id, sortOrder: previousTag.sort_order || 0 },
+      { id: previousTag.id, sortOrder: tag.sort_order || 0 }
+    ]
+
+    await window.tag.updateTagsSortOrder(tagSorts)
+
+    // 重新加载标签列表
+    await loadTags()
+
+    message.success('标签上移成功')
+  } catch (error) {
+    console.error('标签上移失败:', error)
+    message.error(`标签上移失败: ${error}`)
+  }
+}
+
+// 下移标签
+const moveTagDown = async (tag: Tag) => {
+  try {
+    const sortedTags = [...tags.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    const currentIndex = sortedTags.findIndex((t) => t.id === tag.id)
+
+    if (currentIndex >= sortedTags.length - 1) return // 已经是最后一个了
+
+    const nextTag = sortedTags[currentIndex + 1]
+
+    // 交换排序值
+    const tagSorts = [
+      { id: tag.id, sortOrder: nextTag.sort_order || 0 },
+      { id: nextTag.id, sortOrder: tag.sort_order || 0 }
+    ]
+
+    await window.tag.updateTagsSortOrder(tagSorts)
+
+    // 重新加载标签列表
+    await loadTags()
+
+    message.success('标签下移成功')
+  } catch (error) {
+    console.error('标签下移失败:', error)
+    message.error(`标签下移失败: ${error}`)
+  }
+}
+
+onMounted(async () => {
+  selectedTagIds.value = []
+  favoriteId.value = null
+  newTagName.value = ''
+  editingTagId.value = null
+  editingTagName.value = ''
+  await loadTags()
+  await loadFavoriteTags()
+  watch(
+    () => tags.value,
+    (newTags) => {
+      emit('change', newTags)
+    },
+    { deep: true }
+  )
+})
 </script>
 
 <style scoped>
@@ -540,9 +601,16 @@ watch(
   justify-content: space-between;
 }
 
+.tag-display {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
 .tag-actions {
   display: flex;
   gap: 4px;
+  align-items: center;
 }
 
 .add-tag-section {
