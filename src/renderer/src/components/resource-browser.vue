@@ -1,5 +1,5 @@
 <template>
-  <div class="home-container" :class="{ 'dark-mode': isDarkMode }">
+  <div class="home-container">
     <header class="navbar">
       <div class="navbar-center">
         <n-input
@@ -139,7 +139,12 @@
             @scroll="handleScroll"
           >
             <template #default="{ item }">
-              <slot name="card" :item="item" />
+              <div
+                style="width: 100%; height: 100%"
+                @contextmenu="(e) => handleContextMenu(e, item)"
+              >
+                <slot name="card" :item="item" />
+              </div>
             </template>
           </responsive-virtual-grid>
         </div>
@@ -154,16 +159,14 @@
       </n-empty>
     </div>
 
-    <!-- 标签管理对话框 -->
+    <!-- 标签对话框 -->
     <tag-dialog
-      v-if="showTagDialog"
-      v-model:show="showTagDialog"
-      media-path=""
-      media-name="标签管理"
-      media-type="book"
-      mode="manage"
+      v-if="tagDialogObject.show"
+      v-model:show="tagDialogObject.show"
+      :media-path="tagDialogObject.data.fullPath"
+      :media-name="tagDialogObject.data.name"
+      :mode="tagDialogObject.mode"
       :namespace="namespace"
-      @update:show="showTagDialog = $event"
       @change="onTagsChange"
     />
   </div>
@@ -230,9 +233,6 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
 const message = useMessage()
 const router = useRouter()
 const settingStore = useSettingStore()
-
-// UI 状态
-const isDarkMode = ref(false)
 const isSidebarHidden = ref(false)
 const currentViewMode = ref<'folders' | 'favorites' | 'history'>(
   settingStore.setting.defaultViewMode || 'favorites'
@@ -259,13 +259,10 @@ const grid = reactive<{ rows: FolderInfo[]; filterRows: FolderInfo[] }>({
 })
 const search = reactive<{ keyword: string; sort: string }>({ keyword: '', sort: 'name_asc' })
 
-// 标签筛选相关状态
-const showTagFilter = ref(false)
 const tags = ref<any[]>([])
 const selectedTagIds = ref<number[]>([])
 const allTagsSelected = ref(false)
-const originalFavorites = ref<FolderInfo[]>([])
-const showTagDialog = ref(false)
+const tagDialogObject = reactive({ show: false, data: {} as FolderInfo | null })
 
 // 侧边栏折叠
 const toggleSidebar = () => {
@@ -650,7 +647,10 @@ const applyTagFilter = debounce(async () => {
 
         if (hasAllSelectedNormalTags) {
           // 添加收藏信息
-          const favInfo = await window.media.getFolderInfo(favorite.fullPath)
+          const favInfo =
+            props.namespace === 'video'
+              ? await window.media.getFileInfo(favorite.fullPath)
+              : await window.media.getFolderInfo(favorite.fullPath)
           allItems.push({ ...favorite, ...favInfo, isBookmarked: true })
         }
       }
@@ -663,15 +663,10 @@ const applyTagFilter = debounce(async () => {
 
     // 更新显示内容
     grid.filterRows = grid.rows = uniqueItems
-
-    // // 更新当前路径标识
-    // dataCache.currentPath = '__tag_filtered__'
-    // dataCache.isDataLoaded = true
-    // dataCache.lastLoadTime = Date.now()
-
     // 滚动到顶部
     virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
+    console.log('🚀 应用标签筛选失败 error:', error)
     message.error('应用标签筛选失败')
   } finally {
     isTagFilterLoading.value = false
@@ -680,7 +675,12 @@ const applyTagFilter = debounce(async () => {
 
 // 打开标签管理对话框
 const openTagManager = () => {
-  showTagDialog.value = true
+  tagDialogObject.data = {
+    fullPath: '',
+    name: '标签管理'
+  }
+  tagDialogObject.mode = 'manage'
+  tagDialogObject.show = true
 }
 
 // 缓存（keep-alive）
@@ -807,11 +807,57 @@ const fetchTreeData = async () => {
 }
 
 // 右键菜单
-function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
+async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   e.preventDefault()
-  if (props.buildContextMenu) {
-    props.buildContextMenu(e, folder)
-  }
+
+  // 检查文件夹是否已被收藏
+  const isFavorited = await window.favorite.isFavorited(folder.fullPath, props.namespace)
+
+  // 否则显示默认菜单
+  ContextMenu.showContextMenu({
+    x: e.x,
+    y: e.y,
+    theme: 'mac',
+    items: [
+      {
+        label: isFavorited ? '修改标签' : '添加到收藏',
+        onClick: () => {
+          // 直接在组件内部处理标签对话框
+          tagDialogObject.data = folder
+          tagDialogObject.mode = 'assign'
+          tagDialogObject.show = true
+        }
+      },
+      {
+        label: '在文件管理器中打开',
+        onClick: () => {
+          window.systemInterface.openExplorer(folder.fullPath)
+        }
+      },
+      {
+        label: '删除',
+        onClick: () => {
+          // 显示确认对话框
+          if (
+            confirm(
+              `确定要删除文件夹"${folder.name}"吗？\n\n此操作不可撤销，文件夹及其所有内容将被永久删除。`
+            )
+          ) {
+            // 调用删除函数
+            window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
+              if (success) {
+                message.success(`文件夹"${folder.name}"已成功删除`)
+                // 刷新资源浏览器
+                refresh()
+              } else {
+                message.error(`删除文件夹"${folder.name}"失败`)
+              }
+            })
+          }
+        }
+      }
+    ]
+  })
 }
 
 // 文件夹右键菜单

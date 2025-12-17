@@ -99,6 +99,7 @@ async function getFileInfo(filepath: string): Promise<FileInfo> {
     return {
       name,
       fullPath: filepath,
+      coverPath: filepath,
       extension: path.extname(name).toLowerCase(),
       createdTime: file.birthtime,
       modifiedTime: file.mtime,
@@ -240,6 +241,7 @@ async function getFilesFromPath(dirPath: string, includeSubfolders: boolean = fa
           const fileInfo: FileInfo = {
             name: item.padStart(10, '0'),
             fullPath: itemPath,
+            coverPath: itemPath,
             extension: path.extname(item).toLowerCase(),
             createdTime: itemStat.birthtime,
             modifiedTime: itemStat.mtime,

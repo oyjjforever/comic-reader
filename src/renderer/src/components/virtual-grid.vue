@@ -82,7 +82,7 @@ const hasInitialized = ref(false)
 
 // 计算网格布局参数
 const columnsCount = computed(() => {
-  if (containerWidth.value === 0) return 1
+  if (containerWidth.value === 0) return 4
   return Math.floor((containerWidth.value + props.gap) / (props.itemWidth + props.gap))
 })
 

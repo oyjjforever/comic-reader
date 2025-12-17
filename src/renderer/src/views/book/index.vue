@@ -4,46 +4,24 @@
     :resource-path="resourcePath"
     :provide-tree="provideBookTree"
     :provide-favorites="provideBookFavorites"
-    :build-context-menu="handleContextMenu"
     namespace="book"
   >
     <template #card="{ item }">
-      <media-card
-        :folder="item"
-        class="grid-item"
-        @to-read="toRead(item)"
-        @click="toRead(item)"
-        @contextmenu="(e) => handleContextMenu(e, item)"
-      />
+      <media-card :folder="item" class="grid-item" @to-read="toRead(item)" @click="toRead(item)" />
     </template>
   </resource-browser>
-  <tag-dialog
-    v-if="showTagDialog"
-    v-model:show="showTagDialog"
-    :media-path="currentFolder.fullPath || ''"
-    :media-name="currentFolder.name || ''"
-    media-type="book"
-    namespace="book"
-    @change="onTagsChange"
-  />
 </template>
 
 <script setup lang="ts" name="book">
 import type { FolderInfo } from '@/typings/file'
 import MediaCard from '@renderer/components/media-card.vue'
 import ResourceBrowser from '@renderer/components/resource-browser.vue'
-import TagDialog from '@renderer/components/tag-dialog.vue'
 import { useSettingStore } from '@renderer/plugins/store'
-import ContextMenu from '@imengyu/vue3-context-menu'
 const message = useMessage()
 const settingStore = useSettingStore()
 const router = useRouter()
 
 const resourcePath = computed(() => settingStore.setting.resourcePath)
-
-// 标签弹窗相关状态
-const showTagDialog = ref(false)
-const currentFolder = ref<FolderInfo | null>({})
 
 // 抽象的数据提供者
 const provideBookTree = async (rootPath: string) => {
@@ -98,76 +76,6 @@ const toRead = (book: FolderInfo) => {
     }
   })
 }
-async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
-  //prevent the browser's default menu
-  e.preventDefault()
-
-  // 检查文件夹是否已被收藏
-  const isFavorited = await window.favorite.isFavorited(folder.fullPath, 'book')
-
-  //show your menu
-  ContextMenu.showContextMenu({
-    x: e.x,
-    y: e.y,
-    xOffset: 10,
-    preserveIconWidth: false,
-    // theme: 'mac',
-    items: [
-      {
-        label: isFavorited ? '修改标签' : '添加到收藏',
-        onClick: () => {
-          currentFolder.value = folder
-          showTagDialog.value = true
-        }
-      },
-      {
-        label: '在文件管理器中打开',
-        onClick: () => {
-          window.systemInterface.openExplorer(folder.fullPath)
-        }
-      },
-      {
-        label: '删除',
-        onClick: () => {
-          // 显示确认对话框
-          if (
-            confirm(
-              `确定要删除文件夹"${folder.name}"吗？\n\n此操作不可撤销，文件夹及其所有内容将被永久删除。`
-            )
-          ) {
-            // 调用删除函数
-            window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
-              if (success) {
-                message.success(`文件夹"${folder.name}"已成功删除`)
-                resourceBrowserRef.value?.fetchGridData()
-              } else {
-                message.error(`删除文件夹"${folder.name}"失败`)
-              }
-            })
-          }
-        }
-      }
-      // {
-      //   label: '解压',
-      //   onClick: () => {
-      //     window.systemInterface.unzip(folder.fullPath)
-      //   }
-      // },
-      // { label: 'A submenu', children: [{ label: 'Item1' }, { label: 'Item2' }, { label: 'Item3' }] }
-    ]
-  })
-}
 
 const resourceBrowserRef = ref()
-
-const onTagsChange = () => {
-  if (resourceBrowserRef.value) {
-    resourceBrowserRef.value.onTagsChange()
-  }
-}
-
-// 页面挂载时加载数据
-onMounted(async () => {})
-
-onUnmounted(() => {})
 </script>

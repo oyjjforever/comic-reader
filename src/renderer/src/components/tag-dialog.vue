@@ -207,7 +207,6 @@ interface Props {
   show: boolean
   mediaPath: string
   mediaName: string
-  mediaType: 'book' | 'video'
   mode?: 'manage' | 'assign' // manage: 标签维护模式, assign: 给作品添加标签模式
   namespace?: string // 命名空间，用于区分不同模块的标签集合
 }
@@ -263,11 +262,11 @@ const loadFavoriteTags = async () => {
 
   try {
     // 检查是否已收藏
-    const isFavorited = await window.favorite.isFavorited(props.mediaPath, props.mediaType)
+    const isFavorited = await window.favorite.isFavorited(props.mediaPath, props.namespace)
 
     if (isFavorited) {
       // 获取收藏信息
-      const favorites = await window.favorite.getFavorites('id DESC', props.mediaType)
+      const favorites = await window.favorite.getFavorites('id DESC', props.namespace)
       const currentFavorite = favorites.find((fav) => fav.fullPath === props.mediaPath)
 
       if (currentFavorite && currentFavorite.id) {
@@ -334,7 +333,7 @@ const confirmSelection = async () => {
       // 未收藏，添加收藏和标签
       await window.favorite.addFavorite(
         props.mediaPath,
-        props.mediaType,
+        props.namespace,
         selectedTagIds.value.toString()
       )
       message.success('添加收藏成功')

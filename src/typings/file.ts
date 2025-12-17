@@ -45,6 +45,8 @@ export interface FolderInfo {
 export interface FileInfo {
   /** 文件名称 */
   name: string
+  /** 文件封面图路径 */
+  coverPath: string
   /** 文件完整路径 */
   fullPath: string
   /** 文件扩展名 */
