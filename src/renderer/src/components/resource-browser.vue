@@ -281,7 +281,7 @@ const switchToFolderView = () => {
     if (!tree.data?.length) {
       fetchTreeData()
     }
-    onTreeNodeClick(props.resourcePath)
+    fetchGridData(props.resourcePath)
     tree.currentKey = props.resourcePath
   }
 }
@@ -377,7 +377,7 @@ const nodeProps = ({ option }: { option: any }) => {
       tree.currentKey = option.fullPath
       currentViewMode.value = 'folders'
       tree.currentNode = option
-      onTreeNodeClick(option.fullPath as string)
+      fetchGridData(option.fullPath as string)
     },
     onContextmenu(e: MouseEvent) {
       e.preventDefault()
@@ -691,7 +691,7 @@ const dataCache = reactive({
 })
 
 // 树节点点击
-const onTreeNodeClick = async (folderPath: string) => {
+const fetchGridData = async (folderPath: string) => {
   if (dataCache.currentPath === folderPath && dataCache.isDataLoaded) {
     tree.currentKey = folderPath
     return
@@ -798,7 +798,7 @@ const fetchTreeData = async () => {
     }
 
     tree.data = [{ name: '资源目录', fullPath: props.resourcePath, children: treeData }]
-    onTreeNodeClick(props.resourcePath as string)
+    fetchGridData(props.resourcePath as string)
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
   } finally {
@@ -906,7 +906,8 @@ defineExpose({
   getScrollPosition: () => virtualGridRef.value?.getScrollPosition() || 0,
   setScrollPosition: (position: number) => virtualGridRef.value?.setScrollPosition(position),
   getStats: () => virtualGridRef.value?.getStats(),
-  onTagsChange
+  onTagsChange,
+  fetchGridData
 })
 </script>
 
@@ -919,83 +920,138 @@ defineExpose({
   flex-direction: column;
   background-color: #ffffff;
   color: #111827;
-}
 
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 20px;
-  background-color: #ffffff;
-  border-bottom-width: 1px;
-  border-bottom-color: #e5e7eb;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  height: 64px;
-  flex-shrink: 0;
-
-  &-center {
-    flex: 1 1 0%;
-    max-width: 28rem;
-
-    .search-input {
-      width: 100%;
-    }
-  }
-
-  &-right {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 0 0 auto;
-  }
-}
-
-.main-content {
-  display: flex;
-  flex: 1 1 0%;
-  overflow: hidden;
-}
-
-.sidebar {
-  background-color: #f9fafb;
-  // border-right-width: 1px;
-  // border-right-color: #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  width: 20%;
-  min-width: 256px;
-
-  &-hidden {
-    width: 48px;
-    min-width: 48px;
-
-    .sidebar-title,
-    .sidebar-content {
-      display: none;
-    }
-  }
-
-  &-header {
+  .navbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
+    padding: 10px 20px;
+    background-color: #ffffff;
     border-bottom-width: 1px;
     border-bottom-color: #e5e7eb;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    height: 64px;
+    flex-shrink: 0;
+
+    &-center {
+      flex: 1 1 0%;
+      max-width: 28rem;
+
+      .search-input {
+        width: 100%;
+      }
+    }
+
+    &-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 0 0 auto;
+    }
+  }
+
+  .main-content {
+    display: flex;
+    flex: 1 1 0%;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    background-color: #f9fafb;
+    // border-right-width: 1px;
+    // border-right-color: #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    width: 20%;
+    min-width: 256px;
+
+    &-hidden {
+      width: 48px;
+      min-width: 48px;
+
+      .sidebar-title,
+      .sidebar-content {
+        display: none;
+      }
+    }
+
+    &-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      padding-top: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom-width: 1px;
+      border-bottom-color: #e5e7eb;
+      flex-shrink: 0;
+    }
+
+    &-title-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex: 1;
+    }
+
+    &-title {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      font-weight: 500;
+      color: #374151;
+      margin: 0;
+    }
+
+    &-content {
+      flex: 1 1 0%;
+      overflow: auto;
+      padding: 0.5rem;
+    }
+  }
+
+  .folder-tree {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .content-area {
+    flex: 1 1 0%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .grid-view {
+    flex: 1 1 0%;
+    overflow: hidden;
+    padding: 0.75rem;
+  }
+
+  .empty-state {
+    flex: 1 1 0%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 标签树视图样式 */
+  .tag-tree-view {
+    padding: 0.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tag-filter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
     flex-shrink: 0;
   }
 
-  &-title-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    flex: 1;
-  }
-
-  &-title {
+  .tag-filter-title {
     font-size: 0.875rem;
     line-height: 1.25rem;
     font-weight: 500;
@@ -1003,175 +1059,120 @@ defineExpose({
     margin: 0;
   }
 
-  &-content {
-    flex: 1 1 0%;
+  .tag-filter-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hint-text {
+    white-space: nowrap;
+  }
+
+  .tag-filter-list {
+    flex: 1;
     overflow: auto;
+  }
+
+  .empty-tags {
+    text-align: center;
+    color: #6b7280;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .tag-items {
+    & > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 4px;
+    }
+  }
+
+  /* 文件夹标签样式 */
+  .tag-section {
+    margin-bottom: 1rem;
+  }
+
+  .tag-section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+    padding-left: 0.25rem;
+  }
+
+  .folder-tag {
+    cursor: pointer;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: #f3f4f6;
+      border-radius: 4px;
+    }
+  }
+
+  .folder-tag-content {
+    display: flex;
+    align-items: center;
     padding: 0.5rem;
+    width: 100%;
   }
-}
 
-.folder-tree {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.content-area {
-  flex: 1 1 0%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.grid-view {
-  flex: 1 1 0%;
-  overflow: hidden;
-  padding: 0.75rem;
-}
-
-.empty-state {
-  flex: 1 1 0%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 标签树视图样式 */
-.tag-tree-view {
-  padding: 0.5rem;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.tag-filter-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-
-.tag-filter-title {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 500;
-  color: #374151;
-  margin: 0;
-}
-
-.tag-filter-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hint-text {
-  white-space: nowrap;
-}
-
-.tag-filter-list {
-  flex: 1;
-  overflow: auto;
-}
-
-.empty-tags {
-  text-align: center;
-  color: #6b7280;
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-}
-
-.tag-items {
-  & > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 4px;
+  .folder-icon {
+    // margin-right: 2px;
+    color: #aaa;
   }
-}
 
-/* 文件夹标签样式 */
-.tag-section {
-  margin-bottom: 1rem;
-}
+  .folder-tag-label {
+    font-weight: 500;
+  }
 
-.tag-section-title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #6b7280;
-  margin-bottom: 0.5rem;
-  padding-left: 0.25rem;
-}
+  /* 树节点图标样式 */
+  .tree-node-content {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
 
-.folder-tag {
-  cursor: pointer;
-  transition: background-color 0.2s;
+  .bookmark-icon {
+    color: #f59e0b;
+    flex-shrink: 0;
+  }
 
-  &:hover {
-    background-color: #f3f4f6;
+  .tree-node-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 标签项样式 */
+  .tag-item {
+    cursor: pointer;
+    padding: 4px;
     border-radius: 4px;
-  }
-}
+    transition: background-color 0.2s;
+    user-select: none;
 
-.folder-tag-content {
-  display: flex;
-  align-items: center;
-  padding: 0.5rem;
-  width: 100%;
-}
+    &:hover {
+      background-color: #f3f4f6;
+    }
 
-.folder-icon {
-  // margin-right: 2px;
-  color: #aaa;
-}
-
-.folder-tag-label {
-  font-weight: 500;
-}
-
-/* 树节点图标样式 */
-.tree-node-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.bookmark-icon {
-  color: #f59e0b;
-  flex-shrink: 0;
-}
-
-.tree-node-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 标签项样式 */
-.tag-item {
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  user-select: none;
-
-  &:hover {
-    background-color: #f3f4f6;
+    &.tag-selected {
+      background-color: #04f70416;
+      border-left: 3px solid #18a058;
+    }
   }
 
-  &.tag-selected {
-    background-color: #04f70416;
-    border-left: 3px solid #18a058;
+  .tag-item-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
   }
-}
 
-.tag-item-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.tag-label {
-  flex: 1;
-  margin-left: 0.5rem;
+  .tag-label {
+    flex: 1;
+    margin-left: 0.5rem;
+  }
 }
 </style>

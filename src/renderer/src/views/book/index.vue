@@ -109,7 +109,9 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   ContextMenu.showContextMenu({
     x: e.x,
     y: e.y,
-    theme: 'mac',
+    xOffset: 10,
+    preserveIconWidth: false,
+    // theme: 'mac',
     items: [
       {
         label: isFavorited ? '修改标签' : '添加到收藏',
@@ -122,6 +124,27 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
         label: '在文件管理器中打开',
         onClick: () => {
           window.systemInterface.openExplorer(folder.fullPath)
+        }
+      },
+      {
+        label: '删除',
+        onClick: () => {
+          // 显示确认对话框
+          if (
+            confirm(
+              `确定要删除文件夹"${folder.name}"吗？\n\n此操作不可撤销，文件夹及其所有内容将被永久删除。`
+            )
+          ) {
+            // 调用删除函数
+            window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
+              if (success) {
+                message.success(`文件夹"${folder.name}"已成功删除`)
+                resourceBrowserRef.value?.fetchGridData()
+              } else {
+                message.error(`删除文件夹"${folder.name}"失败`)
+              }
+            })
+          }
         }
       }
       // {

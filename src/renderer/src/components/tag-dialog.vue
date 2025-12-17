@@ -589,10 +589,6 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.tag-item {
-  padding: 4px 0;
-}
-
 .tag-content {
   display: flex;
   align-items: center;

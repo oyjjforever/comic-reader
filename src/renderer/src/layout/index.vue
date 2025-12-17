@@ -254,9 +254,10 @@ $background-color: #322f3b;
 .layout-container {
   display: flex;
   height: 100vh;
+  width: 100vw;
   background: #f5f5f5;
   border-radius: 24px;
-  // overflow: hidden;
+  overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 

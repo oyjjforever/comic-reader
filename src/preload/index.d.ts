@@ -17,6 +17,7 @@ declare global {
     systemInterface: {
       openExplorer: (path: string) => void
       unzip: (path: string) => void
+      deleteFolder: (folderPath: string) => Promise<boolean>
     }
     media: {
       getFolderTree: (dirPath: string, noLeaf: boolean) => Promise<FolderInfo[]>
