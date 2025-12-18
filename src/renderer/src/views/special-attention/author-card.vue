@@ -59,13 +59,10 @@
     <div class="action-buttons">
       <div class="button-group">
         <button @click="$emit('remove', item.id)" class="action-button unfollow-button">
-          <i class="fas fa-user-times"></i>
           取消关注
         </button>
-        <button @click="onDownloadAll" class="action-button download-all-button">
-          <i class="fas fa-download"></i>
-          全部下载
-        </button>
+        <button @click="onDownloadAll" class="action-button download-all-button">全部下载</button>
+        <button @click="$emit('set-tag', item)" class="action-button tag-button">设置标签</button>
       </div>
       <div class="pagination-buttons">
         <div class="pagination-info">
@@ -115,7 +112,7 @@ const props = defineProps<{
 }>()
 
 // 拖动事件处理
-const emit = defineEmits(['dragstart', 'dragend'])
+const emit = defineEmits(['dragstart', 'dragend', 'set-tag'])
 
 // 使用新作品检测store
 const newArtworkDetector = useNewArtworkDetectorStore()
@@ -488,6 +485,14 @@ function onPreview(row) {
 
   &:hover {
     color: #059669;
+  }
+}
+
+.tag-button {
+  color: #8b5cf6;
+
+  &:hover {
+    color: #7c3aed;
   }
 }
 
