@@ -436,8 +436,12 @@ const getFavorites = async () => {
 
     // 加载标签列表
     await loadTags()
-    // 确保视图模式设置为收藏夹
-    currentViewMode.value = 'favorites'
+    // 如果没有标签被选中，则默认全选
+    if (tags.value.length && !selectedTagIds.value.length) {
+      selectedTagIds.value = tags.value.map((tag) => tag.id)
+      allTagsSelected.value = true
+    }
+    applyTagFilter()
   } catch (error: any) {
     message.error(`获取收藏失败: ${error.message}`)
     dataCache.isDataLoaded = false
@@ -507,7 +511,10 @@ const getBrowseHistory = async () => {
   }
 }
 const onTagsChange = async () => {
-  if (currentViewMode.value === 'favorites') await loadTags()
+  if (currentViewMode.value === 'favorites') {
+    await loadTags()
+    applyTagFilter()
+  }
 }
 // 加载所有标签
 const loadTags = async () => {
@@ -516,10 +523,6 @@ const loadTags = async () => {
     selectedTagIds.value = selectedTagIds.value.filter((tagId) =>
       tags.value.some((tag) => tag.id === tagId)
     )
-    // 应用标签筛选
-    applyTagFilter()
-    // selectedTagIds.value = []
-    // allTagsSelected.value = false
   } catch (error: any) {
     message.error('加载标签失败')
   }
