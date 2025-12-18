@@ -50,7 +50,7 @@
             <div class="tag-filter-controls">
               <n-button size="tiny" @click="openTagManager">管理</n-button>
               <n-button size="tiny" @click="toggleAllTags">
-                {{ allTagsSelected ? '取消' : '全选' }}
+                {{ allTagsSelected ? '取消全选' : '全选' }}
               </n-button>
             </div>
           </div>
