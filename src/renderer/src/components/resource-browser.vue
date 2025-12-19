@@ -438,10 +438,10 @@ const getFavorites = async () => {
     // 加载标签列表
     await loadTags()
     // 如果没有标签被选中，则默认全选
-    if (tags.value.length && !selectedTagIds.value.length) {
-      selectedTagIds.value = tags.value.map((tag) => tag.id)
-      allTagsSelected.value = true
-    }
+    // if (tags.value.length && !selectedTagIds.value.length) {
+    //   selectedTagIds.value = tags.value.map((tag) => tag.id)
+    //   allTagsSelected.value = true
+    // }
     applyTagFilter()
   } catch (error: any) {
     message.error(`获取收藏失败: ${error.message}`)
@@ -603,6 +603,7 @@ const toggleAllTags = async () => {
 
 // 应用标签筛选
 const applyTagFilter = debounce(async () => {
+  if (currentViewMode.value !== 'favorites') return
   // 如果正在加载中，忽略操作
   if (isTagFilterLoading.value) return
 
@@ -647,7 +648,7 @@ const applyTagFilter = debounce(async () => {
         const favoriteTagIds = favoriteTags.map((tag) => tag.id)
 
         // 检查是否包含所有选中的普通标签
-        const hasAllSelectedNormalTags = normalTags.every((tag) => favoriteTagIds.includes(tag.id))
+        const hasAllSelectedNormalTags = normalTags.some((tag) => favoriteTagIds.includes(tag.id))
 
         if (hasAllSelectedNormalTags) {
           // 添加收藏信息

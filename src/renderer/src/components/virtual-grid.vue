@@ -91,7 +91,8 @@ const rowsCount = computed(() => {
 })
 
 const totalHeight = computed(() => {
-  return rowsCount.value * (props.itemHeight + props.gap) - props.gap
+  let res = rowsCount.value * (props.itemHeight + props.gap) - props.gap
+  return res < 0 ? 0 : res
 })
 let latestEndRow = -1
 // 计算可见区域
