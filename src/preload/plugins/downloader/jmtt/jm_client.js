@@ -6,12 +6,12 @@ import fs from 'fs'
 import sharp from 'sharp'
 import path from 'path'
 const IMAGE_DOMAIN = 'cdn-msp2.jmapiproxy2.cc'
-const API_DOMAIN = 'www.cdnblackmyth.club'
+const API_DOMAIN = 'www.cdnzack.cc'
 
 const APP_TOKEN_SECRET = '18comicAPP'
 const APP_TOKEN_SECRET_2 = '18comicAPPContent'
 const APP_DATA_SECRET = '185Hcomic3PAPP7R'
-const APP_VERSION = '1.7.5'
+const APP_VERSION = '2.0.6'
 
 const ApiPath = {
   Login: '/login',
