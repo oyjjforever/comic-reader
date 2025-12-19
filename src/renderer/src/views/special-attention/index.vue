@@ -200,8 +200,6 @@ async function refresh() {
       // 使用source:authorId作为唯一标识
       const identifier = `${item.source}:${item.authorId}`
       const isFavorited = await window.favorite.isFavorited(identifier, namespace)
-      console.log('🚀 ~ refresh ~ isFavorited:', identifier, isFavorited)
-
       if (isFavorited) {
         // 获取收藏信息
         const favorites = await window.favorite.getFavorites('id DESC', namespace)

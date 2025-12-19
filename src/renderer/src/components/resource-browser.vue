@@ -127,7 +127,11 @@
 
       <section class="content-area">
         <div class="grid-view">
+          <div v-if="grid.filterRows.length === 0" class="empty-data-state">
+            <n-empty description="没有找到匹配的内容"> </n-empty>
+          </div>
           <responsive-virtual-grid
+            v-else
             ref="virtualGridRef"
             :items="grid.filterRows"
             key-field="fullPath"
@@ -1084,6 +1088,15 @@ defineExpose({
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .empty-data-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    padding: 2rem;
   }
 
   /* 标签树视图样式 */
