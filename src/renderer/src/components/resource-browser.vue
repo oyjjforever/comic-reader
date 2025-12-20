@@ -340,7 +340,7 @@ const handleSearchClear = () => {
 }
 // 设置按钮回调
 const handleSettingClick = () => {
-  router.push({ name: 'setting' })
+  router.push({ name: 'setting', query: { tab: 'resource' } })
 }
 // 排序
 function onSort(key: string | number) {
