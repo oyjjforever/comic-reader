@@ -2,14 +2,21 @@
   <div class="home-container">
     <header class="navbar">
       <div class="sidebar-header">
-        <n-button text size="small" @click="toggleSidebar" class="sidebar-toggle">
-          <template #icon>
-            <n-icon :component="isSidebarHidden ? ChevronRightIcon : ChevronLeftIcon" />
-          </template>
-        </n-button>
         <div class="sidebar-title-section">
           <div class="view-mode-toggle">
             <n-button-group size="small">
+              <n-button
+                size="small"
+                @click="toggleSidebar"
+                class="sidebar-toggle"
+                :disabled="['history', 'downloads'].includes(currentViewMode)"
+              >
+                <template #icon>
+                  <n-icon
+                    :component="isSidebarHidden ? ArrowNext24Regular : ArrowPrevious24Regular"
+                  />
+                </template>
+              </n-button>
               <n-button
                 :type="currentViewMode === 'folders' ? 'primary' : 'default'"
                 @click="switchToFolderView"
@@ -191,8 +198,6 @@ import ContextMenu from '@imengyu/vue3-context-menu'
 import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
-  ChevronBackOutline as ChevronLeftIcon,
-  ChevronForwardOutline as ChevronRightIcon,
   Folder as FolderIcon,
   Settings as SettingsIcon
 } from '@vicons/ionicons5'
@@ -200,7 +205,9 @@ import {
   ArrowSortDownLines24Regular,
   QuestionCircle24Regular,
   Folder24Regular,
-  Tag20Regular
+  Tag20Regular,
+  ArrowNext24Regular,
+  ArrowPrevious24Regular
 } from '@vicons/fluent'
 import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage } from 'naive-ui'
 import { debounce } from 'lodash'
@@ -372,10 +379,23 @@ const query = async (keyword?: string) => {
 const debounceQuery = debounce(query, 300)
 const refresh = async () => {
   if (!props.resourcePath) return
-  if (currentViewMode.value !== 'folders') return
   isLoading.value = true
   try {
-    fetchTreeData()
+    switch (currentViewMode.value) {
+      case 'folders':
+        await switchToFolderView()
+        break
+      case 'history':
+        await switchToHistoryView()
+        break
+      case 'downloads':
+        await switchToDownloadsView()
+        break
+      case 'favorites':
+      default:
+        await switchToFavoritesView()
+        break
+    }
   } finally {
     isLoading.value = false
   }
@@ -444,16 +464,8 @@ const handleTreeLoad = (node: any) => {
 
 // 收藏
 const getFavorites = async () => {
-  const favoritesPath = '__favorites__'
-  if (dataCache.currentPath === favoritesPath && dataCache.isDataLoaded) {
-    tree.currentKey = favoritesPath
-    return
-  }
   try {
     isLoading.value = true
-    dataCache.currentPath = favoritesPath
-    dataCache.isDataLoaded = true
-    dataCache.lastLoadTime = Date.now()
     virtualGridRef.value?.scrollToTop()
 
     // 加载标签列表
@@ -466,7 +478,6 @@ const getFavorites = async () => {
     applyTagFilter()
   } catch (error: any) {
     message.error(`获取收藏失败: ${error.message}`)
-    dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
   }
@@ -474,16 +485,8 @@ const getFavorites = async () => {
 
 // 获取浏览历史
 const getBrowseHistory = async () => {
-  const historyPath = '__history__'
-  if (dataCache.currentPath === historyPath && dataCache.isDataLoaded) {
-    return
-  }
-
   try {
     isLoading.value = true
-    dataCache.currentPath = historyPath
-    dataCache.isDataLoaded = true
-    dataCache.lastLoadTime = Date.now()
     virtualGridRef.value?.scrollToTop()
 
     // 获取浏览历史记录
@@ -525,7 +528,6 @@ const getBrowseHistory = async () => {
     grid.filterRows = grid.rows = historyFolders
   } catch (error: any) {
     message.error(`获取浏览历史失败: ${error.message}`)
-    dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
   }
@@ -533,16 +535,8 @@ const getBrowseHistory = async () => {
 
 // 获取下载历史
 const getDownloadHistory = async () => {
-  const downloadPath = '__downloads__'
-  if (dataCache.currentPath === downloadPath && dataCache.isDataLoaded) {
-    return
-  }
-
   try {
     isLoading.value = true
-    dataCache.currentPath = downloadPath
-    dataCache.isDataLoaded = true
-    dataCache.lastLoadTime = Date.now()
     virtualGridRef.value?.scrollToTop()
 
     // 获取下载历史记录
@@ -585,7 +579,6 @@ const getDownloadHistory = async () => {
     grid.filterRows = grid.rows = downloadFolders
   } catch (error: any) {
     message.error(`获取下载历史失败: ${error.message}`)
-    dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
   }
@@ -784,20 +777,9 @@ const openTagManager = () => {
   tagDialogObject.show = true
 }
 
-// 缓存（keep-alive）
-const dataCache = reactive({
-  currentPath: '',
-  isDataLoaded: false,
-  lastLoadTime: 0
-})
-
 // 树节点点击
 const fetchGridData = async (folderPath: string) => {
-  if (dataCache.currentPath === folderPath && dataCache.isDataLoaded) {
-    tree.currentKey = folderPath
-    return
-  }
-  if (virtualGridRef.value && dataCache.currentPath) {
+  if (virtualGridRef.value) {
     virtualGridRef.value.saveScrollPosition()
   }
   isLoading.value = true
@@ -813,13 +795,9 @@ const fetchGridData = async (folderPath: string) => {
       // 第二阶段：渐进式加载详细信息
       loadDetailsProgressively(grid.rows, basicFolders)
     }
-    dataCache.currentPath = folderPath
-    dataCache.isDataLoaded = true
-    dataCache.lastLoadTime = Date.now()
     virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
     message.error(`获取子文件夹失败: ${error.message}`)
-    dataCache.isDataLoaded = false
   } finally {
     isLoading.value = false
   }
@@ -851,11 +829,11 @@ const loadDetailsProgressively = async (rows: any[], folders: any[]) => {
 
 // 预加载下一页数据
 const preloadNextPage = async () => {
-  if (loadingMore.value || !hasMore.value || !dataCache.currentPath) return
+  if (loadingMore.value || !hasMore.value || !tree.currentKey) return
   loadingMore.value = true
   try {
     const nextPage = await window.media.getFolderListPaginated(
-      dataCache.currentPath,
+      tree.currentKey,
       Math.ceil(grid.rows.length / 50),
       50
     )
@@ -1073,22 +1051,7 @@ const updateNodeBookmarkStatus = (folderPath: string, isBookmarked: boolean) => 
 
 // 事件与生命周期
 onMounted(async () => {
-  // 根据设置中的默认视图模式初始化
-  switch (settingStore.setting.defaultViewMode) {
-    case 'folders':
-      await switchToFolderView()
-      break
-    case 'history':
-      await switchToHistoryView()
-      break
-    case 'downloads':
-      await switchToDownloadsView()
-      break
-    case 'favorites':
-    default:
-      await switchToFavoritesView()
-      break
-  }
+  refresh()
 })
 
 // 暴露方法

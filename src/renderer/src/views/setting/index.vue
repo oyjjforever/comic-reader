@@ -24,8 +24,9 @@
           v-model:value="formData.defaultViewMode"
           :options="[
             { label: '本地目录', value: 'folders' },
-            { label: '收藏', value: 'favorites' },
-            { label: '浏览历史', value: 'history' }
+            { label: '我的收藏', value: 'favorites' },
+            { label: '浏览历史', value: 'history' },
+            { label: '最近下载', value: 'downloads' }
           ]"
           placeholder="请选择默认展示的标签页"
         />
