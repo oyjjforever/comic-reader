@@ -1,6 +1,37 @@
 <template>
   <div class="home-container">
     <header class="navbar">
+      <div class="sidebar-header">
+        <n-button text size="small" @click="toggleSidebar" class="sidebar-toggle">
+          <template #icon>
+            <n-icon :component="isSidebarHidden ? ChevronRightIcon : ChevronLeftIcon" />
+          </template>
+        </n-button>
+        <div class="sidebar-title-section">
+          <div class="view-mode-toggle">
+            <n-button-group size="small">
+              <n-button
+                :type="currentViewMode === 'folders' ? 'primary' : 'default'"
+                @click="switchToFolderView"
+              >
+                本地目录
+              </n-button>
+              <n-button
+                :type="currentViewMode === 'favorites' ? 'primary' : 'default'"
+                @click="switchToFavoritesView"
+              >
+                我的收藏
+              </n-button>
+              <n-button
+                :type="currentViewMode === 'history' ? 'primary' : 'default'"
+                @click="switchToHistoryView"
+              >
+                浏览历史
+              </n-button>
+            </n-button-group>
+          </div>
+        </div>
+      </div>
       <div class="navbar-center">
         <n-input
           v-model:value="search.keyword"
@@ -29,37 +60,6 @@
 
     <main class="main-content" v-if="resourcePath">
       <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
-        <div class="sidebar-header">
-          <div class="sidebar-title-section">
-            <div class="view-mode-toggle" v-if="!isSidebarHidden">
-              <n-button-group size="small">
-                <n-button
-                  :type="currentViewMode === 'folders' ? 'primary' : 'default'"
-                  @click="switchToFolderView"
-                >
-                  本地目录
-                </n-button>
-                <n-button
-                  :type="currentViewMode === 'favorites' ? 'primary' : 'default'"
-                  @click="switchToFavoritesView"
-                >
-                  收藏
-                </n-button>
-                <n-button
-                  :type="currentViewMode === 'history' ? 'primary' : 'default'"
-                  @click="switchToHistoryView"
-                >
-                  浏览历史
-                </n-button>
-              </n-button-group>
-            </div>
-          </div>
-          <n-button text size="small" @click="toggleSidebar" class="sidebar-toggle">
-            <template #icon>
-              <n-icon :component="isSidebarHidden ? ChevronRightIcon : ChevronLeftIcon" />
-            </template>
-          </n-button>
-        </div>
         <div class="sidebar-content">
           <!-- 文件夹树视图 -->
           <n-tree
@@ -525,6 +525,11 @@ const onTagsChange = async () => {
 const loadTags = async () => {
   try {
     tags.value = await window.tag.getTags('sort_order ASC', props.namespace)
+    tags.value.unshift({
+      label: '默认分组',
+      id: '',
+      type: 'normal'
+    })
     selectedTagIds.value = selectedTagIds.value.filter((tagId) =>
       tags.value.some((tag) => tag.id === tagId)
     )
@@ -621,11 +626,17 @@ const applyTagFilter = debounce(async () => {
     }
 
     // 获取所有选中的标签信息
-    const selectedTagsInfo = await window.tag.getTagsByIds(
+    let selectedTagsInfo = await window.tag.getTagsByIds(
       selectedTagIds.value.join(','),
       props.namespace
     )
-
+    if (selectedTagIds.value.some((_) => _ === '')) {
+      selectedTagsInfo.push({
+        id: '',
+        label: '默认分组',
+        type: 'normal'
+      })
+    }
     // 分离文件夹标签和普通标签
     const folderTags = selectedTagsInfo.filter((tag) => tag.type === 'folder')
     const normalTags = selectedTagsInfo.filter((tag) => tag.type === 'normal')
@@ -652,9 +663,14 @@ const applyTagFilter = debounce(async () => {
         const favoriteTagIds = favoriteTags.map((tag) => tag.id)
 
         // 检查是否包含所有选中的普通标签
-        const hasAllSelectedNormalTags = normalTags.some((tag) => favoriteTagIds.includes(tag.id))
+        let match
+        if (!favoriteTagIds.length) {
+          match = normalTags.some((tag) => tag.id === '')
+        } else {
+          match = normalTags.some((tag) => favoriteTagIds.includes(tag.id))
+        }
 
-        if (hasAllSelectedNormalTags) {
+        if (match) {
           // 添加收藏信息
           const favInfo =
             props.namespace === 'video'
@@ -818,25 +834,69 @@ const fetchTreeData = async () => {
 // 右键菜单
 async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   e.preventDefault()
-
+  let menus = []
   // 检查文件夹是否已被收藏
   const isFavorited = await window.favorite.isFavorited(folder.fullPath, props.namespace)
-
-  // 否则显示默认菜单
-  ContextMenu.showContextMenu({
-    x: e.x,
-    y: e.y,
-    theme: 'mac',
-    items: [
+  if (isFavorited) {
+    menus = [
       {
-        label: isFavorited ? '修改标签' : '添加到收藏',
+        label: '取消收藏',
+        onClick: async () => {
+          try {
+            await window.favorite.deleteFavoriteByPath(folder.fullPath, props.namespace)
+            applyTagFilter()
+            message.success('已取消收藏')
+          } catch (error: any) {
+            message.error(`取消收藏失败: ${error.message || error}`)
+          }
+        }
+      },
+      {
+        label: '修改标签',
         onClick: () => {
           // 直接在组件内部处理标签对话框
           tagDialogObject.data = folder
           tagDialogObject.mode = 'assign'
           tagDialogObject.show = true
         }
-      },
+      }
+    ]
+  } else {
+    menus = [
+      {
+        label: '添加到收藏',
+        children: [
+          {
+            label: '默认分组',
+            onClick: async () => {
+              try {
+                await window.favorite.addFavorite(folder.fullPath, props.namespace, '')
+                message.success('已添加到收藏')
+              } catch (error: any) {
+                message.error(`添加到收藏失败: ${error.message || error}`)
+              }
+            }
+          },
+          {
+            label: '选择分组',
+            onClick: () => {
+              // 直接在组件内部处理标签对话框
+              tagDialogObject.data = folder
+              tagDialogObject.mode = 'assign'
+              tagDialogObject.show = true
+            }
+          }
+        ]
+      }
+    ]
+  }
+  // 否则显示默认菜单
+  ContextMenu.showContextMenu({
+    x: e.x,
+    y: e.y,
+    theme: 'mac',
+    items: [
+      ...menus,
       {
         label: '在文件管理器中打开',
         onClick: () => {
@@ -1021,8 +1081,8 @@ defineExpose({
     min-width: 256px;
 
     &-hidden {
-      width: 48px;
-      min-width: 48px;
+      width: 0px;
+      min-width: 0px;
 
       .sidebar-title,
       .sidebar-content {
@@ -1034,12 +1094,12 @@ defineExpose({
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-left: 1rem;
-      padding-right: 1rem;
-      padding-top: 0.75rem;
-      padding-bottom: 0.75rem;
-      border-bottom-width: 1px;
-      border-bottom-color: #e5e7eb;
+      // padding-left: 1rem;
+      // padding-right: 1rem;
+      // padding-top: 0.75rem;
+      // padding-bottom: 0.75rem;
+      // border-bottom-width: 1px;
+      // border-bottom-color: #e5e7eb;
       flex-shrink: 0;
     }
 

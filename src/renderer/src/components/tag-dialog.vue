@@ -318,33 +318,25 @@ const addNewTag = async () => {
 
 // 确认选择
 const confirmSelection = async () => {
+  // 检查是否已选择标签
+  if (selectedTagIds.value.length === 0) {
+    message.warning('请至少选择一个标签')
+    return
+  }
+
   try {
-    if (selectedTagIds.value.length === 0) {
-      // 没有选中标签的情况
-      if (favoriteId.value) {
-        // 已收藏，取消收藏
-        await window.favorite.toggleFavorite(props.mediaPath, props.namespace)
-        message.success('已取消收藏')
-        favoriteId.value = null
-      } else {
-        // 未收藏，不做任何操作
-        message.warning('未选择标签不会加入收藏')
-      }
+    if (favoriteId.value) {
+      // 已收藏，更新标签
+      await window.favorite.updateFavoriteTags(favoriteId.value, selectedTagIds.value.toString())
+      message.success('标签更新成功')
     } else {
-      // 有选中标签的情况
-      if (favoriteId.value) {
-        // 已收藏，更新标签
-        await window.favorite.updateFavoriteTags(favoriteId.value, selectedTagIds.value.toString())
-        message.success('标签更新成功')
-      } else {
-        // 未收藏，添加收藏和标签
-        await window.favorite.addFavorite(
-          props.mediaPath,
-          props.namespace,
-          selectedTagIds.value.toString()
-        )
-        message.success('添加收藏成功')
-      }
+      // 未收藏，添加收藏和标签
+      await window.favorite.addFavorite(
+        props.mediaPath,
+        props.namespace,
+        selectedTagIds.value.toString()
+      )
+      message.success('添加收藏成功')
     }
 
     emit('confirm')
