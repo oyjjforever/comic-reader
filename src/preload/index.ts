@@ -14,6 +14,7 @@ import pixiv from './plugins/downloader/pixiv'
 import twitter from './plugins/downloader/twitter'
 import specialAttention from './plugins/special-attention'
 import browseHistory from './plugins/browseHistory'
+import downloadHistory from './plugins/downloadHistory'
 // Custom APIs for renderer
 const api = {}
 
@@ -37,6 +38,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('twitter', twitter)
     contextBridge.exposeInMainWorld('specialAttention', specialAttention)
     contextBridge.exposeInMainWorld('browseHistory', browseHistory)
+    contextBridge.exposeInMainWorld('downloadHistory', downloadHistory)
   } catch (error) {
     console.error(error)
   }

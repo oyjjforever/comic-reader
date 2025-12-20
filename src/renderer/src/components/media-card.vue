@@ -85,6 +85,7 @@ interface Props {
   showFileCount?: boolean
   showTypeBadge?: boolean
   enableHoverPreview?: boolean
+  namespace?: string
 }
 
 interface Emits {
@@ -120,7 +121,7 @@ const emit = defineEmits<Emits>()
 const handleCardClick = async () => {
   // 记录浏览历史
   try {
-    await window.browseHistory.addBrowseHistory(props.folder.fullPath, mediaType.value)
+    await window.browseHistory.addBrowseHistory(props.folder.fullPath, props.namespace)
   } catch (error) {
     console.error('记录浏览历史失败:', error)
   }
@@ -139,15 +140,15 @@ const hasCoverLoaded = ref(false)
 const isHover = ref(false)
 const videoRef = ref<HTMLVideoElement>()
 
-const toggleBookmark = async () => {
-  try {
-    const result = await window.favorite.toggleFavorite(props.folder.fullPath, mediaType.value)
-    isBookmarked.value = result
-    emit('bookmark', props.folder, isBookmarked.value)
-  } catch (error) {
-    console.error('切换收藏状态失败:', error)
-  }
-}
+// const toggleBookmark = async () => {
+//   try {
+//     const result = await window.favorite.toggleFavorite(props.folder.fullPath, mediaType.value)
+//     isBookmarked.value = result
+//     emit('bookmark', props.folder, isBookmarked.value)
+//   } catch (error) {
+//     console.error('切换收藏状态失败:', error)
+//   }
+// }
 
 const onImageError = () => {
   imageError.value = true
@@ -536,6 +537,7 @@ export default {
 
 /* 信息展示区 */
 .info-section {
+  height: 70px;
   padding: 16px;
   background: white;
   border-radius: 0 0 12px 12px;

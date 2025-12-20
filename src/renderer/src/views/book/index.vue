@@ -7,7 +7,13 @@
     namespace="book"
   >
     <template #card="{ item }">
-      <media-card :folder="item" class="grid-item" @to-read="toRead(item)" @click="toRead(item)" />
+      <media-card
+        :folder="item"
+        class="grid-item"
+        namespace="book"
+        @to-read="toRead(item)"
+        @click="toRead(item)"
+      />
     </template>
   </resource-browser>
 </template>

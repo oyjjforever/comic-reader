@@ -28,6 +28,12 @@
               >
                 浏览历史
               </n-button>
+              <n-button
+                :type="currentViewMode === 'downloads' ? 'primary' : 'default'"
+                @click="switchToDownloadsView"
+              >
+                最近下载
+              </n-button>
             </n-button-group>
           </div>
         </div>
@@ -238,8 +244,8 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
 const message = useMessage()
 const router = useRouter()
 const settingStore = useSettingStore()
-const isSidebarHidden = ref(false)
-const currentViewMode = ref<'folders' | 'favorites' | 'history'>(
+const _isSidebarHidden = ref(false)
+const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads'>(
   settingStore.setting.defaultViewMode || 'favorites'
 )
 
@@ -271,9 +277,11 @@ const tagDialogObject = reactive({ show: false, data: {} as FolderInfo | null })
 
 // 侧边栏折叠
 const toggleSidebar = () => {
-  isSidebarHidden.value = !isSidebarHidden.value
+  _isSidebarHidden.value = !_isSidebarHidden.value
 }
-
+const isSidebarHidden = computed(() => {
+  return _isSidebarHidden.value || ['history', 'downloads'].includes(currentViewMode.value)
+})
 // 切换到文件夹视图
 const switchToFolderView = () => {
   currentViewMode.value = 'folders'
@@ -302,6 +310,14 @@ const switchToHistoryView = async () => {
   grid.filterRows = grid.rows = []
   // 加载浏览历史数据
   await getBrowseHistory()
+}
+
+// 切换到最近下载视图
+const switchToDownloadsView = async () => {
+  currentViewMode.value = 'downloads'
+  grid.filterRows = grid.rows = []
+  // 加载最近下载数据
+  await getDownloadHistory()
 }
 
 // 处理搜索输入
@@ -356,6 +372,7 @@ const query = async (keyword?: string) => {
 const debounceQuery = debounce(query, 300)
 const refresh = async () => {
   if (!props.resourcePath) return
+  if (currentViewMode.value !== 'folders') return
   isLoading.value = true
   try {
     fetchTreeData()
@@ -471,7 +488,6 @@ const getBrowseHistory = async () => {
 
     // 获取浏览历史记录
     const historyRecords = await window.browseHistory.getBrowseHistory(100, props.namespace)
-
     // 转换为FolderInfo格式
     const historyFolders: FolderInfo[] = []
     for (const record of historyRecords) {
@@ -480,7 +496,6 @@ const getBrowseHistory = async () => {
         // TODO 不够优雅的区分方式，后续考虑改进
         if (props.provideList) {
           folderInfo = await window.media.getFileInfo(record.fullPath)
-          folderInfo.coverPath = folderInfo.fullPath
         } else {
           folderInfo = await window.media.getFolderInfo(record.fullPath)
         }
@@ -515,6 +530,67 @@ const getBrowseHistory = async () => {
     isLoading.value = false
   }
 }
+
+// 获取下载历史
+const getDownloadHistory = async () => {
+  const downloadPath = '__downloads__'
+  if (dataCache.currentPath === downloadPath && dataCache.isDataLoaded) {
+    return
+  }
+
+  try {
+    isLoading.value = true
+    dataCache.currentPath = downloadPath
+    dataCache.isDataLoaded = true
+    dataCache.lastLoadTime = Date.now()
+    virtualGridRef.value?.scrollToTop()
+
+    // 获取下载历史记录
+    const downloadRecords = await window.downloadHistory.getDownloadHistory(100, props.namespace)
+    // 转换为FolderInfo格式
+    const downloadFolders: FolderInfo[] = []
+    for (const record of downloadRecords) {
+      try {
+        let folderInfo
+        // TODO 不够优雅的区分方式，后续考虑改进
+        if (props.provideList) {
+          folderInfo = await window.media.getFileInfo(record.fullPath)
+          folderInfo.coverPath = folderInfo.fullPath
+        } else {
+          folderInfo = await window.media.getFolderInfo(record.fullPath)
+        }
+        if (folderInfo) {
+          downloadFolders.push({
+            ...folderInfo,
+            fullPath: record.fullPath,
+            isBookmarked: false
+          })
+        }
+      } catch (error) {
+        console.warn(`Failed to load folder info for ${record.fullPath}:`, error)
+        // 即使获取详细信息失败，也添加基本信息
+        const pathParts = record.fullPath.split(/[/\\]/)
+        const name = pathParts[pathParts.length - 1] || record.fullPath
+        downloadFolders.push({
+          name,
+          fullPath: record.fullPath,
+          fileCount: 0,
+          createdTime: new Date(record.created_at || Date.now()),
+          isBookmarked: false,
+          contentType: 'empty'
+        })
+      }
+    }
+
+    grid.filterRows = grid.rows = downloadFolders
+  } catch (error: any) {
+    message.error(`获取下载历史失败: ${error.message}`)
+    dataCache.isDataLoaded = false
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const onTagsChange = async () => {
   if (currentViewMode.value === 'favorites') {
     await loadTags()
@@ -795,7 +871,7 @@ const preloadNextPage = async () => {
 
 // 滚动事件处理
 const handleScroll = (event: Event) => {
-  if (currentViewMode === 'favorites') return
+  if (currentViewMode !== 'folders') return
   const target = event.target as HTMLElement
   const { scrollTop, scrollHeight, clientHeight } = target
 
@@ -1004,6 +1080,9 @@ onMounted(async () => {
       break
     case 'history':
       await switchToHistoryView()
+      break
+    case 'downloads':
+      await switchToDownloadsView()
       break
     case 'favorites':
     default:

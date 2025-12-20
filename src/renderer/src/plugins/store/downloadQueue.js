@@ -152,7 +152,9 @@ async function runJmtt(task) {
         task.onSuccess?.()
       }
     )
-    updateTask(task, { status: 'success', localFilePath: chapterFolder })
+    updateTask(task, { from: 'jmtt', status: 'success', localFilePath: chapterFolder })
+
+    // 保存到下载历史
   } catch (e) {
     console.log('🚀 ~ runJmtt ~ e:', e)
     if (task._cancel) {
@@ -204,7 +206,7 @@ async function runPixiv(task) {
         }
       )
     }
-    updateTask(task, { status: 'success', localFilePath: workDir })
+    updateTask(task, { from: 'pixiv', status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ runPixiv ~ e:', e)
     if (task._cancel) {
@@ -271,7 +273,7 @@ async function runTwitter(task) {
         }
       )
     }
-    updateTask(task, { status: 'success', localFilePath: workDir })
+    updateTask(task, { from: 'twitter', status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ runTwitter ~ e:', e)
     if (task._cancel) {
@@ -294,6 +296,11 @@ async function executeTask(task) {
       break
     default:
       updateTask(task, { status: 'error' })
+  }
+  try {
+    await window.downloadHistory.addDownloadHistory(task.localFilePath, 'book')
+  } catch (error) {
+    console.error('保存下载历史失败:', error)
   }
 }
 

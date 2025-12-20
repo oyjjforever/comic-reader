@@ -109,6 +109,16 @@ const createTable = async () => {
             created_at TEXT NOT NULL
         )
     `)
+
+    // 创建下载历史表
+    db?.exec(`
+        CREATE TABLE IF NOT EXISTS download_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fullPath TEXT NOT NULL,
+            module TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    `)
 }
 
 export default {

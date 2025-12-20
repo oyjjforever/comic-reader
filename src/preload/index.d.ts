@@ -84,5 +84,17 @@ declare global {
       decreasePriority: (id: number, delta?: number) => Promise<boolean>;
       swapPriority: (id1: number, id2: number) => Promise<boolean>;
     }
+    browseHistory: {
+      addBrowseHistory: (fullPath: string, module: string) => Promise<boolean>;
+      getBrowseHistory: (limit?: number, module?: string) => Promise<any[]>;
+      deleteBrowseHistory: (id: number) => Promise<boolean>;
+      clearBrowseHistory: () => Promise<boolean>;
+    }
+    downloadHistory: {
+      addDownloadHistory: (fullPath: string, module: string) => Promise<boolean>;
+      getDownloadHistory: (limit?: number, module?: string) => Promise<any[]>;
+      deleteDownloadHistory: (id: number) => Promise<boolean>;
+      clearDownloadHistory: () => Promise<boolean>;
+    }
   }
 }

@@ -41,3 +41,10 @@ export type browseHistory = {
     module: string, // 模块类型，例如'book'或'video'
     created_at?: Date, // 创建时间
 }
+
+export type downloadHistory = {
+    id?: number, // ID
+    fullPath: string, // 文件/文件夹完整路径
+    module: string, // 模块类型，例如'jmtt'、'pixiv'或'twitter'
+    created_at?: Date, // 创建时间
+}
