@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 // 默认设置
 export const defaultSetting = {
-  theme: 'auto',
+  theme: 'light',
   bookSort: 'id DESC',
   resourcePath: '',
   videoResourcePath: '',

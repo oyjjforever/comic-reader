@@ -574,19 +574,19 @@ $background-color: #322f3b;
 }
 
 // 深色模式支持
-@media (prefers-color-scheme: dark) {
-  .layout-container {
-    background: #1a1a1a;
-  }
+// @media (prefers-color-scheme: dark) {
+//   .layout-container {
+//     background: #1a1a1a;
+//   }
 
-  .sidebar {
-    background: #111827;
-  }
+//   .sidebar {
+//     background: #111827;
+//   }
 
-  .main-content-wrapper {
-    background: #1f2937;
-  }
-}
+//   .main-content-wrapper {
+//     background: #1f2937;
+//   }
+// }
 
 @keyframes slideIn {
   from {

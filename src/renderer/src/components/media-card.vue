@@ -586,23 +586,23 @@ export default {
 }
 
 /* 夜间模式支持 */
-@media (prefers-color-scheme: dark) {
-  .media-card {
-    background: #2f2f2f;
-  }
+// @media (prefers-color-scheme: dark) {
+//   .media-card {
+//     background: #2f2f2f;
+//   }
 
-  .info-section {
-    background: #2f2f2f;
-  }
+//   .info-section {
+//     background: #2f2f2f;
+//   }
 
-  .media-title {
-    color: #e0e0e0;
-  }
+//   .media-title {
+//     color: #e0e0e0;
+//   }
 
-  .loading-cover {
-    background: #404040;
-  }
-}
+//   .loading-cover {
+//     background: #404040;
+//   }
+// }
 
 /* 响应式设计 */
 @media (max-width: 768px) {

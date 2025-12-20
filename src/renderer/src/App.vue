@@ -26,28 +26,28 @@ const osTheme = useOsTheme()
 const theme = ref<GlobalTheme | null | undefined>(null)
 
 // 监听主题设置
-watch(
-  () => settingStore.setting.theme,
-  (newValue) => {
-    // 如果是自动模式，根据系统主题设置
-    if (newValue === 'auto') {
-      if (osTheme.value == 'dark') {
-        theme.value = darkTheme
-      } else {
-        theme.value = undefined
-      }
-      return
-    }
+// watch(
+//   () => settingStore.setting.theme,
+//   (newValue) => {
+//     // 如果是自动模式，根据系统主题设置
+//     if (newValue === 'auto') {
+//       if (osTheme.value == 'dark') {
+//         theme.value = darkTheme
+//       } else {
+//         theme.value = undefined
+//       }
+//       return
+//     }
 
-    if (newValue === 'dark') {
-      theme.value = darkTheme
-      return
-    }
+//     if (newValue === 'dark') {
+//       theme.value = darkTheme
+//       return
+//     }
 
-    theme.value = undefined
-  },
-  { immediate: true }
-)
+//     theme.value = undefined
+//   },
+//   { immediate: true }
+// )
 
 // 应用启动时初始化新作品检测
 onMounted(async () => {
