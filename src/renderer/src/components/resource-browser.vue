@@ -295,9 +295,9 @@ const switchToFolderView = () => {
   grid.filterRows = grid.rows = []
   // 选中资源目录节点
   if (props.resourcePath) {
-    if (!tree.data?.length) {
-      fetchTreeData()
-    }
+    // if (!tree.data?.length) {
+    fetchTreeData()
+    // }
     fetchGridData(props.resourcePath)
     tree.currentKey = props.resourcePath
   }
@@ -795,7 +795,7 @@ const fetchGridData = async (folderPath: string) => {
       // 第二阶段：渐进式加载详细信息
       loadDetailsProgressively(grid.rows, basicFolders)
     }
-    virtualGridRef.value?.scrollToTop()
+    // virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
     message.error(`获取子文件夹失败: ${error.message}`)
   } finally {
@@ -971,7 +971,7 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
               if (success) {
                 message.success(`文件夹"${folder.name}"已成功删除`)
                 // 刷新资源浏览器
-                refresh()
+                fetchGridData(tree.currentKey)
               } else {
                 message.error(`删除文件夹"${folder.name}"失败`)
               }
