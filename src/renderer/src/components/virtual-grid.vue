@@ -83,7 +83,11 @@ const hasInitialized = ref(false)
 // 计算网格布局参数
 const columnsCount = computed(() => {
   if (containerWidth.value === 0) return 4
-  return Math.floor((containerWidth.value + props.gap) / (props.itemWidth + props.gap))
+  // 计算理想列数，基于项目宽度
+  const idealColumns = Math.floor(
+    (containerWidth.value + props.gap) / (props.itemWidth + props.gap)
+  )
+  return Math.max(1, idealColumns)
 })
 
 const rowsCount = computed(() => {
@@ -120,10 +124,16 @@ const visibleItems = computed((): VirtualItem[] => {
   const { startIndex, endIndex } = visibleRange.value
   const items: VirtualItem[] = []
 
+  // 计算实际的列宽，用于定位
+  const totalGapWidth = (columnsCount.value - 1) * props.gap
+  const availableWidth = containerWidth.value - totalGapWidth
+  const actualColumnWidth =
+    columnsCount.value > 0 ? availableWidth / columnsCount.value : props.itemWidth
+
   for (let i = startIndex; i <= endIndex && i < props.items.length; i++) {
     const row = Math.floor(i / columnsCount.value)
     const col = i % columnsCount.value
-    const x = col * (props.itemWidth + props.gap)
+    const x = col * (actualColumnWidth + props.gap)
     const y = row * (props.itemHeight + props.gap)
 
     items.push({
@@ -146,13 +156,22 @@ const contentStyle = computed(() => ({
 }))
 
 // 网格样式
-const gridStyle = computed(() => ({
-  display: 'grid',
-  gridTemplateColumns: `repeat(${columnsCount.value}, ${props.itemWidth}px)`,
-  gridAutoRows: `${props.itemHeight}px`,
-  gap: `${props.gap}px`,
-  justifyContent: 'start'
-}))
+const gridStyle = computed(() => {
+  // 计算可用宽度（容器宽度减去所有间隙）
+  const totalGapWidth = (columnsCount.value - 1) * props.gap
+  const availableWidth = containerWidth.value - totalGapWidth
+
+  // 计算每列的实际宽度，确保所有列能撑满容器
+  const columnWidth = columnsCount.value > 0 ? availableWidth / columnsCount.value : props.itemWidth
+  return {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${columnsCount.value}, ${columnWidth}px)`,
+    gridAutoRows: `${props.itemHeight}px`,
+    gap: `${props.gap}px`,
+    padding: '10px',
+    justifyContent: 'start'
+  }
+})
 
 // 获取项目的唯一键
 const getItemKey = (item: any) => {
@@ -242,7 +261,7 @@ const handleScroll = throttle((event: Event) => {
 const updateContainerSize = debounce(() => {
   if (containerRef.value && isActive.value) {
     const rect = containerRef.value.getBoundingClientRect()
-    containerWidth.value = rect.width
+    containerWidth.value = rect.width - 20
     containerHeight.value = rect.height
   }
 }, 100)
@@ -433,6 +452,8 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
   transition:
     opacity 0.2s,
     transform 0.2s;

@@ -244,7 +244,7 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
   minItemWidth: 160,
   maxItemWidth: 250,
   aspectRatio: 0.75,
-  gridGap: 1,
+  gridGap: 10,
   namespace: 'default'
 })
 
@@ -1182,7 +1182,6 @@ defineExpose({
   .grid-view {
     flex: 1 1 0%;
     overflow: hidden;
-    padding: 0.75rem;
   }
 
   .empty-state {
