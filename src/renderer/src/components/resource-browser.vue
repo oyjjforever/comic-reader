@@ -159,6 +159,12 @@
               <div
                 style="width: 100%; height: 100%"
                 @contextmenu="(e) => handleContextMenu(e, item)"
+                @click="handleCardClick(item, $event)"
+                :class="{
+                  'selected-card': isMultiSelectMode && isCardSelected(item),
+                  'multi-selecting': isMultiSelectMode,
+                  'bookmarked-card': isMultiSelectMode && item.isBookmarked
+                }"
               >
                 <slot name="card" :item="item" />
               </div>
@@ -180,12 +186,11 @@
     <tag-dialog
       v-if="tagDialogObject.show"
       v-model:show="tagDialogObject.show"
-      :media-path="tagDialogObject.data.fullPath"
-      :media-name="tagDialogObject.data.name"
+      :media="tagDialogObject.data"
       :mode="tagDialogObject.mode"
       :namespace="namespace"
       @change="onTagsChange"
-      @confirm="applyTagFilter"
+      @confirm="onTagsConfirm"
     />
   </div>
 </template>
@@ -207,9 +212,17 @@ import {
   Folder24Regular,
   Tag20Regular,
   ArrowNext24Regular,
-  ArrowPrevious24Regular
+  ArrowPrevious24Regular,
+  SquareMultiple24Regular,
+  BookmarkAdd24Regular,
+  BookmarkOff24Filled,
+  TagLock24Regular,
+  TagMultiple24Regular,
+  NotepadEdit20Regular,
+  FolderOpen24Regular,
+  Delete24Filled
 } from '@vicons/fluent'
-import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage } from 'naive-ui'
+import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
 import { ref, reactive, onMounted, onActivated, onDeactivated, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -219,7 +232,7 @@ interface ResourceBrowserProps {
   resourcePath: string | null
   // 数据提供者
   provideTree: (rootPath: string) => Promise<any[]>
-  provideList: (folderPath: string) => Promise<FolderInfo[]>
+  provideList?: (folderPath: string) => Promise<FolderInfo[]>
   provideFavorites: () => Promise<FolderInfo[]>
   // 行为
   buildContextMenu?: (e: MouseEvent, item: FolderInfo) => void
@@ -249,13 +262,16 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
 })
 
 const message = useMessage()
+const dialog = useDialog()
 const router = useRouter()
 const settingStore = useSettingStore()
 const _isSidebarHidden = ref(false)
 const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads'>(
   settingStore.setting.defaultViewMode || 'favorites'
 )
-
+watch(currentViewMode, () => {
+  toggleMultiSelectMode(false)
+})
 // 性能优化
 const isLoading = ref(false)
 const loadingMore = ref(false)
@@ -282,6 +298,10 @@ const selectedTagIds = ref<number[]>([])
 const allTagsSelected = ref(false)
 const tagDialogObject = reactive({ show: false, data: {} as FolderInfo | null })
 
+// Multi-select mode state
+const isMultiSelectMode = ref(false)
+const selectedCards = ref<FolderInfo[]>([])
+
 // 侧边栏折叠
 const toggleSidebar = () => {
   _isSidebarHidden.value = !_isSidebarHidden.value
@@ -292,21 +312,21 @@ const isSidebarHidden = computed(() => {
 // 切换到文件夹视图
 const switchToFolderView = () => {
   currentViewMode.value = 'folders'
-  grid.filterRows = grid.rows = []
   // 选中资源目录节点
   if (props.resourcePath) {
-    // if (!tree.data?.length) {
     fetchTreeData()
-    // }
-    fetchGridData(props.resourcePath)
-    tree.currentKey = props.resourcePath
+    if (tree.currentKey) {
+      fetchGridData(tree.currentKey)
+    } else {
+      fetchGridData(props.resourcePath)
+      tree.currentKey = props.resourcePath
+    }
   }
 }
 
 // 切换到收藏夹视图
 const switchToFavoritesView = () => {
   currentViewMode.value = 'favorites'
-  grid.filterRows = grid.rows = []
   // 加载收藏夹数据
   getFavorites()
 }
@@ -314,7 +334,6 @@ const switchToFavoritesView = () => {
 // 切换到浏览历史视图
 const switchToHistoryView = async () => {
   currentViewMode.value = 'history'
-  grid.filterRows = grid.rows = []
   // 加载浏览历史数据
   await getBrowseHistory()
 }
@@ -322,7 +341,6 @@ const switchToHistoryView = async () => {
 // 切换到最近下载视图
 const switchToDownloadsView = async () => {
   currentViewMode.value = 'downloads'
-  grid.filterRows = grid.rows = []
   // 加载最近下载数据
   await getDownloadHistory()
 }
@@ -466,7 +484,6 @@ const handleTreeLoad = (node: any) => {
 const getFavorites = async () => {
   try {
     isLoading.value = true
-    virtualGridRef.value?.scrollToTop()
 
     // 加载标签列表
     await loadTags()
@@ -487,7 +504,6 @@ const getFavorites = async () => {
 const getBrowseHistory = async () => {
   try {
     isLoading.value = true
-    virtualGridRef.value?.scrollToTop()
 
     // 获取浏览历史记录
     const historyRecords = await window.browseHistory.getBrowseHistory(100, props.namespace)
@@ -505,6 +521,7 @@ const getBrowseHistory = async () => {
         if (folderInfo) {
           historyFolders.push({
             ...folderInfo,
+            id: record.id,
             fullPath: record.fullPath,
             isBookmarked: false
           })
@@ -537,7 +554,6 @@ const getBrowseHistory = async () => {
 const getDownloadHistory = async () => {
   try {
     isLoading.value = true
-    virtualGridRef.value?.scrollToTop()
 
     // 获取下载历史记录
     const downloadRecords = await window.downloadHistory.getDownloadHistory(100, props.namespace)
@@ -556,6 +572,7 @@ const getDownloadHistory = async () => {
         if (folderInfo) {
           downloadFolders.push({
             ...folderInfo,
+            id: record.id,
             fullPath: record.fullPath,
             isBookmarked: false
           })
@@ -590,6 +607,10 @@ const onTagsChange = async () => {
     applyTagFilter()
   }
 }
+const onTagsConfirm = async () => {
+  applyTagFilter()
+  toggleMultiSelectMode(false)
+}
 // 加载所有标签
 const loadTags = async () => {
   try {
@@ -603,7 +624,7 @@ const loadTags = async () => {
       tags.value.some((tag) => tag.id === tagId)
     )
   } catch (error: any) {
-    message.error('加载标签失败')
+    message.error(`加载标签失败: ${error.message}`)
   }
 }
 
@@ -745,7 +766,7 @@ const applyTagFilter = debounce(async () => {
             props.namespace === 'video'
               ? await window.media.getFileInfo(favorite.fullPath)
               : await window.media.getFolderInfo(favorite.fullPath)
-          allItems.push({ ...favorite, ...favInfo, isBookmarked: true })
+          allItems.push({ ...favorite, ...favInfo })
         }
       }
     }
@@ -758,10 +779,9 @@ const applyTagFilter = debounce(async () => {
     // 更新显示内容
     grid.filterRows = grid.rows = uniqueItems
     // 滚动到顶部
-    virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
     console.log('🚀 应用标签筛选失败 error:', error)
-    message.error('应用标签筛选失败')
+    message.error(`应用标签筛选失败: ${error.message}`)
   } finally {
     isTagFilterLoading.value = false
   }
@@ -795,7 +815,6 @@ const fetchGridData = async (folderPath: string) => {
       // 第二阶段：渐进式加载详细信息
       loadDetailsProgressively(grid.rows, basicFolders)
     }
-    // virtualGridRef.value?.scrollToTop()
   } catch (error: any) {
     message.error(`获取子文件夹失败: ${error.message}`)
   } finally {
@@ -877,7 +896,6 @@ const fetchTreeData = async () => {
     }
 
     tree.data = [{ name: '资源目录', fullPath: props.resourcePath, children: treeData }]
-    fetchGridData(props.resourcePath as string)
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
   } finally {
@@ -888,17 +906,47 @@ const fetchTreeData = async () => {
 // 右键菜单
 async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
   e.preventDefault()
-  let menus = []
   // 检查文件夹是否已被收藏
   const isFavorited = await window.favorite.isFavorited(folder.fullPath, props.namespace)
-  if (isFavorited) {
-    menus = [
+
+  // 否则显示默认菜单
+  ContextMenu.showContextMenu({
+    x: e.x,
+    y: e.y,
+    theme: 'mac',
+    items: [
+      {
+        label: isMultiSelectMode.value ? '退出多选' : '多选',
+        icon: h(NIcon, {
+          component: SquareMultiple24Regular
+        }),
+        onClick: () => {
+          toggleMultiSelectMode()
+          handleCardClick(folder)
+        }
+      },
       {
         label: '取消收藏',
+        icon: h(NIcon, {
+          component: BookmarkOff24Filled
+        }),
+        // 非多选模式下，收藏状态为true时显示
+        // 多选模式下，标签为我的收藏时显示
+        hidden: !(
+          (!isMultiSelectMode.value && isFavorited) ||
+          (isMultiSelectMode.value && currentViewMode.value === 'favorites')
+        ),
         onClick: async () => {
           try {
-            await window.favorite.deleteFavoriteByPath(folder.fullPath, props.namespace)
+            let folderList = [folder]
+            if (isMultiSelectMode.value && selectedCards.value.length > 0) {
+              folderList = [...selectedCards.value]
+            }
+            for (const f of folderList) {
+              await window.favorite.deleteFavoriteByPath(f.fullPath, props.namespace)
+            }
             applyTagFilter()
+            toggleMultiSelectMode(false)
             message.success('已取消收藏')
           } catch (error: any) {
             message.error(`取消收藏失败: ${error.message || error}`)
@@ -907,24 +955,51 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
       },
       {
         label: '修改标签',
+        icon: h(NIcon, {
+          component: NotepadEdit20Regular
+        }),
+        // 非多选模式下，收藏状态为true时显示
+        // 多选模式下，不显示
+        hidden: !(!isMultiSelectMode.value && isFavorited),
         onClick: () => {
-          // 直接在组件内部处理标签对话框
           tagDialogObject.data = folder
           tagDialogObject.mode = 'assign'
           tagDialogObject.show = true
         }
-      }
-    ]
-  } else {
-    menus = [
+      },
       {
         label: '添加到收藏',
+        icon: h(NIcon, {
+          component: BookmarkAdd24Regular
+        }),
+        // 非多选模式下，收藏状态为false时显示
+        // 多选模式下，标签不为我的收藏时显示
+        hidden: !(
+          !isFavorited ||
+          (isMultiSelectMode.value && currentViewMode.value !== 'favorites')
+        ),
         children: [
           {
             label: '默认分组',
+            icon: h(NIcon, {
+              component: TagLock24Regular
+            }),
             onClick: async () => {
               try {
-                await window.favorite.addFavorite(folder.fullPath, props.namespace, '')
+                let folderList = [folder]
+                if (isMultiSelectMode.value && selectedCards.value.length > 0) {
+                  for (let f of selectedCards.value) {
+                    f.isBookmarked = await window.favorite.isFavorited(f.fullPath, props.namespace)
+                  }
+                  folderList = [...selectedCards.value]
+                }
+                if (folderList.some((_) => _.isBookmarked)) {
+                  throw new Error('部分作品已在收藏中')
+                }
+                for (const f of folderList) {
+                  await window.favorite.addFavorite(f.fullPath, props.namespace, '')
+                }
+                toggleMultiSelectMode(false)
                 message.success('已添加到收藏')
               } catch (error: any) {
                 message.error(`添加到收藏失败: ${error.message || error}`)
@@ -933,56 +1008,107 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
           },
           {
             label: '选择分组',
-            onClick: () => {
-              // 直接在组件内部处理标签对话框
-              tagDialogObject.data = folder
-              tagDialogObject.mode = 'assign'
-              tagDialogObject.show = true
+            icon: h(NIcon, {
+              component: TagMultiple24Regular
+            }),
+            onClick: async () => {
+              try {
+                if (isMultiSelectMode.value && selectedCards.value.length > 0) {
+                  for (let f of selectedCards.value) {
+                    f.isBookmarked = await window.favorite.isFavorited(f.fullPath, props.namespace)
+                  }
+                  if (selectedCards.value.some((_) => _.isBookmarked)) {
+                    throw new Error('部分作品已在收藏中')
+                  }
+                  tagDialogObject.data = [...selectedCards.value]
+                } else {
+                  tagDialogObject.data = folder
+                }
+                tagDialogObject.mode = 'assign'
+                tagDialogObject.show = true
+              } catch (error: any) {
+                message.error(`添加到收藏失败: ${error.message || error}`)
+              }
             }
           }
         ]
-      }
-    ]
-  }
-  // 否则显示默认菜单
-  ContextMenu.showContextMenu({
-    x: e.x,
-    y: e.y,
-    theme: 'mac',
-    items: [
-      ...menus,
+      },
       {
         label: '在文件管理器中打开',
+        icon: h(NIcon, {
+          component: FolderOpen24Regular
+        }),
+        // 多选模式下，不显示
+        hidden: isMultiSelectMode.value,
         onClick: () => {
           window.systemInterface.openExplorer(folder.fullPath)
         }
       },
       {
         label: '删除',
+        icon: h(NIcon, {
+          component: Delete24Filled
+        }),
         onClick: () => {
           // 显示确认对话框
-          if (
-            confirm(
-              `确定要删除文件夹"${folder.name}"吗？\n\n此操作不可撤销，文件夹及其所有内容将被永久删除。`
-            )
-          ) {
-            // 调用删除函数
-            window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
-              if (success) {
-                message.success(`文件夹"${folder.name}"已成功删除`)
-                // 刷新资源浏览器
-                fetchGridData(tree.currentKey)
+          const foldersToDelete =
+            isMultiSelectMode.value && selectedCards.value.length > 0
+              ? selectedCards.value
+              : [folder]
+
+          dialog.warning({
+            title: '删除确认',
+            content: () => {
+              const count = foldersToDelete.length
+              return h('div', [
+                h('p', `确定要删除以下 ${count} 个作品吗？`),
+                h(
+                  'div',
+                  { style: 'max-height:300px;overflow:auto;margin:5px;' },
+                  foldersToDelete.map((f) => h('li', { style: 'font-size:12px' }, f.name))
+                ),
+                h(
+                  'p',
+                  { style: 'color: #e74c3c;font-weight: bold' },
+                  '此操作不可撤销，系统本地文件夹将被永久删除。'
+                )
+              ])
+            },
+            positiveText: '确定',
+            negativeText: '取消',
+            onPositiveClick: () => {
+              if (isMultiSelectMode.value && selectedCards.value.length > 0) {
+                // 多选模式，删除所有选中的文件夹
+                selectedCards.value.forEach((folder) => {
+                  deleteFolder(folder)
+                })
+                toggleMultiSelectMode(false)
               } else {
-                message.error(`删除文件夹"${folder.name}"失败`)
+                deleteFolder(folder)
               }
-            })
-          }
+            }
+          })
         }
       }
     ]
   })
 }
-
+function deleteFolder(folder: any) {
+  window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
+    if (success) {
+      message.success(`文件夹"${folder.name}"已成功删除`)
+      if (currentViewMode.value === 'history') {
+        window.browseHistory.deleteBrowseHistory(folder.id)
+      } else if (currentViewMode.value === 'downloads') {
+        window.downloadHistory.deleteDownloadHistory(folder.id)
+      }
+      grid.rows = grid.rows.filter((f) => f.fullPath !== folder.fullPath)
+      grid.filterRows = grid.filterRows.filter((f) => f.fullPath !== folder.fullPath)
+    } else {
+      message.error(`删除文件夹"${folder.name}"失败`)
+    }
+  })
+}
 // 文件夹右键菜单
 async function handleFolderContextMenu(e: MouseEvent, folder: any) {
   e.preventDefault()
@@ -1049,6 +1175,36 @@ const updateNodeBookmarkStatus = (folderPath: string, isBookmarked: boolean) => 
   updateNodeInTree(tree.data)
 }
 
+// 切换多选模式
+const toggleMultiSelectMode = (data?: boolean) => {
+  isMultiSelectMode.value = data ?? !isMultiSelectMode.value
+  if (!isMultiSelectMode.value) {
+    // 退出多选模式时清空选中状态
+    selectedCards.value = []
+  }
+}
+
+// 处理卡片点击事件（用于多选）
+const handleCardClick = async (folder: FolderInfo) => {
+  if (isMultiSelectMode.value) {
+    // 多选模式下切换卡片选中状态
+    const index = selectedCards.value.findIndex((card) => card.fullPath === folder.fullPath)
+    if (index > -1) {
+      selectedCards.value.splice(index, 1)
+    } else {
+      selectedCards.value.push(folder)
+    }
+  } else {
+    // 非多选模式下执行原有逻辑
+    // 这里可以触发原有的点击事件
+  }
+}
+
+// 检查卡片是否被选中
+const isCardSelected = (folder: FolderInfo) => {
+  return selectedCards.value.some((card) => card.fullPath === folder.fullPath)
+}
+
 // 事件与生命周期
 onMounted(async () => {
   refresh()
@@ -1064,7 +1220,11 @@ defineExpose({
   setScrollPosition: (position: number) => virtualGridRef.value?.setScrollPosition(position),
   getStats: () => virtualGridRef.value?.getStats(),
   onTagsChange,
-  fetchGridData
+  fetchGridData,
+  // 暴露多选模式相关的方法和状态
+  isMultiSelectMode: () => isMultiSelectMode.value,
+  selectedCards: () => selectedCards.value,
+  toggleMultiSelectMode
 })
 </script>
 
@@ -1338,6 +1498,68 @@ defineExpose({
   .tag-label {
     flex: 1;
     margin-left: 0.5rem;
+  }
+  .multi-selecting {
+    div {
+      pointer-events: none;
+    }
+  }
+  /* 多选模式样式 */
+  .selected-card {
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border: 3px solid #18a058;
+      border-radius: 12px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    &::before {
+      content: '✓';
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 24px;
+      height: 24px;
+      background-color: #18a058;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 2;
+      pointer-events: none;
+    }
+  }
+  .bookmarked-card {
+    position: relative;
+    &::before {
+      content: '已在收藏中';
+      position: absolute;
+      top: 40%;
+      left: 0;
+      width: 100%;
+      height: 30px;
+      background-color: #18a058;
+      color: white;
+      border-radius: 0px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 2;
+      pointer-events: none;
+    }
   }
 }
 </style>

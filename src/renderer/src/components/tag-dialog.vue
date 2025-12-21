@@ -11,9 +11,11 @@
       <template #header>
         <div class="dialog-header">
           <span>{{ dialogTitle }}</span>
-          <span v-if="mode === 'assign'" class="media-name">{{ mediaName }}</span>
         </div>
       </template>
+      <div v-if="mode === 'assign'" class="media-name">
+        <li v-for="media in medias" :key="media.fullPath">{{ media.name }}</li>
+      </div>
 
       <div class="tag-container">
         <div class="tag-list">
@@ -205,8 +207,7 @@ interface Tag {
 
 interface Props {
   show: boolean
-  mediaPath: string
-  mediaName: string
+  media: any
   mode?: 'manage' | 'assign' // manage: 标签维护模式, assign: 给作品添加标签模式
   namespace?: string // 命名空间，用于区分不同模块的标签集合
 }
@@ -220,6 +221,9 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   mode: 'assign', // 默认为给作品添加标签模式
   namespace: 'default' // 默认命名空间
+})
+const medias = computed(() => {
+  return Array.isArray(props.media) ? props.media : [props.media]
 })
 const emit = defineEmits<Emits>()
 const message = useMessage()
@@ -262,12 +266,12 @@ const loadFavoriteTags = async () => {
 
   try {
     // 检查是否已收藏
-    const isFavorited = await window.favorite.isFavorited(props.mediaPath, props.namespace)
+    const isFavorited = await window.favorite.isFavorited(medias.value[0].fullPath, props.namespace)
 
     if (isFavorited) {
       // 获取收藏信息
       const favorites = await window.favorite.getFavorites('id DESC', props.namespace)
-      const currentFavorite = favorites.find((fav) => fav.fullPath === props.mediaPath)
+      const currentFavorite = favorites.find((fav) => fav.fullPath === medias.value[0].fullPath)
 
       if (currentFavorite && currentFavorite.id) {
         favoriteId.value = currentFavorite.id
@@ -277,6 +281,7 @@ const loadFavoriteTags = async () => {
       }
     }
   } catch (error) {
+    console.log('🚀 ~ loadFavoriteTags ~ error:', error)
     message.error('加载收藏标签失败')
   }
 }
@@ -331,11 +336,13 @@ const confirmSelection = async () => {
       message.success('标签更新成功')
     } else {
       // 未收藏，添加收藏和标签
-      await window.favorite.addFavorite(
-        props.mediaPath,
-        props.namespace,
-        selectedTagIds.value.toString()
-      )
+      for (const media of medias.value) {
+        await window.favorite.addFavorite(
+          media.fullPath,
+          props.namespace,
+          selectedTagIds.value.toString()
+        )
+      }
       message.success('添加收藏成功')
     }
 
@@ -555,6 +562,10 @@ onMounted(async () => {
   font-size: 12px;
   color: #666;
   font-weight: normal;
+  max-height: 100px;
+  padding: 0 10px;
+  overflow: auto;
+  margin-bottom: 5px;
 }
 
 .tag-container {

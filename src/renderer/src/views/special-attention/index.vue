@@ -109,8 +109,7 @@
     <tag-dialog
       v-if="tagDialogObject.show"
       v-model:show="tagDialogObject.show"
-      :media-path="tagDialogObject.data.fullPath || ''"
-      :media-name="tagDialogObject.data.name || ''"
+      :media="tagDialogObject.data"
       :mode="tagDialogObject.mode"
       :namespace="namespace"
       @change="onTagsChange"
