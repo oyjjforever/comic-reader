@@ -748,25 +748,28 @@ const applyTagFilter = debounce(async () => {
       const favorites = await window.favorite.getFavorites('id DESC', props.namespace || 'default')
 
       for (const favorite of favorites) {
-        // 获取收藏的标签
-        const favoriteTags = await window.favorite.getFavoriteTags(favorite.id)
-        const favoriteTagIds = favoriteTags.map((tag) => tag.id)
+        try {
+          // 获取收藏的标签
+          const favoriteTags = await window.favorite.getFavoriteTags(favorite.id)
+          const favoriteTagIds = favoriteTags.map((tag) => tag.id)
+          // 检查是否包含所有选中的普通标签
+          let match
+          if (!favoriteTagIds.length) {
+            match = normalTags.some((tag) => tag.id === '')
+          } else {
+            match = normalTags.some((tag) => favoriteTagIds.includes(tag.id))
+          }
 
-        // 检查是否包含所有选中的普通标签
-        let match
-        if (!favoriteTagIds.length) {
-          match = normalTags.some((tag) => tag.id === '')
-        } else {
-          match = normalTags.some((tag) => favoriteTagIds.includes(tag.id))
-        }
-
-        if (match) {
-          // 添加收藏信息
-          const favInfo =
-            props.namespace === 'video'
-              ? await window.media.getFileInfo(favorite.fullPath)
-              : await window.media.getFolderInfo(favorite.fullPath)
-          allItems.push({ ...favorite, ...favInfo })
+          if (match) {
+            // 添加收藏信息
+            const favInfo =
+              props.namespace === 'video'
+                ? await window.media.getFileInfo(favorite.fullPath)
+                : await window.media.getFolderInfo(favorite.fullPath)
+            allItems.push({ ...favorite, ...favInfo })
+          }
+        } catch (error) {
+          console.error('获取收藏列表失败:', error)
         }
       }
     }
