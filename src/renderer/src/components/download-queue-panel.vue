@@ -9,103 +9,116 @@
       </template>
       <div class="task-list">
         <div v-if="!queue.tasks.length" class="empty">暂无任务</div>
-        <div v-for="t in queue.tasks" :key="t.id" class="task-item">
-          <div class="task-main">
-            <div class="title">
-              <img :src="siteIcon(t.site)" class="site-icon" />
-              <n-ellipsis class="name" style="max-width: 250px">
-                {{ t.title }}
-              </n-ellipsis>
-              <n-tag
-                size="small"
-                :bordered="false"
-                :type="statusType(t.status)"
-                class="status-tag"
-                >{{ statusLabel(t.status) }}</n-tag
-              >
-            </div>
-          </div>
+        <VirtualGrid
+          v-else
+          :items="queue.tasks"
+          :item-width="330"
+          :item-height="90"
+          :gap="8"
+          key-field="id"
+          :overscan="2"
+          class="download-virtual-grid"
+        >
+          <template #default="{ item: t }">
+            <div class="task-item">
+              <div class="task-main">
+                <div class="title">
+                  <img :src="siteIcon(t.site)" class="site-icon" />
+                  <n-ellipsis class="name" style="max-width: 250px">
+                    {{ t.title }}
+                  </n-ellipsis>
+                  <n-tag
+                    size="small"
+                    :bordered="false"
+                    :type="statusType(t.status)"
+                    class="status-tag"
+                    >{{ statusLabel(t.status) }}</n-tag
+                  >
+                </div>
+              </div>
 
-          <div class="progress-actions">
-            <n-progress
-              v-if="t.progress"
-              class="progress-flex"
-              type="line"
-              :show-indicator="false"
-              :percentage="
-                ['success', 'error', 'existed'].includes(t.status) ? 100 : calcPercent(t)
-              "
-              :show-info="false"
-              :status="progressStatus(t)"
-              :height="6"
-            />
-            <div class="actions-inline">
-              <n-button
-                v-if="t.status === 'running'"
-                quaternary
-                circle
-                size="tiny"
-                @click="onPause(t)"
-                title="暂停"
-              >
-                <n-icon size="16"><PauseOutline /></n-icon>
-              </n-button>
-              <n-button
-                v-if="t.status === 'paused'"
-                quaternary
-                circle
-                size="tiny"
-                @click="onResume(t)"
-                title="继续"
-              >
-                <n-icon size="16"><PlayOutline /></n-icon>
-              </n-button>
-              <!-- <n-button
-                v-if="t.status === 'running'"
-                quaternary
-                circle
-                size="tiny"
-                type="warning"
-                @click="onCancel(t)"
-                title="取消"
-              >
-                <n-icon size="16"><CloseCircleOutline /></n-icon>
-              </n-button> -->
-              <n-button
-                quaternary
-                circle
-                size="tiny"
-                type="error"
-                @click="onDelete(t)"
-                title="删除"
-              >
-                <n-icon size="16"><TrashOutline /></n-icon>
-              </n-button>
+              <div class="progress-actions">
+                <n-progress
+                  v-if="t.progress"
+                  class="progress-flex"
+                  type="line"
+                  :show-indicator="false"
+                  :percentage="
+                    ['success', 'error', 'existed'].includes(t.status) ? 100 : calcPercent(t)
+                  "
+                  :show-info="false"
+                  :status="progressStatus(t)"
+                  :height="6"
+                />
+                <div class="actions-inline">
+                  <n-button
+                    v-if="t.status === 'running'"
+                    quaternary
+                    circle
+                    size="tiny"
+                    @click="onPause(t)"
+                    title="暂停"
+                  >
+                    <n-icon size="16"><PauseOutline /></n-icon>
+                  </n-button>
+                  <n-button
+                    v-if="t.status === 'paused'"
+                    quaternary
+                    circle
+                    size="tiny"
+                    @click="onResume(t)"
+                    title="继续"
+                  >
+                    <n-icon size="16"><PlayOutline /></n-icon>
+                  </n-button>
+                  <!-- <n-button
+                    v-if="t.status === 'running'"
+                    quaternary
+                    circle
+                    size="tiny"
+                    type="warning"
+                    @click="onCancel(t)"
+                    title="取消"
+                  >
+                    <n-icon size="16"><CloseCircleOutline /></n-icon>
+                  </n-button> -->
+                  <n-button
+                    quaternary
+                    circle
+                    size="tiny"
+                    type="error"
+                    @click="onDelete(t)"
+                    title="删除"
+                  >
+                    <n-icon size="16"><TrashOutline /></n-icon>
+                  </n-button>
+                </div>
+              </div>
+              <div class="progress-text">
+                <template v-if="['success', 'running'].includes(t.status) && t.progress">
+                  <div style="color: green">{{ t.progress.success || 0 }}</div>
+                  /
+                  <div style="color: red">{{ t.progress.fail || 0 }}</div>
+                  /
+                  <div>{{ t.progress.total || 0 }}</div>
+                </template>
+                <div v-if="t.status === 'error' && t.errorMessage" class="error-msg">
+                  {{ t.errorMessage }}
+                </div>
+                <n-ellipsis v-if="t.localFilePath" style="max-width: 100%; cursor: pointer">
+                  <span @click="onOpenLocalFile(t.localFilePath)">{{ t.localFilePath }}</span>
+                </n-ellipsis>
+              </div>
             </div>
-          </div>
-          <div class="progress-text">
-            <template v-if="['success', 'running'].includes(t.status) && t.progress">
-              <div style="color: green">{{ t.progress.success || 0 }}</div>
-              /
-              <div style="color: red">{{ t.progress.fail || 0 }}</div>
-              /
-              <div>{{ t.progress.total || 0 }}</div>
-            </template>
-            <div v-if="t.status === 'error' && t.errorMessage" class="error-msg">
-              {{ t.errorMessage }}
-            </div>
-            <n-ellipsis v-if="t.localFilePath" style="max-width: 100%; cursor: pointer">
-              <span @click="onOpenLocalFile(t.localFilePath)">{{ t.localFilePath }}</span>
-            </n-ellipsis>
-          </div>
-        </div>
+          </template>
+        </VirtualGrid>
       </div>
     </n-drawer-content>
   </n-drawer>
 </template>
 
 <script setup lang="ts">
-import { NDrawer, NDrawerContent, NButton, NTag, NProgress, NIcon } from 'naive-ui'
+import VirtualGrid from './virtual-grid.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 
 function statusLabel(s: string) {
@@ -187,12 +200,14 @@ function onOpenLocalFile(path) {
   border-radius: 20px;
 }
 .n-drawer-body-content-wrapper {
-  padding: 5px !important;
+  padding: 0px !important;
 }
 .task-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
+  overflow: hidden;
 }
 .empty {
   color: #999;
@@ -206,6 +221,9 @@ function onOpenLocalFile(path) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 .task-main {
   display: flex;
@@ -285,5 +303,23 @@ function onOpenLocalFile(path) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* 虚拟列表样式 */
+.download-virtual-grid {
+  height: 100%;
+  width: 100%;
+}
+
+/* 确保虚拟网格中的项目样式正确 */
+.download-virtual-grid .virtual-grid-item {
+  padding: 0;
+  margin: 0;
+}
+
+/* 覆盖虚拟网格的默认样式以适应下载队列 */
+.download-virtual-grid .virtual-grid {
+  padding: 0;
+  gap: 8px;
 }
 </style>
