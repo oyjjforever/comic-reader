@@ -85,7 +85,6 @@
               {{ showMore ? '收起更多下载路径' : '更多下载路径设置' }}
             </n-button>
           </div>
-
           <div v-if="showMore">
             <n-form-item path="downloadPathJmtt" label="jmtt 下载路径">
               <n-input-group>
@@ -99,7 +98,6 @@
                 </n-button>
               </n-input-group>
             </n-form-item>
-
             <n-form-item path="downloadPathPixiv" label="pixiv 下载路径">
               <n-input-group>
                 <n-input
@@ -112,7 +110,6 @@
                 </n-button>
               </n-input-group>
             </n-form-item>
-
             <n-form-item path="downloadPathTwitter" label="twitter 下载路径">
               <n-input-group>
                 <n-input
@@ -121,6 +118,18 @@
                   readonly
                 />
                 <n-button type="primary" @click="selectResourcePath('downloadPathTwitter')">
+                  选择文件夹
+                </n-button>
+              </n-input-group>
+            </n-form-item>
+            <n-form-item path="downloadPathWeibo" label="微博 下载路径">
+              <n-input-group>
+                <n-input
+                  v-model:value="formData.downloadPathWeibo"
+                  placeholder="可选，未设置则使用默认下载路径"
+                  readonly
+                />
+                <n-button type="primary" @click="selectResourcePath('downloadPathWeibo')">
                   选择文件夹
                 </n-button>
               </n-input-group>

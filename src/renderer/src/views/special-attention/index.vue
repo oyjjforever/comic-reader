@@ -140,7 +140,8 @@ const sourceOptions = [
   { label: '全部', value: null },
   { label: 'pixiv', value: 'pixiv' },
   { label: 'jmtt', value: 'jmtt' },
-  { label: 'twitter', value: 'twitter' }
+  { label: 'twitter', value: 'twitter' },
+  { label: 'weibo', value: 'weibo' }
 ]
 
 // 虚拟滚动网格引用

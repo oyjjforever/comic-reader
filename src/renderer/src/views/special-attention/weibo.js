@@ -43,7 +43,7 @@ async function previewImage(pid) {
 async function hasNewArtwork(authorName, authorId) {
   try {
     const res = await weibo.getMediaPerPage(authorId, null, 10)
-    const images = res.data.list || []
+    const images = res.data.list.filter((_) => _.pid) || []
     const image = images[0]
     const downloaded = isLocalDownloaded(authorName, image.pid)
     return !downloaded
@@ -69,7 +69,7 @@ async function pagingImage(authorName, authorId, grid, page) {
   // 循环请求，直到收集满一页或无更多
   while (collected.length < pageSize) {
     const res = await weibo.getMediaPerPage(authorId, cursor, 50)
-    const images = res.data.list || []
+    const images = res.data.list.filter((_) => _.pid) || []
     nextCursor = res.data.since_id || null
 
     if (images.length) collected.push(...images)
@@ -119,7 +119,7 @@ async function pagingImage(authorName, authorId, grid, page) {
         let preNext = null
         while (preCollected.length < pageSize && prefetchCursor !== undefined) {
           const r = await weibo.getMediaPerPage(authorId, prefetchCursor, 50)
-          const imgs = r.data.list || []
+          const imgs = r.data.list.filter((_) => _.pid) || []
           preNext = r.data.since_id || null
           if (imgs.length) preCollected.push(...imgs)
           if (!preNext || imgs.length === 0) break

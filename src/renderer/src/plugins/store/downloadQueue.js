@@ -129,7 +129,7 @@ async function runJmtt(task) {
   const { chapter, comicInfo, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-    const workDir = `${baseDir}/${file.simpleSanitize(comicInfo.author)}/${file.simpleSanitize(comicInfo.name)}`
+    const workDir = `${baseDir}\\${file.simpleSanitize(comicInfo.author)}\\${file.simpleSanitize(comicInfo.name)}`
     const chapterFolder =
       (comicInfo.chapter_infos?.length || 0) > 1 ? `${workDir}/第${chapter.index}章` : workDir
     await isPathExists(chapterFolder, task)
@@ -138,7 +138,7 @@ async function runJmtt(task) {
       images,
       task,
       async (_img, i) => {
-        const savePath = `${chapterFolder}/${i.toString().padStart(5, '0')}.webp`
+        const savePath = `${chapterFolder}\\${i.toString().padStart(5, '0')}.webp`
         await jmtt.downloadImage(savePath, images[i])
       },
       (success, fail, total) => {
@@ -172,10 +172,10 @@ async function runPixiv(task) {
   const { artworkId, artworkInfo, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-    const workDir = `${baseDir}/${file.simpleSanitize(artworkInfo.author)}/${file.simpleSanitize(artworkInfo.title)}`
+    const workDir = `${baseDir}\\${file.simpleSanitize(artworkInfo.author)}\\${file.simpleSanitize(artworkInfo.title)}`
     // 动图下载
     if (artworkInfo.illustType === 2) {
-      await isPathExists(`${workDir}/${artworkId}.mp4`, task)
+      await isPathExists(`${workDir}\\${artworkId}.mp4`, task)
       updateTask(task, { progress: { total: 1 } })
       try {
         await pixiv.downloadGif(artworkId, workDir, (value) => {
@@ -197,7 +197,7 @@ async function runPixiv(task) {
         task,
         async (url, i) => {
           const fileName = `${artworkId}-${i.toString().padStart(5, '0')}.${url.split('.').pop() || 'jpg'}`
-          const savePath = `${workDir}/${fileName}`
+          const savePath = `${workDir}\\${fileName}`
           await pixiv.downloadImage(url, savePath)
         },
         (success, fail, total) => {
@@ -224,7 +224,7 @@ async function runTwitter(task) {
     updateTask(task, { status: 'running', errorMessage: undefined })
     // 视频下载
     if (videoUrl) {
-      workDir = `${baseDir}/${file.simpleSanitize(author)}/${task.payload.twitterId}.mp4`
+      workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${task.payload.twitterId}.mp4`
       await isPathExists(workDir, task)
       try {
         await twitter.downloadImage(videoUrl, workDir, (value) => {
@@ -238,7 +238,7 @@ async function runTwitter(task) {
     }
     // 单图片下载
     else if (artworkInfo) {
-      workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}`
+      workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${file.simpleSanitize(artworkInfo.title)}`
       await isPathExists(workDir, task)
       await twitter.downloadImage(artworkInfo.url, workDir)
       updateTask(task, { progress: { success: 1, total: 1 } })
@@ -246,7 +246,7 @@ async function runTwitter(task) {
     }
     // 媒体库下载
     else {
-      workDir = `${baseDir}/${file.simpleSanitize(author)}`
+      workDir = `${baseDir}\\${file.simpleSanitize(author)}`
       await isPathExists(workDir, task)
       let images = [],
         cursor = null
@@ -264,7 +264,7 @@ async function runTwitter(task) {
         task,
         async (image, _i) => {
           const fileName = file.simpleSanitize(image.title || `unknow_${_i}.jpg`)
-          const savePath = `${workDir}/${fileName}`
+          const savePath = `${workDir}\\${fileName}`
           await twitter.downloadImage(image.url, savePath)
         },
         (success, fail, total) => {
@@ -288,7 +288,7 @@ async function runWeibo(task) {
     let workDir
     updateTask(task, { status: 'running', errorMessage: undefined })
     if (artworkInfo) {
-      workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}.jpg`
+      workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${file.simpleSanitize(artworkInfo.title)}.jpg`
       await isPathExists(workDir, task)
       await weibo.downloadImage(artworkInfo.url, workDir)
       updateTask(task, { progress: { success: 1, total: 1 } })
@@ -296,13 +296,13 @@ async function runWeibo(task) {
     }
     // 媒体库下载
     else {
-      workDir = `${baseDir}/${file.simpleSanitize(author)}`
+      workDir = `${baseDir}\\${file.simpleSanitize(author)}`
       await isPathExists(workDir, task)
       let images = [],
         cursor = null
       while (true) {
         const res = await weibo.getMediaPerPage(userId, cursor)
-        const _images = res.data.list
+        const _images = res.data.list.filter((_) => _.pid)
         cursor = res.data.since_id
         if (_images?.length) images.push(..._images)
         updateTask(task, { progress: { total: images.length } })
@@ -314,7 +314,7 @@ async function runWeibo(task) {
         task,
         async (image, _i) => {
           const fileName = file.simpleSanitize(image.title || `unknow_${_i}.jpg`)
-          const savePath = `${workDir}/${fileName}`
+          const savePath = `${workDir}\\${fileName}`
           await weibo.downloadImage(image.pid, savePath)
         },
         (success, fail, total) => {

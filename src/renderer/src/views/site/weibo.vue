@@ -18,8 +18,10 @@ function updateCanDownload() {
   try {
     const wv = webviewRef.value
     if (!wv) return
-    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    const authorId = extractFromUrl('u')
+    const authorIdBySearch = extractFromUrl('weibo.com') // 通过搜索参数获取用户ID
+    const authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl('u')
+      : authorIdBySearch.split('?')[0]
     const authorName = extractFromUrl('n')
     canDownload.value = !!authorId || !!authorName
     canAttention.value = !!authorId || !!authorName
@@ -45,7 +47,10 @@ function extractFromUrl(key) {
 async function download() {
   const tip = new Tip()
   try {
-    let authorId = extractFromUrl('u')
+    const authorIdBySearch = extractFromUrl('weibo.com') // 通过搜索参数获取用户ID
+    let authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl('u')
+      : authorIdBySearch.split('?')[0]
     let authorName = extractFromUrl('n')
     if (authorId && !authorName) authorName = await weibo.getAuthorNameById(authorId)
     if (authorName && !authorId) authorId = await weibo.getAuthorIdByName(authorName)
@@ -57,7 +62,10 @@ async function download() {
 async function addSpecialAttention() {
   const tip = new Tip()
   try {
-    let authorId = extractFromUrl('u')
+    const authorIdBySearch = extractFromUrl('weibo.com') // 通过搜索参数获取用户ID
+    let authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl('u')
+      : authorIdBySearch.split('?')[0]
     let authorName = extractFromUrl('n')
     if (authorId && !authorName) authorName = await weibo.getAuthorNameById(authorId)
     if (authorName && !authorId) authorId = await weibo.getAuthorIdByName(authorName)
@@ -78,6 +86,27 @@ onMounted(async () => {
   wv.addEventListener('did-navigate', updateCanDownload)
   wv.addEventListener('did-navigate-in-page', updateCanDownload)
   wv.addEventListener('dom-ready', updateCanDownload)
+  // 在webview的dom-ready事件中注入代码
+  wv.addEventListener('dom-ready', () => {
+    wv.executeJavaScript(`
+    // 重写window.open
+    const originalOpen = window.open;
+    window.open = function(url, target, features) {
+      // 在当前窗口打开
+      window.location.href = url;
+      return null;
+    };
+    
+    // 拦截所有链接点击
+    document.addEventListener('click', function(e) {
+      const link = e.target.closest('a');
+      if (link && link.target === '_blank') {
+        e.preventDefault();
+        window.location.href = link.href;
+      }
+    });
+  `)
+  })
 })
 // 暴露方法
 defineExpose({

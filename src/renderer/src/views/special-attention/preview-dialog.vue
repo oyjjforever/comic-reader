@@ -60,6 +60,7 @@
 import PixivUtil from './pixiv.js'
 import TwitterUtil from './twitter.js'
 import JmttUtil from './jmtt.js'
+import WeiboUtil from './weibo.js'
 import { CloseOutline } from '@vicons/ionicons5'
 import { SlideMultiple24Regular } from '@vicons/fluent'
 // Define props
@@ -131,6 +132,8 @@ const downloadAndConvertToBlob = async (url) => {
       return await TwitterUtil.previewImage(url)
     } else if (props.dialog.data.source === 'jmtt') {
       return await JmttUtil.previewImage(url)
+    } else if (props.dialog.data.source === 'weibo') {
+      return await WeiboUtil.previewImage(url)
     }
   } catch (error) {
     console.error('Failed to download image:', error)
