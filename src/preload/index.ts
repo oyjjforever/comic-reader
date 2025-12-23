@@ -12,6 +12,7 @@ import file from './plugins/file'
 import jmtt from './plugins/downloader/jmtt/index'
 import pixiv from './plugins/downloader/pixiv'
 import twitter from './plugins/downloader/twitter'
+import weibo from './plugins/downloader/weibo'
 import specialAttention from './plugins/special-attention'
 import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
@@ -36,6 +37,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('jmtt', jmtt)
     contextBridge.exposeInMainWorld('pixiv', pixiv)
     contextBridge.exposeInMainWorld('twitter', twitter)
+    contextBridge.exposeInMainWorld('weibo', weibo)
     contextBridge.exposeInMainWorld('specialAttention', specialAttention)
     contextBridge.exposeInMainWorld('browseHistory', browseHistory)
     contextBridge.exposeInMainWorld('downloadHistory', downloadHistory)

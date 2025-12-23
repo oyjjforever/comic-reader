@@ -151,12 +151,14 @@ function statusType(s: string) {
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
+import weiboImg from '@renderer/assets/weibo.ico'
 import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
 function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'jmtt') return jmttImg
   if (site === 'pixiv') return pixivImg
-  return twitterImg
+  if (site === 'twitter') return twitterImg
+  if (site === 'weibo') return weiboImg
 }
 
 function calcPercent(t: any) {

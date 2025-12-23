@@ -64,7 +64,15 @@ export default [
                             title: "twitter",
                             keepAlive: true
                         }
-                    },]
+                    },{
+                        path: 'weibo',
+                        name: "weibo",
+                        component: () => import('@renderer/views/site/weibo.vue'),
+                        meta: {
+                            title: "weibo",
+                            keepAlive: true
+                        }
+                    }]
             }
         ],
     },

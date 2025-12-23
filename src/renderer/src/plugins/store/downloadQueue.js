@@ -1,6 +1,6 @@
 import { reactive, ref, nextTick } from 'vue'
 
-const { jmtt, pixiv, twitter, file } = window
+const { jmtt, pixiv, twitter, weibo, file } = window
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -282,7 +282,56 @@ async function runTwitter(task) {
     }
   }
 }
-
+async function runWeibo(task) {
+  const { author, userId, baseDir, artworkInfo, videoUrl } = task.payload
+  try {
+    let workDir
+    updateTask(task, { status: 'running', errorMessage: undefined })
+    if (artworkInfo) {
+      workDir = `${baseDir}/${file.simpleSanitize(author)}/${file.simpleSanitize(artworkInfo.title)}.jpg`
+      await isPathExists(workDir, task)
+      await weibo.downloadImage(artworkInfo.url, workDir)
+      updateTask(task, { progress: { success: 1, total: 1 } })
+      task.onSuccess?.()
+    }
+    // 媒体库下载
+    else {
+      workDir = `${baseDir}/${file.simpleSanitize(author)}`
+      await isPathExists(workDir, task)
+      let images = [],
+        cursor = null
+      while (true) {
+        const res = await weibo.getMediaPerPage(userId, cursor)
+        const _images = res.data.list
+        cursor = res.data.since_id
+        if (_images?.length) images.push(..._images)
+        updateTask(task, { progress: { total: images.length } })
+        if (!cursor) break
+      }
+      if (!images.length) throw new Error('未解析到可下载的媒体')
+      await runWithConcurrency(
+        images,
+        task,
+        async (image, _i) => {
+          const fileName = file.simpleSanitize(image.title || `unknow_${_i}.jpg`)
+          const savePath = `${workDir}/${fileName}`
+          await weibo.downloadImage(image.pid, savePath)
+        },
+        (success, fail, total) => {
+          updateTask(task, { progress: { success, fail, total } })
+          task.onSuccess?.()
+        }
+      )
+    }
+    updateTask(task, { from: 'weibo', status: 'success', localFilePath: workDir })
+  } catch (e) {
+    console.log('🚀 ~ runWeibo ~ e:', e)
+    if (task._cancel) {
+      updateTask(task, { status: 'canceled' })
+      return
+    }
+  }
+}
 async function executeTask(task) {
   switch (task.site) {
     case 'jmtt':
@@ -293,6 +342,9 @@ async function executeTask(task) {
       break
     case 'twitter':
       await runTwitter(task)
+      break
+    case 'weibo':
+      await runWeibo(task)
       break
     default:
       updateTask(task, { status: 'error' })

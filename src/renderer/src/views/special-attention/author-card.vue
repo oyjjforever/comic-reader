@@ -5,7 +5,7 @@
       <img class="author-avatar" :src="siteIcon(item.source)" />
       <div class="author-info">
         <h3 class="author-name">{{ item.authorName || item.authorId }}({{ item.authorId }})</h3>
-        <p class="works-count">{{ item.source === 'twitter' ? '--' : page.total }} 个作品</p>
+        <p class="works-count">{{ page.total > 100000 ? '--' : page.total }} 个作品</p>
       </div>
       <div
         class="author-move"
@@ -67,7 +67,7 @@
       <div class="pagination-buttons">
         <div class="pagination-info">
           {{ page.index + 1 }} /
-          {{ item.source === 'twitter' ? '--' : Math.ceil(page.total / page.size) }}
+          {{ page.total > 100000 ? '--' : Math.ceil(page.total / page.size) }}
         </div>
         <button @click="prevPage" class="pagination-button">
           <n-icon :component="ChevronLeft24Filled" size="12" />
@@ -94,8 +94,10 @@ import errorImg from '@renderer/assets/error.png'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
+import weiboImg from '@renderer/assets/weibo.ico'
 import PixivUtil from './pixiv.js'
 import TwitterUtil from './twitter.js'
+import WeiboUtil from './weibo.js'
 import JmttUtil from './jmtt.js'
 import {
   SlideMultiple24Regular,
@@ -124,10 +126,11 @@ function handleDragStart(event: DragEvent) {
 function handleDragEnd(event: DragEvent) {
   emit('dragend', event)
 }
-function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
+function siteIcon(site) {
   if (site === 'jmtt') return jmttImg
   if (site === 'pixiv') return pixivImg
-  return twitterImg
+  if (site === 'twitter') return twitterImg
+  if (site === 'weibo') return weiboImg
 }
 const page = reactive({
   total: 0,
@@ -160,6 +163,8 @@ async function fetchData() {
     const artworks = await JmttUtil.fetchArtworks(props.item.authorId)
     grid.allRows = artworks
     page.total = artworks.length
+  } else if (props.item.source === 'weibo') {
+    page.total = 1000000
   }
 }
 async function pagingImage() {
@@ -176,6 +181,13 @@ async function pagingImage() {
       )
     } else if (props.item.source === 'jmtt') {
       grid.rows = await JmttUtil.pagingImage(props.item.authorName, grid, page)
+    } else if (props.item.source === 'weibo') {
+      grid.rows = await WeiboUtil.pagingImage(
+        props.item.authorName,
+        props.item.authorId,
+        grid,
+        page
+      )
     }
   } finally {
     grid.loading = false
@@ -195,6 +207,11 @@ async function onDownload(row) {
       const authorName = props.item.authorName
       await JmttUtil.downloadArtwork(authorName, row.artworkId)
       row.downloaded = true
+    } else if (props.item.source === 'weibo') {
+      const authorName = props.item.authorName
+      const authorId = props.item.authorId
+      await WeiboUtil.downloadImage(authorName, authorId, row.title, row.url)
+      row.downloaded = true
     }
   } catch (error) {
     console.log('🚀 ~ onDownload ~ error:', error.message)
@@ -212,6 +229,10 @@ async function onDownloadAll(row) {
     } else if (props.item.source === 'jmtt') {
       const authorName = props.item.authorName
       await JmttUtil.downloadAll(authorName)
+    } else if (props.item.source === 'weibo') {
+      const authorName = props.item.authorName
+      const authorId = props.item.authorId
+      await WeiboUtil.downloadAllMedia(authorName, authorId)
     }
   } catch (error) {
     console.log('🚀 ~ onDownload ~ error:', error.message)

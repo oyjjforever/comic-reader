@@ -120,7 +120,7 @@
         <!-- 下载队列面板 -->
         <DownloadQueuePanel v-model:show="queueVisible" />
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,jmtt,pixiv,twitter,specialAttention">
+          <keep-alive include="book,video,jmtt,pixiv,twitter,weibo,specialAttention">
             <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>
@@ -153,6 +153,7 @@ import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
+import weiboImg from '@renderer/assets/weibo.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
@@ -191,9 +192,10 @@ const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
-  { image: jmttImg, name: 'jmtt' },
-  { image: pixivImg, name: 'pixiv' },
-  { image: twitterImg, name: 'twitter' }
+  // { image: jmttImg, name: 'jmtt' },
+  // { image: pixivImg, name: 'pixiv' },
+  // { image: twitterImg, name: 'twitter' },
+  { image: weiboImg, name: 'weibo' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
