@@ -4,7 +4,7 @@ import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
 let cursors = {}
 
-async function downloadImage(authorName, authorId, pid) {
+async function downloadArtwork(authorName, authorId, pid) {
   const downloadPath =
     settingStore.setting?.downloadPathWeibo || settingStore.setting?.defaultDownloadPath
   queue.addTask({
@@ -162,7 +162,7 @@ function isLocalDownloaded(authorName, workName) {
   return file.pathExists(localPath)
 }
 export default {
-  downloadImage,
+  downloadArtwork,
   downloadAllMedia,
   pagingImage,
   previewImage,

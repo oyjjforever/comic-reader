@@ -28,6 +28,10 @@ async function withRetry(fn, { maxRetries = 3, delayMs = 3000 } = {}) {
       return await fn()
     } catch (e) {
       lastErr = e
+      // 如果是404错误，不重试
+      if (e.message && e.message.includes('404')) {
+        break
+      }
       if (i === maxRetries) break
       await new Promise((r) => setTimeout(r, delayMs))
     }

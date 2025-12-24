@@ -21,8 +21,8 @@ async function addToQueue(artworkIds) {
 async function downloadArtwork(artworkId) {
   addToQueue([artworkId])
 }
-async function downloadIllusts(userId) {
-  const profile = await pixiv.getArtworksByUserId(userId)
+async function downloadAllMedia(authorName, authorId) {
+  const profile = await pixiv.getArtworksByUserId(authorId)
   const artworkIds = profile.illusts
   addToQueue(artworkIds)
 }
@@ -51,7 +51,7 @@ async function hasNewArtwork(authorName, authorId) {
     return false
   }
 }
-async function pagingImage(authorName, grid, page) {
+async function pagingImage(authorName, authorId, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
   const promises = ids.map(async (id) => {
@@ -90,7 +90,7 @@ function isLocalDownloaded(authorName, workName) {
 }
 export default {
   downloadArtwork,
-  downloadIllusts,
+  downloadAllMedia,
   downloadManga,
   fetchArtworks,
   pagingImage,

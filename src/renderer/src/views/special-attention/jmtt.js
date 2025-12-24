@@ -26,7 +26,7 @@ async function downloadArtwork(authorName, comicId) {
     }))
   )
 }
-async function downloadAll(authorName) {
+async function downloadAllMedia(authorName, authorId) {
   const res = await jmtt.getComicsByAuthor(authorName)
   const comics = res?.data?.content || []
   for (const comic of comics) {
@@ -54,7 +54,7 @@ async function hasNewArtwork(authorName, authorId) {
     return false
   }
 }
-async function pagingImage(authorName, grid, page) {
+async function pagingImage(authorName, authorId, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
   const promises = ids.map(async (id) => {
@@ -92,7 +92,7 @@ function isLocalDownloaded(authorName, workName) {
 }
 export default {
   downloadArtwork,
-  downloadAll,
+  downloadAllMedia,
   fetchArtworks,
   pagingImage,
   previewImage,

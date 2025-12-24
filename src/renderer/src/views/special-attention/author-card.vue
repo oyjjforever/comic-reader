@@ -19,6 +19,11 @@
     <!-- 作品预览区域 -->
     <div class="works-section">
       <div class="works-container">
+        <!-- Loading遮罩 -->
+        <div v-if="grid.loading" class="loading-overlay">
+          <n-spin size="medium" />
+          <span class="loading-text">作品获取中...</span>
+        </div>
         <n-carousel
           class="artwork-carousel"
           :slides-per-view="6"
@@ -26,6 +31,7 @@
           :loop="false"
           :show-dots="false"
           :show-arrows="false"
+          :style="{ opacity: grid.loading ? 0.3 : 1 }"
         >
           <div
             v-for="row in grid.rows"
@@ -34,12 +40,13 @@
             :class="{ 'artwork-item--downloaded': row.downloaded }"
           >
             <!-- <img :src="row.cover" /> -->
-            <n-image :src="row.cover">
+            <n-image v-if="row.artworkId" :src="row.cover">
               <template #error>
                 <img :src="errorImg" />
               </template>
             </n-image>
-            <div class="hover-ops">
+            <n-image v-else :src="errorImg" />
+            <div v-if="row.artworkId" class="hover-ops">
               <div class="artwork-item__pages">
                 <n-icon :component="SlideMultiple24Regular" size="12" />{{ row.pages }}
               </div>
@@ -91,14 +98,7 @@ import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDe
 import { getDefaultDownloadPath } from '../site/utils'
 import previewDialog from './preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
-import jmttImg from '@renderer/assets/jmtt.jpg'
-import pixivImg from '@renderer/assets/pixiv.jpg'
-import twitterImg from '@renderer/assets/twitter.jpg'
-import weiboImg from '@renderer/assets/weibo.ico'
-import PixivUtil from './pixiv.js'
-import TwitterUtil from './twitter.js'
-import WeiboUtil from './weibo.js'
-import JmttUtil from './jmtt.js'
+import siteUtils from './site-utils.js'
 import {
   SlideMultiple24Regular,
   ArrowUp24Regular,
@@ -108,7 +108,7 @@ import {
   ArrowMove24Regular
 } from '@vicons/fluent'
 import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
-import { reactive, computed, onMounted } from 'vue'
+import { reactive, computed, onMounted, ref } from 'vue'
 const props = defineProps<{
   item: { type: Object; required: true }
 }>()
@@ -127,10 +127,7 @@ function handleDragEnd(event: DragEvent) {
   emit('dragend', event)
 }
 function siteIcon(site) {
-  if (site === 'jmtt') return jmttImg
-  if (site === 'pixiv') return pixivImg
-  if (site === 'twitter') return twitterImg
-  if (site === 'weibo') return weiboImg
+  return siteUtils.getSiteIcon(site)
 }
 const page = reactive({
   total: 0,
@@ -153,90 +150,22 @@ onMounted(async () => {
   await pagingImage()
 })
 async function fetchData() {
-  if (props.item.source === 'pixiv') {
-    const artworks = await PixivUtil.fetchArtworks(props.item.authorId)
-    grid.allRows = artworks
-    page.total = artworks.length
-  } else if (props.item.source === 'twitter') {
-    page.total = 1000000
-  } else if (props.item.source === 'jmtt') {
-    const artworks = await JmttUtil.fetchArtworks(props.item.authorId)
-    grid.allRows = artworks
-    page.total = artworks.length
-  } else if (props.item.source === 'weibo') {
-    page.total = 1000000
-  }
+  const { source, authorId } = props.item
+  grid.allRows = await siteUtils.fetchArtworks(source, authorId)
+  page.total = await siteUtils.getArtworkCount(source, authorId)
 }
 async function pagingImage() {
   grid.loading = true
-  try {
-    if (props.item.source === 'pixiv') {
-      grid.rows = await PixivUtil.pagingImage(props.item.authorName, grid, page)
-    } else if (props.item.source === 'twitter') {
-      grid.rows = await TwitterUtil.pagingImage(
-        props.item.authorName,
-        props.item.authorId,
-        grid,
-        page
-      )
-    } else if (props.item.source === 'jmtt') {
-      grid.rows = await JmttUtil.pagingImage(props.item.authorName, grid, page)
-    } else if (props.item.source === 'weibo') {
-      grid.rows = await WeiboUtil.pagingImage(
-        props.item.authorName,
-        props.item.authorId,
-        grid,
-        page
-      )
-    }
-  } finally {
-    grid.loading = false
-  }
+  const { source, authorName, authorId } = props.item
+  grid.rows = await siteUtils.pagingImage(source, authorName, authorId, grid, page)
+  grid.loading = false
 }
 async function onDownload(row) {
-  try {
-    if (props.item.source === 'pixiv') {
-      await PixivUtil.downloadArtwork(row.artworkId)
-      row.downloaded = true
-    } else if (props.item.source === 'twitter') {
-      const authorName = props.item.authorName
-      const authorId = props.item.authorId
-      await TwitterUtil.downloadImage(authorName, authorId, row.title, row.url)
-      row.downloaded = true
-    } else if (props.item.source === 'jmtt') {
-      const authorName = props.item.authorName
-      await JmttUtil.downloadArtwork(authorName, row.artworkId)
-      row.downloaded = true
-    } else if (props.item.source === 'weibo') {
-      const authorName = props.item.authorName
-      const authorId = props.item.authorId
-      await WeiboUtil.downloadImage(authorName, authorId, row.title, row.url)
-      row.downloaded = true
-    }
-  } catch (error) {
-    console.log('🚀 ~ onDownload ~ error:', error.message)
-  }
+  await siteUtils.downloadArtwork(props.item.source, row, props.item)
+  row.downloaded = true
 }
-async function onDownloadAll(row) {
-  try {
-    if (props.item.source === 'pixiv') {
-      const authorId = props.item.authorId
-      await PixivUtil.downloadIllusts(authorId)
-    } else if (props.item.source === 'twitter') {
-      const authorName = props.item.authorName
-      const authorId = props.item.authorId
-      await TwitterUtil.downloadAllMedia(authorName, authorId)
-    } else if (props.item.source === 'jmtt') {
-      const authorName = props.item.authorName
-      await JmttUtil.downloadAll(authorName)
-    } else if (props.item.source === 'weibo') {
-      const authorName = props.item.authorName
-      const authorId = props.item.authorId
-      await WeiboUtil.downloadAllMedia(authorName, authorId)
-    }
-  } catch (error) {
-    console.log('🚀 ~ onDownload ~ error:', error.message)
-  }
+async function onDownloadAll() {
+  await siteUtils.downloadAll(props.item.source, props.item)
 }
 function prevPage() {
   if (page.index > 0) page.index -= 1
@@ -530,5 +459,27 @@ function onPreview(row) {
 .has-new-artwork {
   border: 2px solid #ef4444;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+// Loading遮罩样式
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 10;
+  border-radius: 0.5rem;
+
+  .loading-text {
+    margin-top: 12px;
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
 }
 </style>

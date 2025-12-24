@@ -3,7 +3,7 @@ import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
 let cursors = {}
-async function downloadImage(authorName, authorId, title, url) {
+async function downloadArtwork(authorName, authorId, title, url) {
   const downloadPath =
     settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
   queue.addTask({
@@ -175,7 +175,7 @@ function isLocalDownloaded(authorName, workName) {
   return file.pathExists(localPath)
 }
 export default {
-  downloadImage,
+  downloadArtwork,
   downloadAllMedia,
   downloadVideo,
   pagingImage,
