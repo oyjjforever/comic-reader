@@ -147,7 +147,8 @@ import {
   WindowConsole20Regular,
   Cart16Filled,
   Star24Regular,
-  PeopleTeam24Regular
+  PeopleTeam24Regular,
+  Search24Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import jmttImg from '@renderer/assets/jmtt.jpg'
@@ -192,6 +193,7 @@ const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
+  // { icon: Search24Regular, name: 'search' },
   { image: jmttImg, name: 'jmtt' },
   { image: pixivImg, name: 'pixiv' },
   { image: twitterImg, name: 'twitter' },

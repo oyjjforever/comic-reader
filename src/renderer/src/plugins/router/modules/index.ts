@@ -37,6 +37,15 @@ export default [
                 }
             },
             {
+                path: '/search',
+                name: "search",
+                component: () => import('@renderer/views/search/index.vue'),
+                meta: {
+                    title: "搜索",
+                    keepAlive: true
+                }
+            },
+            {
                 path: '/site',
                 name: "site",
                 children: [
@@ -64,7 +73,7 @@ export default [
                             title: "twitter",
                             keepAlive: true
                         }
-                    },{
+                    }, {
                         path: 'weibo',
                         name: "weibo",
                         component: () => import('@renderer/views/site/weibo.vue'),

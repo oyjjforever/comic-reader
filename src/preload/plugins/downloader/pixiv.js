@@ -199,6 +199,28 @@ function getPythonScriptPath(scriptName) {
 
   return path.join(basePath, scriptName)
 }
+async function search(keyword) {
+  let artworkIds = []
+  const searchByPage = async (page) => {
+    const cookies = await api.getCookies('.pixiv.net')
+    const res = await api.get({
+      url: `https://www.pixiv.net/ajax/search/artworks/${keyword}?word=${keyword}&order=date_d&mode=all&p=${page}&csw=0&s_mode=s_tag&type=all&lang=zh`,
+      headers: {
+        Referer: 'https://www.pixiv.net/',
+        Cookie: cookies
+      }
+    })
+    return res.body.illustManga
+  }
+  const filrstPage = await searchByPage(1)
+  artworkIds = artworkIds.concat(filrstPage.data.map((_) => _.id))
+  const totalPage = filrstPage.lastPage
+  for (let i = 2; i <= totalPage; i++) {
+    const page = await searchByPage(i)
+    artworkIds = artworkIds.concat(page.data.map((_) => _.id))
+  }
+  return artworkIds
+}
 export default {
   getArtworksByUserId,
   getMangaInfo,
@@ -207,5 +229,6 @@ export default {
   getImage,
   downloadImage,
   downloadGif,
-  generateGif
+  generateGif,
+  search
 }
