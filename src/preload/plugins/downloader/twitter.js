@@ -1,5 +1,6 @@
 import Api from './api.js'
 import fsp from 'fs/promises'
+import fs from 'fs'
 import file from '../file.ts'
 import { ipcRenderer } from 'electron'
 
@@ -290,20 +291,69 @@ async function getImage(url) {
   return coverUrl
 }
 async function downloadImage(url, savePath, onProgress) {
-  const res = await api.get({
+  try {
+    const response = await api.get({
+      url,
+      responseType: 'stream',
+      headers: { Referer: 'https://x.com/' }
+    })
+
+    file.ensureDir(savePath)
+    const writeStream = fs.createWriteStream(savePath)
+
+    let downloadedBytes = 0
+    const contentLength = parseInt(response.headers['content-length'] || '0', 10)
+
+    // 确保正确获取流对象
+    const stream = response.data || response
+
+    if (!stream || typeof stream.on !== 'function') {
+      throw new Error('Invalid stream object received')
+    }
+
+    stream.on('data', (chunk) => {
+      downloadedBytes += chunk.length
+      if (contentLength > 0 && onProgress) {
+        const percentCompleted = Math.round((downloadedBytes * 100) / contentLength)
+        onProgress(percentCompleted)
+      }
+    })
+
+    return new Promise((resolve, reject) => {
+      stream
+        .pipe(writeStream)
+        .on('finish', () => {
+          writeStream.close()
+          resolve()
+        })
+        .on('error', (error) => {
+          writeStream.close()
+          reject(error)
+        })
+    })
+  } catch (error) {
+    // 如果流式下载失败，回退到分块下载
+    console.warn('流式下载失败，尝试分块下载:', error.message)
+    return downloadImageInChunks(url, savePath, onProgress)
+  }
+}
+
+// 分块下载作为备选方案
+async function downloadImageInChunks(url, savePath, onProgress) {
+  const response = await api.get({
     url,
     responseType: 'arraybuffer',
     headers: { Referer: 'https://x.com/' },
     onDownloadProgress: function (progressEvent) {
-      // 计算下载进度百分比
       const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
       onProgress?.(percentCompleted)
     }
   })
-  let imageData = Buffer.from(res)
+
   file.ensureDir(savePath)
-  await fsp.writeFile(savePath, imageData)
+  await fsp.writeFile(savePath, Buffer.from(response))
 }
+
 export default {
   getUserIdByName,
   getUserIdByName,
