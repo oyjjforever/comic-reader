@@ -234,6 +234,7 @@ async function runTwitter(task) {
         task.onSuccess?.()
       } catch (error) {
         updateTask(task, { progress: { fail: 1, total: 1 } })
+        throw error
       }
     }
     // 单图片下载

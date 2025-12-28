@@ -155,6 +155,7 @@ import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
+import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
@@ -198,6 +199,7 @@ const menuItems = [
   { image: pixivImg, name: 'pixiv' },
   { image: twitterImg, name: 'twitter' },
   { image: weiboImg, name: 'weibo' }
+  // { image: pornhubImg, name: 'pornhub' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]

@@ -81,6 +81,14 @@ export default [
                             title: "weibo",
                             keepAlive: true
                         }
+                    }, {
+                        path: 'pornhub',
+                        name: "pornhub",
+                        component: () => import('@renderer/views/site/pornhub.vue'),
+                        meta: {
+                            title: "pornhub",
+                            keepAlive: true
+                        }
                     }]
             }
         ],
