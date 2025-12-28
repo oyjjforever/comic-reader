@@ -23,7 +23,7 @@ async function downloadArtwork(artworkId) {
 }
 async function downloadAllMedia(authorName, authorId) {
   const profile = await pixiv.getArtworksByUserId(authorId)
-  const artworkIds = profile.illusts
+  const artworkIds = profile.illusts.concat(profile.manga)
   addToQueue(artworkIds)
 }
 async function downloadManga(mangaId) {
@@ -34,7 +34,7 @@ async function downloadManga(mangaId) {
 async function fetchArtworks(authorId) {
   // 获取作品集
   const profile = await pixiv.getArtworksByUserId(authorId)
-  return profile.illusts
+  return profile.illusts.concat(profile.manga).sort((a, b) => b - a)
 }
 async function previewImage(url) {
   const blobUrl = await pixiv.getImage(url)

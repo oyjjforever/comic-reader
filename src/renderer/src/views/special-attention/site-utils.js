@@ -76,31 +76,13 @@ function getDownloadPath(site) {
 async function fetchArtworks(site, authorId) {
   try {
     const util = getSiteUtil(site)
-    return await util.fetchArtworks(authorId)
+    if (util && util.fetchArtworks) {
+      return await util.fetchArtworks(authorId)
+    }
+    return null
   } catch (error) {
     console.error('获取作品列表失败:', error)
     return []
-  }
-}
-
-/**
- * 获取作者的作品总数
- * @param {string} site - 站点名称
- * @param {string} authorId - 作者ID
- * @returns {Promise<number>} 总数
- */
-async function getArtworkCount(site, authorId) {
-  try {
-    const util = getSiteUtil(site)
-    if (util && util.fetchArtworks) {
-      const artworks = await util.fetchArtworks(authorId)
-      return artworks.length
-    }
-    // 对于分页站点(twitter, weibo)，返回大数值
-    return 1000000
-  } catch (error) {
-    console.error('获取作品数量失败:', error)
-    return 0
   }
 }
 
@@ -228,7 +210,6 @@ export default {
   getDownloadPath,
   getUtil,
   fetchArtworks,
-  getArtworkCount,
   pagingImage,
   previewImage,
   hasNewArtwork,

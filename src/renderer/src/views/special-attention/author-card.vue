@@ -5,7 +5,7 @@
       <img class="author-avatar" :src="siteIcon(item.source)" />
       <div class="author-info">
         <h3 class="author-name">{{ item.authorName || item.authorId }}({{ item.authorId }})</h3>
-        <p class="works-count">{{ page.total > 100000 ? '--' : page.total }} 个作品</p>
+        <p class="works-count">{{ page.total ? page.total : '--' }} 个作品</p>
       </div>
       <div
         class="author-move"
@@ -74,7 +74,7 @@
       <div class="pagination-buttons">
         <div class="pagination-info">
           {{ page.index + 1 }} /
-          {{ page.total > 100000 ? '--' : Math.ceil(page.total / page.size) }}
+          {{ page.total ? Math.ceil(page.total / page.size) : '--' }}
         </div>
         <button @click="prevPage" class="pagination-button">
           <n-icon :component="ChevronLeft24Filled" size="12" />
@@ -151,8 +151,14 @@ onMounted(async () => {
 })
 async function fetchData() {
   const { source, authorId } = props.item
-  grid.allRows = await siteUtils.fetchArtworks(source, authorId)
-  page.total = await siteUtils.getArtworkCount(source, authorId)
+  const data = await siteUtils.fetchArtworks(source, authorId)
+  if (!data) {
+    grid.allRows = []
+    page.total = null
+  } else {
+    grid.allRows = data
+    page.total = data.length
+  }
 }
 async function pagingImage() {
   grid.loading = true
@@ -172,7 +178,7 @@ function prevPage() {
   pagingImage()
 }
 function nextPage() {
-  if ((page.index + 1) * page.size < page.total) page.index += 1
+  if (!page.total || (page.index + 1) * page.size < page.total) page.index += 1
   pagingImage()
 }
 
