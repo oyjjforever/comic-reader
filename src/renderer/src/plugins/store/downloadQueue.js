@@ -226,6 +226,7 @@ async function runTwitter(task) {
     if (videoUrl) {
       workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${task.payload.twitterId}.mp4`
       await isPathExists(workDir, task)
+      task.type = 'video'
       try {
         await twitter.downloadImage(videoUrl, workDir, (value) => {
           updateTask(task, { progress: { value, total: 1 } })
@@ -351,7 +352,7 @@ async function executeTask(task) {
       updateTask(task, { status: 'error' })
   }
   try {
-    await window.downloadHistory.addDownloadHistory(task.localFilePath, 'book')
+    await window.downloadHistory.addDownloadHistory(task.localFilePath, task.type || 'book')
   } catch (error) {
     console.error('保存下载历史失败:', error)
   }

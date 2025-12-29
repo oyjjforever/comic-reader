@@ -167,9 +167,9 @@ async function downloadArtwork(site, row, item) {
     const util = getSiteUtil(site)
     const downloadMethods = {
       pixiv: () => util.downloadArtwork(row.artworkId),
-      twitter: () => util.downloadImage(item.authorName, item.authorId, row.title, row.url),
+      twitter: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url),
       jmtt: () => util.downloadArtwork(item.authorName, row.artworkId),
-      weibo: () => util.downloadImage(item.authorName, item.authorId, row.title, row.url)
+      weibo: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url)
     }
 
     const downloadMethod = downloadMethods[site]
