@@ -19,25 +19,25 @@
               </n-button>
               <n-button
                 :type="currentViewMode === 'folders' ? 'primary' : 'default'"
-                @click="switchToFolderView"
+                @click="currentViewMode='folders'"
               >
                 本地目录
               </n-button>
               <n-button
                 :type="currentViewMode === 'favorites' ? 'primary' : 'default'"
-                @click="switchToFavoritesView"
+                @click="currentViewMode='favorites'"
               >
                 我的收藏
               </n-button>
               <n-button
                 :type="currentViewMode === 'history' ? 'primary' : 'default'"
-                @click="switchToHistoryView"
+                @click="currentViewMode='history'"
               >
                 浏览历史
               </n-button>
               <n-button
                 :type="currentViewMode === 'downloads' ? 'primary' : 'default'"
-                @click="switchToDownloadsView"
+                @click="currentViewMode='downloads'"
               >
                 最近下载
               </n-button>
@@ -147,7 +147,14 @@
       </aside>
 
       <section class="content-area">
-        <div class="grid-view">
+          <div v-if="isLoading" class="loading-overlay">
+            <n-spin size="large">
+              <template #description>
+                正在加载...
+              </template>
+            </n-spin>
+          </div>
+        <div v-else class="grid-view">
           <div v-if="grid.filterRows.length === 0" class="empty-data-state">
             <n-empty description="没有找到匹配的内容"> </n-empty>
           </div>
@@ -193,7 +200,7 @@
     <!-- 标签对话框 -->
     <tag-dialog
       v-if="tagDialogObject.show"
-      v-model:show="tagDialogObject.show"
+      v-model="tagDialogObject.show"
       :media="tagDialogObject.data"
       :mode="tagDialogObject.mode"
       :namespace="namespace"
@@ -230,7 +237,7 @@ import {
   FolderOpen24Regular,
   Delete24Filled
 } from '@vicons/fluent'
-import { NButton, NIcon, NCheckbox, NButtonGroup, useMessage, useDialog } from 'naive-ui'
+import { NButton, NIcon, NCheckbox, NButtonGroup, NSpin, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
 import { ref, reactive, onMounted, onActivated, onDeactivated, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -279,6 +286,7 @@ const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads'>(
 )
 watch(currentViewMode, () => {
   toggleMultiSelectMode(false)
+  refresh()
 })
 // 性能优化
 const isLoading = ref(false)
@@ -317,10 +325,8 @@ const toggleSidebar = () => {
 const isSidebarHidden = computed(() => {
   return _isSidebarHidden.value || ['history', 'downloads'].includes(currentViewMode.value)
 })
-// 切换到文件夹视图
-const switchToFolderView = () => {
-  currentViewMode.value = 'folders'
-  // 选中资源目录节点
+
+const refreshFolderData = () => {
   if (props.resourcePath) {
     fetchTreeData()
     if (tree.currentKey) {
@@ -330,27 +336,6 @@ const switchToFolderView = () => {
       tree.currentKey = props.resourcePath
     }
   }
-}
-
-// 切换到收藏夹视图
-const switchToFavoritesView = () => {
-  currentViewMode.value = 'favorites'
-  // 加载收藏夹数据
-  getFavorites()
-}
-
-// 切换到浏览历史视图
-const switchToHistoryView = async () => {
-  currentViewMode.value = 'history'
-  // 加载浏览历史数据
-  await getBrowseHistory()
-}
-
-// 切换到最近下载视图
-const switchToDownloadsView = async () => {
-  currentViewMode.value = 'downloads'
-  // 加载最近下载数据
-  await getDownloadHistory()
 }
 
 // 处理搜索输入
@@ -409,17 +394,17 @@ const refresh = async () => {
   try {
     switch (currentViewMode.value) {
       case 'folders':
-        await switchToFolderView()
+        await refreshFolderData()
         break
       case 'history':
-        await switchToHistoryView()
+        await getBrowseHistory()
         break
       case 'downloads':
-        await switchToDownloadsView()
+        await getDownloadHistory()
         break
       case 'favorites':
       default:
-        await switchToFavoritesView()
+        await getFavorites()
         break
     }
   } finally {
@@ -532,8 +517,6 @@ const handleTreeLoad = (node: any) => {
 // 收藏
 const getFavorites = async () => {
   try {
-    isLoading.value = true
-
     // 加载标签列表
     await loadTags()
     // 如果没有标签被选中，则默认全选
@@ -544,8 +527,6 @@ const getFavorites = async () => {
     applyTagFilter()
   } catch (error: any) {
     message.error(`获取收藏失败: ${error.message}`)
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -594,16 +575,12 @@ const getBrowseHistory = async () => {
     grid.filterRows = grid.rows = historyFolders
   } catch (error: any) {
     message.error(`获取浏览历史失败: ${error.message}`)
-  } finally {
-    isLoading.value = false
   }
 }
 
 // 获取下载历史
 const getDownloadHistory = async () => {
   try {
-    isLoading.value = true
-
     // 获取下载历史记录
     const downloadRecords = await window.downloadHistory.getDownloadHistory(100, props.namespace)
     // 转换为FolderInfo格式
@@ -645,8 +622,6 @@ const getDownloadHistory = async () => {
     grid.filterRows = grid.rows = downloadFolders
   } catch (error: any) {
     message.error(`获取下载历史失败: ${error.message}`)
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -933,7 +908,6 @@ const handleScroll = (event: Event) => {
 // 加载树
 const fetchTreeData = async () => {
   if (!props.resourcePath) return
-  isLoading.value = true
   try {
     const treeData = await props.provideTree(props.resourcePath)
 
@@ -950,8 +924,6 @@ const fetchTreeData = async () => {
     tree.data = [{ name: '资源目录', fullPath: props.resourcePath, children: treeData }]
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -1389,11 +1361,13 @@ defineExpose({
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
   }
 
   .grid-view {
     flex: 1 1 0%;
     overflow: hidden;
+    position: relative;
   }
 
   .empty-state {
@@ -1612,6 +1586,21 @@ defineExpose({
       z-index: 2;
       pointer-events: none;
     }
+  }
+  
+  /* 加载覆盖层样式 */
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
   }
 }
 </style>
