@@ -48,6 +48,7 @@ declare global {
       updateFavoriteTags: (id: number, tagIds: string) => Promise<void>
       getFavoriteTags: (id: number) => Promise<any[]>
       getFavoritesByTags: (tagIdstr: string, order?: string, module?: string) => Promise<any[]>
+      clearFavorites: (module?: string) => Promise<boolean>
     }
     tag: {
       getTags: (order?: string, namespace?: string) => Promise<any[]>
@@ -88,13 +89,13 @@ declare global {
       addBrowseHistory: (fullPath: string, module: string) => Promise<boolean>;
       getBrowseHistory: (limit?: number, module?: string) => Promise<any[]>;
       deleteBrowseHistory: (id: number) => Promise<boolean>;
-      clearBrowseHistory: () => Promise<boolean>;
+      clearBrowseHistory: (module?: string) => Promise<boolean>;
     }
     downloadHistory: {
       addDownloadHistory: (fullPath: string, module: string) => Promise<boolean>;
       getDownloadHistory: (limit?: number, module?: string) => Promise<any[]>;
       deleteDownloadHistory: (id: number) => Promise<boolean>;
-      clearDownloadHistory: () => Promise<boolean>;
+      clearDownloadHistory: (module?: string) => Promise<boolean>;
     }
   }
 }

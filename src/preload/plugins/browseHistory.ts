@@ -86,12 +86,21 @@ const deleteBrowseHistory = async (id: number): Promise<boolean> => {
 
 /**
  * 清空所有浏览历史记录
+ * @param module 可选，指定模块类型，例如'book'或'video'
  * @returns Promise<boolean> 是否清空成功
  */
-const clearBrowseHistory = async (): Promise<boolean> => {
+const clearBrowseHistory = async (module?: string): Promise<boolean> => {
     try {
         const db = await sqlite.openDatabase()
-        await db.run('DELETE FROM browse_history')
+        let query = 'DELETE FROM browse_history'
+        let params: any[] = []
+        
+        if (module) {
+            query += ' WHERE module = ?'
+            params.push(module)
+        }
+        
+        await db.run(query, params)
         return true
     } catch (error) {
         console.error('清空浏览历史失败:', error)

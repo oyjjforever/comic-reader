@@ -86,12 +86,21 @@ const deleteDownloadHistory = async (id: number): Promise<boolean> => {
 
 /**
  * 清空所有下载历史记录
+ * @param module 可选，指定模块类型，例如'jmtt'、'pixiv'或'twitter'
  * @returns Promise<boolean> 是否清空成功
  */
-const clearDownloadHistory = async (): Promise<boolean> => {
+const clearDownloadHistory = async (module?: string): Promise<boolean> => {
     try {
         const db = await sqlite.openDatabase()
-        await db.run('DELETE FROM download_history')
+        let query = 'DELETE FROM download_history'
+        let params: any[] = []
+        
+        if (module) {
+            query += ' WHERE module = ?'
+            params.push(module)
+        }
+        
+        await db.run(query, params)
         return true
     } catch (error) {
         console.error('清空下载历史失败:', error)

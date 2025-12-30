@@ -61,7 +61,15 @@
         </n-input>
       </div>
       <div class="navbar-right">
-        <n-button size="small" @click="refresh">刷新</n-button>
+        <n-button size="small" type="success" @click="refresh">刷新</n-button>
+        <n-button
+          v-if="currentViewMode !== 'folders'"
+          size="small"
+          type="error"
+          @click="handleClearData"
+        >
+          清空
+        </n-button>
         <n-dropdown trigger="click" :options="sortOptions" @select="onSort">
           <n-button size="small">
             <template #icon><n-icon :component="ArrowSortDownLines24Regular" /></template>
@@ -417,6 +425,47 @@ const refresh = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+// 处理清空数据
+const handleClearData = () => {
+  const viewModeConfig = {
+    favorites: {
+      title: '收藏',
+      clearFn: () => window.favorite.clearFavorites(props.namespace),
+    },
+    history: {
+      title: '浏览历史',
+      clearFn: () => window.browseHistory.clearBrowseHistory(props.namespace),
+    },
+    downloads: {
+      title: '最近下载',
+      clearFn: () => window.downloadHistory.clearDownloadHistory(props.namespace),
+    }
+  }
+
+  const config = viewModeConfig[currentViewMode.value]
+  if (!config) return
+
+  dialog.error({
+    title: `清空${config.title}`,
+    content: `确定要清空所有${config.title}记录吗？此操作不可撤销。`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const success = await config.clearFn()
+        if (success) {
+          message.success('清空成功')
+          await refresh()
+        } else {
+          message.error('清空失败')
+        }
+      } catch (error: any) {
+        message.error(`清空失败: ${error.message}`)
+      }
+    }
+  })
 }
 
 // 树节点属性

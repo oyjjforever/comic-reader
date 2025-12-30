@@ -317,6 +317,32 @@ const getFavoritesByTags = async (tagIdstr: string, order?: string, module?: str
     }
 }
 
+/**
+ * @description: 清空所有收藏
+ * @param {string} module 模块类型，例如'book'或'video'
+ * @return {Promise<boolean>} 返回清空是否成功
+ */
+const clearFavorites = async (module?: string): Promise<boolean> => {
+    if (!db) {
+        db = await database.openDatabase()
+    }
+
+    try {
+        let sql = 'DELETE FROM favorites'
+        const params: any[] = []
+
+        if (module) {
+            sql += ' WHERE module = ?'
+            params.push(module)
+        }
+
+        const result = await db.run(sql, ...params)
+        return (result.changes || 0) > 0
+    } catch (error) {
+        throw error
+    }
+}
+
 
 export default {
     getFavorites,
@@ -330,4 +356,5 @@ export default {
     updateFavoriteTags,
     getFavoriteTags,
     getFavoritesByTags,
+    clearFavorites,
 }
