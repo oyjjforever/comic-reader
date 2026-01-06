@@ -11,7 +11,7 @@ async function downloadArtwork(authorName, comicId) {
     comicInfo = await jmtt.getComicInfo(comicId)
     comicInfo.author = authorName || comicInfo.author[0] // 使用搜索时的作者名，避免简繁体转换问题
   } catch (e) {
-    tip.error(`获取章节失败：${e?.message || e}`)
+    console.error(`获取作品信息失败：${e?.message || e}`)
     return
   }
   queue.addTask(

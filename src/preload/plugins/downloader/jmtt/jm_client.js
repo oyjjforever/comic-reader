@@ -6,12 +6,18 @@ import fs from 'fs'
 import sharp from 'sharp'
 import path from 'path'
 const IMAGE_DOMAIN = 'cdn-msp2.jmapiproxy2.cc'
-const API_DOMAIN = 'www.cdnzack.cc'
-
+let API_DOMAIN = 'www.cdnhth.cc'
+const API_DOMAIN_POOL = [
+  'www.cdnzack.cc',
+  'www.cdnhth.cc',
+  'www.cdnhth.net',
+  'www.cdnbea.net',
+  'www.cdn-mspjmapiproxy.xyz'
+]
 const APP_TOKEN_SECRET = '18comicAPP'
 const APP_TOKEN_SECRET_2 = '18comicAPPContent'
 const APP_DATA_SECRET = '185Hcomic3PAPP7R'
-const APP_VERSION = '2.0.6'
+const APP_VERSION = '2.0.13'
 
 const ApiPath = {
   Login: '/login',
@@ -71,6 +77,14 @@ function buildAxios(config) {
   return instance
 }
 
+function switchToNextDomain() {
+  const currentIndex = API_DOMAIN_POOL.indexOf(API_DOMAIN)
+  const nextIndex = (currentIndex + 1) % API_DOMAIN_POOL.length
+  API_DOMAIN = API_DOMAIN_POOL[nextIndex]
+  console.log(`切换到下一个域名: ${API_DOMAIN}`)
+  return API_DOMAIN
+}
+
 function buildImgAxios(config) {
   const instance = axios.create({
     // img 请求直接使用绝对 URL，无需 baseURL
@@ -116,6 +130,7 @@ class JmClient {
    * appConfig = { proxyMode: 'System'|'NoProxy'|'Custom', proxyHost?: string, proxyPort?: number }
    */
   constructor(appConfig = {}) {
+    this.appConfig = appConfig
     this.api = buildAxios(appConfig)
     this.img = buildImgAxios(appConfig)
   }
@@ -147,20 +162,47 @@ class JmClient {
       data: formData || undefined
     }
 
-    return withRetry(async () => {
+    let lastError
+    // 尝试每个域名，直到成功或全部失败
+    for (let attempt = 0; attempt < API_DOMAIN_POOL.length; attempt++) {
       try {
-        const resp = await this.api.request(req)
-        return resp
-      } catch (e) {
-        // 模拟 Rust 中的 is_timeout 提示
-        if (e.code === 'ECONNABORTED') {
-          const err = new Error('连接超时，请使用代理或换条线路重试')
-          err.cause = e
-          throw err
+        const resp = await withRetry(async () => {
+          try {
+            const response = await this.api.request(req)
+            return response
+          } catch (e) {
+            // 模拟 Rust 中的 is_timeout 提示
+            if (e.code === 'ECONNABORTED') {
+              const err = new Error('连接超时，请使用代理或换条线路重试')
+              err.cause = e
+              throw err
+            }
+            throw e
+          }
+        })
+
+        // 如果请求成功，直接返回
+        if (resp.status === 200) {
+          return resp
         }
-        throw e
+
+        // 如果状态码不是200，记录错误并尝试下一个域名
+        lastError = new Error(`请求失败，状态码: ${resp.status}`)
+      } catch (e) {
+        lastError = e
+        console.log(`域名 ${API_DOMAIN} 请求失败: ${e.message}`)
       }
-    })
+
+      // 如果不是最后一次尝试，切换到下一个域名并重新创建axios实例
+      if (attempt < API_DOMAIN_POOL.length - 1) {
+        switchToNextDomain()
+        this.api = buildAxios(this.appConfig)
+        console.log(`已切换到新域名: ${API_DOMAIN}，重新尝试请求`)
+      }
+    }
+
+    // 所有域名都尝试失败，抛出最后一个错误
+    throw lastError || new Error('所有域名都尝试失败')
   }
 
   jm_get(path, query, ts) {
@@ -566,7 +608,6 @@ class JmClient {
 export {
   JmClient,
   IMAGE_DOMAIN,
-  API_DOMAIN,
   // 工具导出以便测试
   md5_hex,
   decrypt_data

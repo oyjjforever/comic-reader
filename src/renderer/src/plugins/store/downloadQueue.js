@@ -334,6 +334,47 @@ async function runWeibo(task) {
     }
   }
 }
+async function runPornhub(task) {
+  const { url, viewkey } = task.payload
+  try {
+    updateTask(task, { status: 'running', errorMessage: undefined })
+
+    // Execute Python command to download the video
+    const { exec } = require('child_process')
+    const { promisify } = require('util')
+    const execAsync = promisify(exec)
+
+    // Get download directory from settings or use default
+    const downloadDir = task.baseDir || 'D:\\Downloads'
+    const command = `phub -url '${url}' -quality best -d "${downloadDir}"`
+
+    updateTask(task, { progress: { total: 1, current: 0 } })
+
+    // Execute the command
+    const { stdout, stderr } = await execAsync(command)
+
+    if (stderr) {
+      console.error('PornHub download error:', stderr)
+    }
+
+    // Try to extract the downloaded file path from stdout
+    const pathMatch = stdout.match(/Downloaded to: (.+)/)
+    const filePath = pathMatch ? pathMatch[1] : `${downloadDir}\\${viewkey}.mp4`
+
+    updateTask(task, {
+      progress: { success: 1, total: 1 },
+      status: 'success',
+      localFilePath: filePath
+    })
+  } catch (error) {
+    console.error('PornHub download failed:', error)
+    updateTask(task, {
+      status: 'error',
+      errorMessage: error.message
+    })
+  }
+}
+
 async function executeTask(task) {
   switch (task.site) {
     case 'jmtt':
@@ -347,6 +388,9 @@ async function executeTask(task) {
       break
     case 'weibo':
       await runWeibo(task)
+      break
+    case 'pornhub':
+      await runPornhub(task)
       break
     default:
       updateTask(task, { status: 'error' })
