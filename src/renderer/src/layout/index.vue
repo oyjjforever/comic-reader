@@ -4,7 +4,7 @@
     <div class="sidebar">
       <!-- Logo区域 -->
       <div class="logo-section">
-        <div class="logo-icon">
+        <div class="logo-icon" @click="showAboutDialog">
           <img src="@renderer/assets/icon.png" />
         </div>
       </div>
@@ -119,6 +119,8 @@
       <div class="main-content">
         <!-- 下载队列面板 -->
         <DownloadQueuePanel v-model:show="queueVisible" />
+        <!-- 关于弹窗 -->
+        <AboutDialog v-model:show="aboutDialogVisible" />
         <router-view v-slot="{ Component }">
           <keep-alive include="book,video,jmtt,pixiv,twitter,weibo,specialAttention">
             <component ref="childComponentRef" :is="Component" />
@@ -157,6 +159,7 @@ import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
+import AboutDialog from '@renderer/components/about-dialog.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import twitter from '../views/special-attention/twitter'
@@ -231,8 +234,12 @@ function onDebug() {
   webview?.openDevTools()
 }
 const queueVisible = ref(false)
+const aboutDialogVisible = ref(false)
 function onOpenQueue() {
   queueVisible.value = !queueVisible.value
+}
+function showAboutDialog() {
+  aboutDialogVisible.value = true
 }
 function onMin() {
   window.electron.ipcRenderer.invoke('window-min')
