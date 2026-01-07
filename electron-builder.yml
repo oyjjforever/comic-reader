@@ -48,5 +48,7 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: http://47.120.62.173:8888/auto-updates
+  provider: github
+  owner: oyjjforever # GitHub 用户名
+  repo: comic-reader # 仓库名
+  releaseType: release # 指定发布通道

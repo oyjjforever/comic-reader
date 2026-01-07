@@ -72,11 +72,12 @@ function registerAutoUpdate(mainWindow) {
                 log.info('autoUpdater:version-ignored', { ignoredVersion })
                 return
             }
-
+            const releaseNotes = info?.releaseNotes || '暂无更新说明'
             const { response } = await dialog.showMessageBox(mainWindow ?? null, {
                 type: 'info',
                 title: '发现新版本',
                 message: `检测到新版本 ${currentVersion}，是否下载并安装？`,
+                detail: typeof releaseNotes === 'string' ? releaseNotes : JSON.stringify(releaseNotes),
                 buttons: ['稍后', '忽略此版本', '确定'],
                 defaultId: 2,
                 cancelId: 0,
