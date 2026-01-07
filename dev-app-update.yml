@@ -1,3 +1,5 @@
-provider: generic
-url: https://example.com/auto-updates
+provider: github
+owner: oyjjforever # GitHub 用户名
+repo: comic-reader # 仓库名
+releaseType: release # 指定发布通道
 updaterCacheDirName: app-updater

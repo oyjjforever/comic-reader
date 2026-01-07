@@ -29,12 +29,12 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => ({
     primaryColor: themeColors.primary, // 主色调，在 theme-config.ts 中修改
     primaryColorHover: themeColors.hover,
     primaryColorPressed: themeColors.pressed,
-    primaryColorSuppl: themeColors.suppl,
+    primaryColorSuppl: themeColors.suppl
   },
   // 可以继续添加其他组件的特定样式覆盖
   Button: {
-    textColorPrimary: '#ffffff',
-  },
+    textColorPrimary: '#ffffff'
+  }
 }))
 
 // 定义主题
@@ -48,9 +48,9 @@ const theme = computed(() => {
   return lightTheme
 })
 
-
 // 应用启动时初始化新作品检测
 onMounted(async () => {
+  window.electron.ipcRenderer.invoke('update:check')
   // 延迟5秒后开始检测，避免应用启动时网络请求过多
   setTimeout(async () => {
     try {

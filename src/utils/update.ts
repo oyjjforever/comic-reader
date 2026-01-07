@@ -48,21 +48,29 @@ function writeUpdaterStore(data: { ignoredVersion?: string }) {
 let __manualUpdateCheck = false
 
 function registerAutoUpdate(mainWindow) {
-    if (is.dev) {
-        log.info('跳过自动更新（开发环境）')
-        return
-    }
     try {
         autoUpdater.logger = log as any
         autoUpdater.autoDownload = false
 
+        // 开发环境下强制检查更新
+        if (is.dev) {
+            autoUpdater.forceDevUpdateConfig = true
+        }
+
         autoUpdater.on('error', (err: any) => {
             log.error('autoUpdater:error', err?.stack || err?.message || String(err))
-            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1)
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.setProgressBar(-1)
+                // 发送更新错误事件到渲染进程
+                mainWindow.webContents.send('update:error', {
+                    message: err?.message || String(err),
+                    stack: err?.stack
+                })
+            }
         })
 
         autoUpdater.on('update-available', async (info) => {
-            // 手动检查时一旦有可用更新，就不再显示“已是最新版本”的提示
+            // 手动检查时一旦有可用更新，就不再显示"已是最新版本"的提示
             __manualUpdateCheck = false
             log.info('autoUpdater:update-available', info)
 
@@ -72,49 +80,23 @@ function registerAutoUpdate(mainWindow) {
                 log.info('autoUpdater:version-ignored', { ignoredVersion })
                 return
             }
-            const releaseNotes = info?.releaseNotes || '暂无更新说明'
-            const { response } = await dialog.showMessageBox(mainWindow ?? null, {
-                type: 'info',
-                title: '发现新版本',
-                message: `检测到新版本 ${currentVersion}，是否下载并安装？`,
-                detail: typeof releaseNotes === 'string' ? releaseNotes : JSON.stringify(releaseNotes),
-                buttons: ['稍后', '忽略此版本', '确定'],
-                defaultId: 2,
-                cancelId: 0,
-                noLink: true
-            })
 
-            // 忽略此版本
-            if (response === 1) {
-                writeUpdaterStore({ ignoredVersion: currentVersion })
-                log.info('autoUpdater:ignored-version-set', { ignoredVersion: currentVersion })
-                return
-            }
-
-            // 确定下载
-            if (response === 2) {
-                try {
-                    await autoUpdater.downloadUpdate()
-                } catch (e: any) {
-                    log.error('downloadUpdate:error', e?.message || String(e))
-                    dialog.showMessageBox(mainWindow ?? null, {
-                        type: 'error',
-                        title: '下载失败',
-                        message: `更新包下载失败：${e?.message || String(e)}`
-                    })
-                    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1)
-                }
+            // 发送更新可用事件到渲染进程
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('update:available', {
+                    version: currentVersion,
+                    releaseNotes: info?.releaseNotes || '暂无更新说明'
+                })
             }
         })
 
         autoUpdater.on('update-not-available', () => {
             if (__manualUpdateCheck) {
                 __manualUpdateCheck = false
-                dialog.showMessageBox(mainWindow ?? null, {
-                    type: 'info',
-                    title: '检查更新',
-                    message: '当前已是最新版本'
-                })
+                // 发送更新不可用事件到渲染进程
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('update:not-available')
+                }
             }
         })
 
@@ -122,6 +104,13 @@ function registerAutoUpdate(mainWindow) {
             const percent = Math.max(0, Math.min(100, p.percent || 0))
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.setProgressBar(percent / 100)
+                // 发送下载进度事件到渲染进程
+                mainWindow.webContents.send('update:progress', {
+                    percent,
+                    bytesPerSecond: p.bytesPerSecond,
+                    transferred: p.transferred,
+                    total: p.total
+                })
             }
             // log.info('autoUpdater:download-progress', {
             //   bytesPerSecond: p.bytesPerSecond,
@@ -133,30 +122,11 @@ function registerAutoUpdate(mainWindow) {
 
         autoUpdater.on('update-downloaded', async (info) => {
             log.info('autoUpdater:update-downloaded', info)
-            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1)
-            const { response } = await dialog.showMessageBox(mainWindow ?? null, {
-                type: 'question',
-                title: '更新就绪',
-                message: '更新已下载，是否立即重启安装？',
-                buttons: ['稍后', '立即重启'],
-                defaultId: 1,
-                cancelId: 0,
-                noLink: true
-            })
-            if (response === 1) {
-                setImmediate(() => {
-                    try {
-                        autoUpdater.quitAndInstall()
-                    } catch (e: any) {
-                        log.error('quitAndInstall:error', e?.message || String(e))
-                    }
-                })
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.setProgressBar(-1)
+                // 发送下载完成事件到渲染进程
+                mainWindow.webContents.send('update:downloaded', info)
             }
-        })
-
-        // 触发检查
-        autoUpdater.checkForUpdates().catch((e: any) => {
-            log.error('checkForUpdates:error', e?.message || String(e))
         })
     } catch (e: any) {
         log.error('初始化自动更新失败', e?.message || String(e))
@@ -164,29 +134,67 @@ function registerAutoUpdate(mainWindow) {
 }
 
 async function checkUpdate(mainWindow) {
-    if (is.dev) {
-        dialog.showMessageBox(mainWindow ?? null, {
-            type: 'info',
-            title: '检查更新',
-            message: '开发环境下已跳过自动更新'
-        })
-        return { ok: true, dev: true }
-    }
     __manualUpdateCheck = true
     try {
+        // 开发环境下强制检查更新
+        if (is.dev) {
+            autoUpdater.forceDevUpdateConfig = true
+        }
         await autoUpdater.checkForUpdates()
         return { ok: true }
     } catch (e: any) {
         __manualUpdateCheck = false
-        dialog.showMessageBox(mainWindow ?? null, {
-            type: 'error',
-            title: '检查更新失败',
-            message: e?.message || String(e)
-        })
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update:error', {
+                message: `检查更新失败：${e?.message || String(e)}`
+            })
+        }
         return { ok: false, error: e?.message || String(e) }
     }
 }
+
+async function downloadUpdate(mainWindow) {
+    try {
+        await autoUpdater.downloadUpdate()
+        return { ok: true }
+    } catch (e: any) {
+        log.error('downloadUpdate:error', e?.message || String(e))
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update:error', {
+                message: `更新包下载失败：${e?.message || String(e)}`
+            })
+            mainWindow.setProgressBar(-1)
+        }
+        return { ok: false, error: e?.message || String(e) }
+    }
+}
+
+async function ignoreVersion(version) {
+    try {
+        writeUpdaterStore({ ignoredVersion: version })
+        return { ok: true }
+    } catch (e: any) {
+        log.error('ignoreVersion:error', e?.message || String(e))
+        return { ok: false, error: e?.message || String(e) }
+    }
+}
+
+async function installUpdate() {
+    try {
+        setImmediate(() => {
+            autoUpdater.quitAndInstall()
+        })
+        return { ok: true }
+    } catch (e: any) {
+        log.error('installUpdate:error', e?.message || String(e))
+        return { ok: false, error: e?.message || String(e) }
+    }
+}
+
 export {
     registerAutoUpdate,
-    checkUpdate
+    checkUpdate,
+    downloadUpdate,
+    ignoreVersion,
+    installUpdate
 }

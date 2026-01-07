@@ -7,7 +7,10 @@ import icon from '/resources/icon.png?asset'
 import log from '../utils/log'
 import {
   registerAutoUpdate,
-  checkUpdate
+  checkUpdate,
+  downloadUpdate,
+  ignoreVersion,
+  installUpdate
 } from '../utils/update'
 /**
  * 目录存在性缓存，避免重复 IO 检查
@@ -81,7 +84,22 @@ app.whenReady().then(async () => {
   registerAutoUpdate(mainWindow)
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
-    checkUpdate(mainWindow)
+    return checkUpdate(mainWindow)
+  })
+
+  // 下载更新的 IPC
+  ipcMain.handle('update:download', async () => {
+    return downloadUpdate(mainWindow)
+  })
+
+  // 忽略版本的 IPC
+  ipcMain.handle('update:ignore', async (_, version) => {
+    return ignoreVersion(version)
+  })
+
+  // 安装更新的 IPC
+  ipcMain.handle('update:install', async () => {
+    return installUpdate()
   })
 
   // 获取应用版本信息的 IPC

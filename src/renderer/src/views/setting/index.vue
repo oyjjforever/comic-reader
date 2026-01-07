@@ -148,17 +148,6 @@ import { useMessage } from 'naive-ui'
 import { useSettingStore } from '@renderer/plugins/store'
 import { setting } from '@/typings/setting'
 
-// 立即检查更新
-const checkUpdate = async () => {
-  try {
-    await window.electron.ipcRenderer.invoke('update:check')
-    // 具体提示由主进程 MessageBox 处理，这里可选地给出轻提示
-    message.info('正在检查更新…')
-  } catch (e) {
-    message.error((e as any)?.message || '检查更新失败')
-  }
-}
-
 let settingStore = useSettingStore()
 const message = useMessage()
 const route = useRoute()
