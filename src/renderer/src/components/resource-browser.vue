@@ -19,25 +19,25 @@
               </n-button>
               <n-button
                 :type="currentViewMode === 'folders' ? 'primary' : 'default'"
-                @click="currentViewMode='folders'"
+                @click="currentViewMode = 'folders'"
               >
                 本地目录
               </n-button>
               <n-button
                 :type="currentViewMode === 'favorites' ? 'primary' : 'default'"
-                @click="currentViewMode='favorites'"
+                @click="currentViewMode = 'favorites'"
               >
                 我的收藏
               </n-button>
               <n-button
                 :type="currentViewMode === 'history' ? 'primary' : 'default'"
-                @click="currentViewMode='history'"
+                @click="currentViewMode = 'history'"
               >
                 浏览历史
               </n-button>
               <n-button
                 :type="currentViewMode === 'downloads' ? 'primary' : 'default'"
-                @click="currentViewMode='downloads'"
+                @click="currentViewMode = 'downloads'"
               >
                 最近下载
               </n-button>
@@ -147,19 +147,16 @@
       </aside>
 
       <section class="content-area">
-          <div v-if="isLoading" class="loading-overlay">
-            <n-spin size="large">
-              <template #description>
-                正在加载...
-              </template>
-            </n-spin>
-          </div>
+        <div v-if="isLoading" class="loading-overlay">
+          <n-spin size="large">
+            <template #description> 正在加载... </template>
+          </n-spin>
+        </div>
         <div v-else class="grid-view">
           <div v-if="grid.filterRows.length === 0" class="empty-data-state">
             <n-empty description="没有找到匹配的内容"> </n-empty>
           </div>
           <responsive-virtual-grid
-            v-else
             ref="virtualGridRef"
             :items="grid.filterRows"
             key-field="fullPath"
@@ -286,6 +283,7 @@ const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads'>(
 )
 watch(currentViewMode, () => {
   toggleMultiSelectMode(false)
+  grid.filterRows = grid.rows = []
   refresh()
 })
 // 性能优化
@@ -293,6 +291,7 @@ const isLoading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const virtualGridRef = ref()
+const isGridReady = ref(false)
 
 // 标签筛选加载状态
 const isTagFilterLoading = ref(false)
@@ -391,6 +390,8 @@ const debounceQuery = debounce(query, 300)
 const refresh = async () => {
   if (!props.resourcePath) return
   isLoading.value = true
+  // 重置网格准备状态
+  isGridReady.value = false
   try {
     switch (currentViewMode.value) {
       case 'folders':
@@ -409,6 +410,12 @@ const refresh = async () => {
     }
   } finally {
     isLoading.value = false
+    // 如果数据加载完成但网格仍未准备好，设置一个超时来确保网格最终会被标记为准备就绪
+    setTimeout(() => {
+      if (!isGridReady.value && grid.filterRows.length > 0) {
+        isGridReady.value = true
+      }
+    }, 1000)
   }
 }
 
@@ -417,15 +424,15 @@ const handleClearData = () => {
   const viewModeConfig = {
     favorites: {
       title: '收藏',
-      clearFn: () => window.favorite.clearFavorites(props.namespace),
+      clearFn: () => window.favorite.clearFavorites(props.namespace)
     },
     history: {
       title: '浏览历史',
-      clearFn: () => window.browseHistory.clearBrowseHistory(props.namespace),
+      clearFn: () => window.browseHistory.clearBrowseHistory(props.namespace)
     },
     downloads: {
       title: '最近下载',
-      clearFn: () => window.downloadHistory.clearDownloadHistory(props.namespace),
+      clearFn: () => window.downloadHistory.clearDownloadHistory(props.namespace)
     }
   }
 
@@ -1587,7 +1594,7 @@ defineExpose({
       pointer-events: none;
     }
   }
-  
+
   /* 加载覆盖层样式 */
   .loading-overlay {
     position: absolute;

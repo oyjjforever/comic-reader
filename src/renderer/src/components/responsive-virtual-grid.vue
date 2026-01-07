@@ -11,6 +11,7 @@
     :mode="mode"
     @scroll="$emit('scroll', $event)"
     @sort-change="handleSortChange"
+    @ready="$emit('ready')"
   >
     <template #default="{ item, index }">
       <slot :item="item" :index="index" />
@@ -19,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import VirtualGrid from './virtual-grid.vue'
 import { debounce } from 'lodash'
 
@@ -49,6 +50,7 @@ const props = withDefaults(defineProps<ResponsiveVirtualGridProps>(), {
 const emit = defineEmits<{
   scroll: [event: Event]
   'sort-change': [fromIndex: number, toIndex: number]
+  ready: []
 }>()
 
 const virtualGridRef = ref()
@@ -95,7 +97,14 @@ function handleSortChange(fromIndex, toIndex) {
   emit('sort-change', fromIndex, toIndex)
 }
 onMounted(() => {
+  // 立即获取屏幕宽度，不等待事件
+  screenWidth.value = window.innerWidth
   window.addEventListener('resize', handleResize)
+
+  // 通知父组件网格已准备就绪
+  nextTick(() => {
+    emit('ready')
+  })
 })
 
 onUnmounted(() => {

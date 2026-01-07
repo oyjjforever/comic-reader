@@ -29,6 +29,16 @@
 </template>
 
 <script setup lang="ts">
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  nextTick
+} from 'vue'
 import { throttle, debounce } from 'lodash'
 
 interface VirtualGridProps {
@@ -61,6 +71,7 @@ const props = withDefaults(defineProps<VirtualGridProps>(), {
 const emit = defineEmits<{
   scroll: [event: Event]
   'sort-change': [fromIndex: number, toIndex: number]
+  ready: []
 }>()
 
 const containerRef = ref<HTMLElement>()
@@ -157,15 +168,10 @@ const contentStyle = computed(() => ({
 
 // 网格样式
 const gridStyle = computed(() => {
-  // 计算可用宽度（容器宽度减去所有间隙）
-  const totalGapWidth = (columnsCount.value - 1) * props.gap
-  const availableWidth = containerWidth.value - totalGapWidth
-
-  // 计算每列的实际宽度，确保所有列能撑满容器
-  const columnWidth = columnsCount.value > 0 ? availableWidth / columnsCount.value : props.itemWidth
+  // 使用CSS Grid的自动布局功能，让浏览器自动计算最佳列数
   return {
     display: 'grid',
-    gridTemplateColumns: `repeat(${columnsCount.value}, ${columnWidth}px)`,
+    gridTemplateColumns: `repeat(auto-fill, minmax(${props.itemWidth}px, 1fr))`,
     gridAutoRows: `${props.itemHeight}px`,
     gap: `${props.gap}px`,
     padding: '10px',
@@ -271,19 +277,25 @@ let resizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
   await nextTick()
-  if (!hasInitialized.value) {
-    updateContainerSize()
-
-    // 监听容器尺寸变化
-    if (containerRef.value && window.ResizeObserver) {
-      resizeObserver = new ResizeObserver(updateContainerSize)
-      resizeObserver.observe(containerRef.value)
-    }
-
-    // 监听窗口尺寸变化（备用方案）
-    window.addEventListener('resize', updateContainerSize)
-    hasInitialized.value = true
+  // 立即获取容器尺寸，不使用防抖
+  if (containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect()
+    containerWidth.value = rect.width - 20
+    containerHeight.value = rect.height
   }
+
+  // 然后设置防抖监听
+  if (containerRef.value && window.ResizeObserver) {
+    resizeObserver = new ResizeObserver(updateContainerSize)
+    resizeObserver.observe(containerRef.value)
+  }
+
+  // 监听窗口尺寸变化（备用方案）
+  window.addEventListener('resize', updateContainerSize)
+  hasInitialized.value = true
+
+  // 通知父组件网格已准备就绪
+  emit('ready')
 })
 
 // keep-alive 组件激活时
