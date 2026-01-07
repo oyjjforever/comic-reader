@@ -83,6 +83,11 @@ app.whenReady().then(async () => {
   ipcMain.handle('update:check', async () => {
     checkUpdate(mainWindow)
   })
+
+  // 获取应用版本信息的 IPC
+  ipcMain.handle('app:getVersion', async () => {
+    return app.getVersion()
+  })
   // 文件夹选择对话框（支持 defaultPath）
   ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: string }) => {
     const result = await dialog.showOpenDialog({

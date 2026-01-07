@@ -4,32 +4,27 @@
   </div>
 </template>
 
-<script setup lang="ts" name="pixiv">
-import { ref, onMounted } from 'vue'
+<script setup lang="ts" name="pornhub">
+import { ref, onMounted, defineExpose } from 'vue'
 import { Tip } from './utils'
-const { pixiv } = window as any
-import pixivUtil from '@renderer/views/special-attention/pixiv.js'
+import { queue } from '../../plugins/store/downloadQueue.js'
 const url = ref('https://cn.pornhub.com/')
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
 const canAttention = ref(false)
-let downloadType
 function updateCanDownload() {
   try {
     const wv = webviewRef.value
     if (!wv) return
     const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
-    canDownload.value = true
-    if (currentUrl.includes('artworks')) {
-      downloadType = 'artwork'
-    } else if (currentUrl.includes('illustrations')) {
-      downloadType = 'illusts'
-    } else if (currentUrl.includes('series')) {
-      downloadType = 'managa'
-    } else {
-      canDownload.value = false
+    canDownload.value = false
+
+    // Check if URL matches the Pornhub video format
+    if (currentUrl.includes('view_video.php') && currentUrl.includes('viewkey=')) {
+      canDownload.value = true
     }
-    canAttention.value = !!currentUrl && currentUrl.includes('users')
+
+    canAttention.value = false // Pornhub doesn't have user attention feature like Pixiv
   } catch {
     canDownload.value = false
     canAttention.value = false
@@ -49,44 +44,37 @@ function extractFromUrl(key) {
   }
 }
 async function addSpecialAttention() {
+  // Pornhub doesn't support special attention feature
   const tip = new Tip()
-  try {
-    const userId = extractFromUrl('users')
-    const firstArtworkId = (await pixiv.getArtworksByUserId(userId)).illusts[0]
-    const authorName = (await pixiv.getArtworkInfo(firstArtworkId)).author
-    await window.specialAttention.add({
-      source: 'pixiv',
-      authorId: userId,
-      authorName
-    })
-    tip.success('已添加到特别关注')
-  } catch (e) {
-    tip.error(e)
-  }
+  tip.info('PornHub不支持特别关注功能')
 }
 async function download() {
   const tip = new Tip()
   try {
-    // 单作品
-    if (downloadType === 'artwork') {
-      const artworkId = extractFromUrl('artworks')
-      if (!artworkId) throw new Error('未获取到作品ID')
-      await pixivUtil.downloadArtwork(artworkId)
-    }
-    // 插画集
-    else if (downloadType === 'illusts') {
-      const userId = extractFromUrl('users')
-      if (!userId) throw new Error('未获取到用户ID')
-      await pixivUtil.downloadIllusts(userId)
-    }
-    // 漫画集
-    else if (downloadType === 'managa') {
-      const mangaId = extractFromUrl('series')
-      if (!mangaId) throw new Error('未获取到漫画ID')
-      await pixivUtil.downloadManga(mangaId)
-    }
+    const wv = webviewRef.value
+    if (!wv) throw new Error('无法获取webview实例')
+    const currentUrl: string = typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+
+    // Extract viewkey from URL
+    const urlParams = new URLSearchParams(currentUrl.split('?')[1])
+    const viewkey = urlParams.get('viewkey')
+    if (!viewkey) throw new Error('无法获取视频viewkey')
+
+    // Add to download queue
+    queue.addTask({
+      site: 'pornhub',
+      title: `PornHub Video - ${viewkey}`,
+      url: currentUrl,
+      type: 'video',
+      payload: {
+        url: currentUrl,
+        viewkey: viewkey
+      }
+    })
+
+    tip.success('已添加到下载队列')
   } catch (error) {
-    tip.error(error)
+    tip.error(error.message || error)
   }
 }
 
