@@ -200,7 +200,7 @@
     <!-- 标签对话框 -->
     <tag-dialog
       v-if="tagDialogObject.show"
-      v-model="tagDialogObject.show"
+      v-model:show="tagDialogObject.show"
       :media="tagDialogObject.data"
       :mode="tagDialogObject.mode"
       :namespace="namespace"
