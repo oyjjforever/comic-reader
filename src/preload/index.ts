@@ -16,6 +16,7 @@ import weibo from './plugins/downloader/weibo'
 import specialAttention from './plugins/special-attention'
 import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
+import databaseBackup from './plugins/databaseBackup'
 // Custom APIs for renderer
 const api = {}
 
@@ -41,6 +42,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('specialAttention', specialAttention)
     contextBridge.exposeInMainWorld('browseHistory', browseHistory)
     contextBridge.exposeInMainWorld('downloadHistory', downloadHistory)
+    contextBridge.exposeInMainWorld('databaseBackup', databaseBackup)
   } catch (error) {
     console.error(error)
   }

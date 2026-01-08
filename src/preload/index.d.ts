@@ -97,5 +97,15 @@ declare global {
       deleteDownloadHistory: (id: number) => Promise<boolean>;
       clearDownloadHistory: (module?: string) => Promise<boolean>;
     }
+    databaseBackup: {
+      createBackup: (backupPath?: string) => Promise<string>;
+      restoreBackup: (backupFilePath: string) => Promise<void>;
+      getBackupList: (backupPath?: string) => Promise<Array<{ fileName: string, filePath: string, size: number, createdAt: Date }>>;
+      deleteBackup: (backupFilePath: string) => Promise<void>;
+      setupScheduledBackup: (intervalInWeeks: number, backupPath?: string) => NodeJS.Timeout;
+      cancelScheduledBackup: (timerId: NodeJS.Timeout) => void;
+      getDatabasePath: () => string;
+      getBackupDirectory: (customPath?: string) => string;
+    }
   }
 }

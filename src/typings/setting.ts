@@ -18,4 +18,11 @@ export type setting = {
     enableAuthorUpdateCheck?: boolean
     // 默认展示标签页
     defaultViewMode?: 'folders' | 'favorites' | 'history'
+    // 数据库备份设置
+    // 是否启用定时备份
+    enableScheduledBackup?: boolean
+    // 备份周期（周）
+    backupInterval?: 1 | 2 | 3 | 4
+    // 备份文件保存路径
+    backupPath?: string
 }

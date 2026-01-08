@@ -8,7 +8,10 @@ export const defaultSetting = {
   videoResourcePath: '',
   defaultDownloadPath: '',
   enableAuthorUpdateCheck: false,
-  defaultViewMode: 'folders'
+  defaultViewMode: 'folders',
+  enableScheduledBackup: false,
+  backupInterval: 4, // 默认4周
+  backupPath: ''
 }
 
 export const useSettingStore = defineStore('setting', {
