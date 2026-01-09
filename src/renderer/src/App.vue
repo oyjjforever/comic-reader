@@ -48,10 +48,9 @@ const theme = computed(() => {
   return lightTheme
 })
 
-// 应用启动时初始化新作品检测
+// 应用启动时初始化新作品检测和自动备份
 onMounted(async () => {
   window.electron.ipcRenderer.invoke('update:check')
-  // 延迟5秒后开始检测，避免应用启动时网络请求过多
   setTimeout(async () => {
     try {
       if (!settingStore.setting.enableAuthorUpdateCheck) return
@@ -67,6 +66,20 @@ onMounted(async () => {
       console.error('初始化新作品检测失败:', error)
     }
   }, 5000)
+  setTimeout(async () => {
+    try {
+      // 检查并执行自动备份
+      const backupResult = await window.databaseBackup.checkAndPerformAutoBackup()
+
+      if (backupResult) {
+        console.log('自动备份执行成功')
+      } else {
+        console.log('暂不需要执行自动备份')
+      }
+    } catch (error) {
+      console.error('自动备份检查失败:', error)
+    }
+  }, 10000)
 })
 </script>
 

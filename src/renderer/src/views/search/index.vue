@@ -134,7 +134,6 @@ const handleSearch = async () => {
                 }
 
                 const info = await getInfoMethod(id)
-                console.log('🚀 ~ handleSearch ~ info:', info)
 
                 // 获取封面图片
                 let cover = ''
@@ -142,7 +141,6 @@ const handleSearch = async () => {
                   const getImageMethod = (window as any)[type]?.getImage
                   if (getImageMethod && info.cover) {
                     cover = await getImageMethod(info.cover)
-                    console.log('🚀 ~ handleSearch ~ cover:', cover)
                   }
                 } catch (error) {
                   console.error('获取封面失败:', error)

@@ -60,9 +60,3 @@ const selectResourcePath = async (key: keyof setting) => {
   }
 }
 </script>
-
-<script lang="ts">
-export default {
-  name: 'ResourceSettings'
-}
-</script>

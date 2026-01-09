@@ -69,161 +69,162 @@
       <!-- 检查更新按钮 -->
       <div v-if="!updateInfo.available && !updateInfo.downloaded" class="update-section">
         <n-button type="primary" :loading="checkingUpdate" @click="checkForUpdate" block>
-          {{ checkingUpdate ? '检查中...' : '检查更新' }}
+          {{ checkButtonLabel }}
         </n-button>
       </div>
     </div>
   </n-modal>
 </template>
 
-<script lang="ts">
+<script lang="ts" setup>
 import { ref, watch, onMounted } from 'vue'
 import { NModal, NButton, NAlert, NProgress } from 'naive-ui'
+const props = defineProps({
+  show: {
+    type: Boolean,
+    default: false
+  }
+})
+const showModal = ref(props.show)
+const title = ref('关于')
+const appName = ref('漫画阅读器')
+const version = ref('1.0.0')
+const checkingUpdate = ref(false)
+const checkButtonLabel = ref('检查更新')
+// 更新信息
+const updateInfo = ref({
+  available: false,
+  version: '',
+  releaseNotes: '',
+  downloading: false,
+  downloaded: false,
+  downloadProgress: 0
+})
+interface Emits {
+  (e: 'update:show', value: boolean): void
+}
+const emit = defineEmits<Emits>()
+// 监听props变化
+watch(
+  () => props.show,
+  (newVal) => {
+    showModal.value = newVal
+  }
+)
 
-export default {
-  components: {
-    NModal,
-    NButton,
-    NAlert,
-    NProgress
-  },
-  props: {
-    show: {
-      type: Boolean,
-      default: false
-    }
-  },
-  setup(props, { emit }) {
-    const showModal = ref(props.show)
-    const title = ref('关于')
-    const appName = ref('漫画阅读器')
-    const version = ref('1.0.0')
-    const checkingUpdate = ref(false)
-
-    // 更新信息
-    const updateInfo = ref({
-      available: false,
-      version: '',
-      releaseNotes: '',
-      downloading: false,
-      downloaded: false,
-      downloadProgress: 0
-    })
-    // 监听props变化
-    watch(
-      () => props.show,
-      (newVal) => {
-        showModal.value = newVal
-      }
-    )
-
-    // 监听内部状态变化
-    watch(showModal, (newVal) => {
-      emit('update:show', newVal)
-    })
-    // 获取应用版本信息
-    watch(
-      () => props.show,
-      async (newVal) => {
-        if (newVal) {
-          try {
-            const appVersion = await (window as any).electron.ipcRenderer.invoke('app:getVersion')
-            if (appVersion) {
-              version.value = appVersion
-            }
-          } catch (error) {
-            console.error('获取版本信息失败:', error)
-          }
+// 监听内部状态变化
+watch(showModal, (newVal) => {
+  emit('update:show', newVal)
+})
+// 获取应用版本信息
+watch(
+  () => props.show,
+  async (newVal) => {
+    if (newVal) {
+      try {
+        const appVersion = await (window as any).electron.ipcRenderer.invoke('app:getVersion')
+        if (appVersion) {
+          version.value = appVersion
         }
-      },
-      { immediate: true }
-    )
-
-    // 检查更新
-    const checkForUpdate = async () => {
-      checkingUpdate.value = true
-      try {
-        await (window as any).electron.ipcRenderer.invoke('update:check')
       } catch (error) {
-        console.error('检查更新失败:', error)
-      } finally {
-        checkingUpdate.value = false
+        console.error('获取版本信息失败:', error)
       }
     }
+  },
+  { immediate: true }
+)
 
-    // 下载更新
-    const downloadUpdate = async () => {
-      updateInfo.value.downloading = true
-      try {
-        await (window as any).electron.ipcRenderer.invoke('update:download')
-      } catch (error) {
-        console.error('下载更新失败:', error)
-        updateInfo.value.downloading = false
-      }
+// 检查更新
+const checkForUpdate = async () => {
+  checkingUpdate.value = true
+  checkButtonLabel.value = '检查中...'
+  try {
+    const res = await (window as any).electron.ipcRenderer.invoke('update:check')
+    if (!res.data.isUpdateAvailable) {
+      checkButtonLabel.value = '已是最新版本'
+      setTimeout(() => {
+        checkButtonLabel.value = '检查更新'
+      }, 5000)
     }
-
-    // 忽略版本
-    const ignoreVersion = async () => {
-      try {
-        await (window as any).electron.ipcRenderer.invoke('update:ignore', updateInfo.value.version)
-        updateInfo.value.available = false
-        showModal.value = false
-      } catch (error) {
-        console.error('忽略版本失败:', error)
-      }
-    }
-
-    // 安装更新
-    const installUpdate = async () => {
-      try {
-        await (window as any).electron.ipcRenderer.invoke('update:install')
-      } catch (error) {
-        console.error('安装更新失败:', error)
-      }
-    }
-
-    // 监听更新事件
-    onMounted(() => {
-      // 监听更新可用事件
-      window.electron.ipcRenderer.on('update:available', (event, info) => {
-        updateInfo.value.available = true
-        updateInfo.value.version = info.version
-        updateInfo.value.releaseNotes = info.releaseNotes || '暂无更新说明'
-        showModal.value = true
-      })
-
-      // 监听下载进度事件
-      window.electron.ipcRenderer.on('update:progress', (event, progress) => {
-        updateInfo.value.downloadProgress = progress.percent.toFixed(2) * 1
-      })
-
-      // 监听下载完成事件
-      window.electron.ipcRenderer.on('update:downloaded', () => {
-        updateInfo.value.downloading = false
-        updateInfo.value.downloaded = true
-      })
-
-      // 监听更新错误事件
-      window.electron.ipcRenderer.on('update:error', (event, error) => {
-        updateInfo.value.downloading = false
-        console.error('更新错误:', error)
-      })
-    })
-
-    return {
-      showModal,
-      title,
-      appName,
-      version,
-      checkingUpdate,
-      updateInfo,
-      checkForUpdate,
-      downloadUpdate,
-      ignoreVersion,
-      installUpdate
-    }
+  } catch (error) {
+    console.error('检查更新失败:', error)
+    checkButtonLabel.value = '检查失败'
+  } finally {
+    checkingUpdate.value = false
   }
 }
+
+// 下载更新
+const downloadUpdate = async () => {
+  updateInfo.value.downloading = true
+  try {
+    await (window as any).electron.ipcRenderer.invoke('update:download')
+  } catch (error) {
+    console.error('下载更新失败:', error)
+    updateInfo.value.downloading = false
+  }
+}
+
+// 忽略版本
+const ignoreVersion = async () => {
+  try {
+    await (window as any).electron.ipcRenderer.invoke('update:ignore', updateInfo.value.version)
+    updateInfo.value.available = false
+    showModal.value = false
+  } catch (error) {
+    console.error('忽略版本失败:', error)
+  }
+}
+
+// 安装更新
+const installUpdate = async () => {
+  try {
+    await (window as any).electron.ipcRenderer.invoke('update:install')
+  } catch (error) {
+    console.error('安装更新失败:', error)
+  }
+}
+
+// 监听更新事件
+onMounted(() => {
+  // 监听更新可用事件
+  window.electron.ipcRenderer.on('update:available', (event, info) => {
+    updateInfo.value.available = true
+    updateInfo.value.version = info.version
+    updateInfo.value.releaseNotes = info.releaseNotes || '暂无更新说明'
+    showModal.value = true
+  })
+
+  // 监听下载进度事件
+  window.electron.ipcRenderer.on('update:progress', (event, progress) => {
+    updateInfo.value.downloadProgress = progress.percent.toFixed(2) * 1
+  })
+
+  // 监听下载完成事件
+  window.electron.ipcRenderer.on('update:downloaded', () => {
+    updateInfo.value.downloading = false
+    updateInfo.value.downloaded = true
+  })
+
+  // 监听更新错误事件
+  window.electron.ipcRenderer.on('update:error', (event, error) => {
+    updateInfo.value.downloading = false
+    console.error('更新错误:', error)
+  })
+})
+
+defineExpose({
+  showModal,
+  title,
+  appName,
+  version,
+  checkingUpdate,
+  updateInfo,
+  checkForUpdate,
+  downloadUpdate,
+  ignoreVersion,
+  installUpdate
+})
 </script>
 
 <style lang="scss">

@@ -49,9 +49,3 @@ const updateSetting = (key: keyof setting, value: any) => {
   emit('update:modelValue', newSetting)
 }
 </script>
-
-<script lang="ts">
-export default {
-  name: 'GeneralSettings'
-}
-</script>

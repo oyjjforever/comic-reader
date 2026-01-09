@@ -140,8 +140,8 @@ async function checkUpdate(mainWindow) {
         if (is.dev) {
             autoUpdater.forceDevUpdateConfig = true
         }
-        await autoUpdater.checkForUpdates()
-        return { ok: true }
+        const res = await autoUpdater.checkForUpdates()
+        return { ok: true, data: res }
     } catch (e: any) {
         __manualUpdateCheck = false
         if (mainWindow && !mainWindow.isDestroyed()) {

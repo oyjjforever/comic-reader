@@ -1,84 +1,65 @@
 <template>
-  <div>
-    <n-form :model="modelValue">
-      <n-form-item path="enableScheduledBackup" label="定时备份">
+  <n-form :model="modelValue">
+    <n-float-button
+      :right="30"
+      :top="100"
+      shape="square"
+      type="default"
+      width="100px"
+      size="small"
+      @click="createBackup"
+      :loading="isCreatingBackup"
+    >
+      立即备份
+    </n-float-button>
+    <n-space>
+      <n-form-item path="enableScheduledBackup" label="定时备份" label-placement="left">
         <n-switch
           :value="modelValue.enableScheduledBackup"
           @update:value="(value) => updateSetting('enableScheduledBackup', value)"
         />
       </n-form-item>
-
-      <n-form-item v-if="modelValue.enableScheduledBackup" path="backupInterval" label="备份周期">
-        <n-select
-          :value="modelValue.backupInterval"
-          @update:value="(value) => updateSetting('backupInterval', value)"
-          :disabled="!modelValue.enableScheduledBackup"
-          :options="[
-            { label: '1周', value: 1 },
-            { label: '2周', value: 2 },
-            { label: '3周', value: 3 },
-            { label: '4周', value: 4 }
-          ]"
-          placeholder="请选择备份周期"
-        />
-      </n-form-item>
-
-      <!-- <n-form-item
-        path="backupPath"
-        label="备份文件保存路径"
-        :show-feedback="modelValue.enableScheduledBackup"
-      >
-        <n-input-group>
-          <n-input
-            :value="modelValue.backupPath"
-            @update:value="(value) => updateSetting('backupPath', value)"
-            placeholder="请选择备份文件保存路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectBackupPath"> 选择文件夹 </n-button>
-        </n-input-group>
-      </n-form-item> -->
-      <!-- <n-divider /> -->
-      <n-space>
-        <n-button type="primary" @click="createBackup" :loading="isCreatingBackup">
-          立即备份
-        </n-button>
-      </n-space>
-      <n-alert v-if="backupMessage" :type="backupMessageType" :title="backupMessageTitle">
-        {{ backupMessage }}
-      </n-alert>
-    </n-form>
-
-    <!-- 备份文件列表 -->
-    <n-divider />
-    <h3>备份文件列表</h3>
-    <n-data-table
-      :columns="backupListColumns"
-      :data="backupList"
-      :pagination="false"
-      :max-height="350"
-    />
-
-    <!-- 恢复数据库对话框 -->
-    <n-modal
-      :show="showRestoreDialog"
-      @update:show="(value) => (showRestoreDialog = value)"
-      preset="dialog"
-      title="确认恢复数据库"
+      <n-select
+        v-if="modelValue.enableScheduledBackup"
+        style="width: 200px"
+        :value="modelValue.backupInterval"
+        @update:value="(value) => updateSetting('backupInterval', value)"
+        :disabled="!modelValue.enableScheduledBackup"
+        :options="[
+          { label: '1周', value: 1 },
+          { label: '2周', value: 2 },
+          { label: '3周', value: 3 },
+          { label: '4周', value: 4 }
+        ]"
+        placeholder="请选择备份周期"
+      />
+    </n-space>
+    <n-form-item
+      path="backupPath"
+      label="备份文件保存路径"
+      :show-feedback="modelValue.enableScheduledBackup"
     >
-      <p>
-        确定要从备份文件 <strong>{{ selectedBackup?.fileName }}</strong> 恢复数据库吗？
-      </p>
-      <template #action>
-        <n-space>
-          <n-button @click="showRestoreDialog = false">取消</n-button>
-          <n-button type="warning" @click="confirmRestore" :loading="isRestoring">
-            确认恢复
-          </n-button>
-        </n-space>
-      </template>
-    </n-modal>
-  </div>
+      <n-input-group>
+        <n-input
+          :value="modelValue.backupPath"
+          @update:value="(value) => updateSetting('backupPath', value)"
+          placeholder="请选择备份文件保存路径"
+          readonly
+        />
+        <n-button type="primary" @click="selectBackupPath"> 选择文件夹 </n-button>
+      </n-input-group>
+    </n-form-item>
+  </n-form>
+
+  <!-- 备份文件列表 -->
+  <n-divider />
+  <h3>备份文件列表</h3>
+  <n-data-table
+    :columns="backupListColumns"
+    :data="backupList"
+    :pagination="false"
+    :max-height="350"
+  />
 </template>
 
 <script setup lang="ts">
@@ -99,9 +80,6 @@ const dialog = useDialog()
 const isCreatingBackup = ref(false)
 const isRestoring = ref(false)
 const showRestoreDialog = ref(false)
-const backupMessage = ref('')
-const backupMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info')
-const backupMessageTitle = ref('')
 const backupList = ref<
   Array<{ fileName: string; filePath: string; size: number; createdAt: Date }>
 >([])
@@ -148,9 +126,11 @@ onMounted(() => {
 
 // 创建备份
 const createBackup = async () => {
+  if (!props.modelValue.backupPath) {
+    message.error('请先选择备份文件保存路径')
+    return
+  }
   isCreatingBackup.value = true
-  backupMessage.value = ''
-
   try {
     const backupPath = await window.databaseBackup.createBackup(props.modelValue.backupPath)
     message.success('数据库备份成功')
@@ -161,37 +141,31 @@ const createBackup = async () => {
     isCreatingBackup.value = false
   }
 }
-
-// 恢复数据库
-const restoreDatabase = async (backup: {
+// 确认恢复
+const restoreBackup = async (backup: {
   fileName: string
   filePath: string
   size: number
   createdAt: Date
 }) => {
-  selectedBackup.value = backup
-  showRestoreDialog.value = true
-}
-
-// 确认恢复
-const confirmRestore = async () => {
-  if (!selectedBackup.value) {
-    message.warning('请先选择一个备份文件')
-    return
-  }
-
+  dialog.success({
+    title: '确认恢复',
+    content: `确定要从备份文件 ${backup.fileName} 恢复数据库吗？`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await window.databaseBackup.restoreBackup(backup.filePath)
+        showRestoreDialog.value = false
+        message.success('数据库恢复成功')
+      } catch (error) {
+        message.error(`数据库恢复失败: ${error}`)
+      } finally {
+        isRestoring.value = false
+      }
+    }
+  })
   isRestoring.value = true
-
-  try {
-    await window.databaseBackup.restoreBackup(selectedBackup.value.filePath)
-    message.success('数据库恢复成功，建议重启应用以确保所有功能正常')
-    showRestoreDialog.value = false
-    message.success('数据库恢复成功')
-  } catch (error) {
-    message.error(`数据库恢复失败: ${error}`)
-  } finally {
-    isRestoring.value = false
-  }
 }
 
 // 删除备份
@@ -201,10 +175,10 @@ const deleteBackup = async (backup: {
   size: number
   createdAt: Date
 }) => {
-  dialog.warning({
+  dialog.error({
     title: '确认删除',
     content: `确定要删除备份文件 ${backup.fileName} 吗？此操作不可撤销。`,
-    positiveText: '确定删除',
+    positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
@@ -220,23 +194,26 @@ const deleteBackup = async (backup: {
 
 // 备份列表表格列定义
 const backupListColumns = [
-  { title: '文件名', key: 'fileName' },
+  { title: '文件名', key: 'fileName', align: 'center' },
   {
     title: '大小',
     key: 'size',
     width: '100',
+    align: 'center',
     render: (row: any) => `${(row.size / 1024 / 1024).toFixed(2)} MB`
   },
   {
     title: '创建时间',
     key: 'createdAt',
     width: '300',
+    align: 'center',
     render: (row: any) => new Date(row.createdAt).toLocaleString()
   },
   {
     title: '操作',
     key: 'actions',
-    width: '130',
+    width: '160',
+    align: 'center',
     render: (row: any) => {
       return [
         h(
@@ -245,7 +222,7 @@ const backupListColumns = [
             size: 'small',
             type: 'success',
             style: { marginRight: '8px' },
-            onClick: () => restoreDatabase(row)
+            onClick: () => restoreBackup(row)
           },
           '恢复'
         ),
@@ -262,10 +239,4 @@ const backupListColumns = [
     }
   }
 ]
-</script>
-
-<script lang="ts">
-export default {
-  name: 'DatabaseSettings'
-}
 </script>

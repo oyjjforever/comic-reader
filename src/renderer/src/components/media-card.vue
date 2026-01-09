@@ -333,12 +333,6 @@ onUnmounted(() => {
 })
 </script>
 
-<script lang="ts">
-export default {
-  name: 'MediaCard'
-}
-</script>
-
 <style lang="scss" scoped>
 .media-card {
   background: #f8f9fa;
