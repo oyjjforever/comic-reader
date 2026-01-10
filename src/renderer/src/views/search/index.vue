@@ -2,18 +2,20 @@
   <div class="search-container">
     <!-- 搜索表单 -->
     <div class="search-form">
-      <n-select
-        v-model:value="searchType"
-        :options="typeOptions"
-        placeholder="选择网站类型"
-        style="width: 120px"
-      />
-      <n-input
-        v-model:value="keyword"
-        placeholder="输入搜索关键字"
-        @keyup.enter="handleSearch"
-        clearable
-      />
+      <n-space>
+        <n-select
+          v-model:value="searchType"
+          :options="typeOptions"
+          placeholder="选择网站类型"
+          style="width: 120px"
+        />
+        <n-input
+          v-model:value="keyword"
+          placeholder="输入搜索关键字"
+          @keyup.enter="handleSearch"
+          clearable
+        />
+      </n-space>
       <n-button type="primary" @click="handleSearch" :loading="loading" :disabled="!keyword">
         <template #icon>
           <n-icon :component="Search24Regular" />

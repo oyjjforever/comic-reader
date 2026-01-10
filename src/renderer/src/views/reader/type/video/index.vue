@@ -21,7 +21,7 @@
       @mouseleave="onControlsLeave"
     >
       <n-space>
-        <n-button type="primary" @click="addBookmark" :disabled="!currentTime">
+        <n-button type="success" @click="addBookmark" :disabled="!currentTime">
           <template #icon>
             <n-icon :component="BookmarkIcon" />
           </template>

@@ -1,4 +1,4 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer, shell } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import fs from 'fs'
 import systemInterface from './plugins/systemInterface'
@@ -53,4 +53,6 @@ if (process.contextIsolated) {
   window.api = api
   // @ts-ignore (define in dts)
   window.fs = fs
+  // @ts-ignore (define in dts)
+  window.electronAPI = clipboardAPI
 }

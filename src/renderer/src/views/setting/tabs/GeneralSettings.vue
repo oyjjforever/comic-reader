@@ -30,6 +30,13 @@
         @update:value="(value) => updateSetting('enableAuthorUpdateCheck', value)"
       />
     </n-form-item>
+
+    <n-form-item path="enableClipboardMonitor" label="剪切板监听">
+      <n-switch
+        :value="modelValue.enableClipboardMonitor"
+        @update:value="(value) => updateSetting('enableClipboardMonitor', value)"
+      />
+    </n-form-item>
   </n-form>
 </template>
 

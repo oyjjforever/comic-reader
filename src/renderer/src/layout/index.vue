@@ -153,6 +153,7 @@ import {
   Search24Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
+import { useSettingStore } from '@renderer/plugins/store'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -163,6 +164,7 @@ import AboutDialog from '@renderer/components/about-dialog.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import twitter from '../views/special-attention/twitter'
+const settingStore = useSettingStore()
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
@@ -197,12 +199,12 @@ const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
-  // { icon: Search24Regular, name: 'search' },
+  { icon: Search24Regular, name: 'search' },
   { image: jmttImg, name: 'jmtt' },
   { image: pixivImg, name: 'pixiv' },
   { image: twitterImg, name: 'twitter' },
-  { image: weiboImg, name: 'weibo' }
-  // { image: pornhubImg, name: 'pornhub' }
+  { image: weiboImg, name: 'weibo' },
+  { image: pornhubImg, name: 'pornhub' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
@@ -259,6 +261,43 @@ const isScreenFull = ref(false)
 onMounted(async () => {
   // 渲染进程加载完成后，主动发起请求获取窗口大小
   isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
+  // 应用启动时初始化新作品检测和自动备份
+  window.electron.ipcRenderer.invoke('update:check')
+  // 启动剪切板监听
+  window.electron.ipcRenderer.on('clipboard-content-changed', (event, data) => {
+    console.log('剪切板内容已改变', data)
+    if (!settingStore.setting.enableClipboardMonitor) return
+    window.electron.ipcRenderer.send('show-clipboard-popup')
+  })
+  setTimeout(async () => {
+    try {
+      if (!settingStore.setting.enableAuthorUpdateCheck) return
+      // 启动定时检测，每24小时检测一次
+      const result = newArtworkDetector.startPeriodicCheck(24 * 60 * 60 * 1000, (newArtwork) => {
+        console.log(`${newArtwork.authorName}(${newArtwork.source}) 有新作品发布！`)
+      })
+      // 如果有新作品，显示汇总通知
+      if (result.newWorks > 0) {
+        console.log(`检测完成，发现 ${result.newWorks} 位作者有新作品`)
+      }
+    } catch (error) {
+      console.error('初始化新作品检测失败:', error)
+    }
+  }, 5000)
+  setTimeout(async () => {
+    try {
+      // 检查并执行自动备份
+      const backupResult = await window.databaseBackup.checkAndPerformAutoBackup()
+
+      if (backupResult) {
+        console.log('自动备份执行成功')
+      } else {
+        console.log('暂不需要执行自动备份')
+      }
+    } catch (error) {
+      console.error('自动备份检查失败:', error)
+    }
+  }, 10000)
 })
 </script>
 

@@ -21,6 +21,11 @@ async function addToQueue(artworkIds) {
 async function downloadArtwork(artworkId) {
   addToQueue([artworkId])
 }
+async function downloadIllusts(authorId) {
+  const profile = await pixiv.getArtworksByUserId(authorId)
+  const artworkIds = profile.illusts
+  addToQueue(artworkIds)
+}
 async function downloadAllMedia(authorName, authorId) {
   const profile = await pixiv.getArtworksByUserId(authorId)
   const artworkIds = profile.illusts.concat(profile.manga)
@@ -90,6 +95,7 @@ function isLocalDownloaded(authorName, workName) {
 }
 export default {
   downloadArtwork,
+  downloadIllusts,
   downloadAllMedia,
   downloadManga,
   fetchArtworks,

@@ -1,10 +1,11 @@
-import { app, net, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'electron'
+import { app, net, shell, BrowserWindow, ipcMain, dialog, globalShortcut, clipboard, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
 import log from '../utils/log'
+import { setupClipboardWatcher, showClipboardPopup } from '../utils/clipboardWatcher'
 import {
   registerAutoUpdate,
   checkUpdate,
@@ -82,6 +83,11 @@ app.whenReady().then(async () => {
   createWindow()
   // 初始化自动更新
   registerAutoUpdate(mainWindow)
+
+  // 等待主窗口完全加载后再初始化剪切板监听
+  mainWindow.webContents.once('did-finish-load', () => {
+    setupClipboardWatcher(mainWindow)
+  })
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
     return checkUpdate(mainWindow)
@@ -341,10 +347,41 @@ ipcMain.handle('site:getCookies', async (_e, payload) => {
     return null // 或返回空数组 []，根据你的错误处理逻辑
   }
 })
+
+
+// 关闭弹窗的 IPC 处理
+ipcMain.handle('popup-close', () => {
+  const windows = BrowserWindow.getAllWindows()
+  const popupWindow = windows.find(w => w !== mainWindow && w.getTitle().includes('剪切板弹窗'))
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.close()
+  }
+})
+
+// 添加到下载队列的 IPC 处理
+ipcMain.on('add-to-download-queue', (_, url: string) => {
+  // 这里可以实现添加到下载队列的逻辑
+  // 可以调用现有的下载功能
+  console.log('添加到下载队列:', url)
+  // 可以通过事件或直接调用下载模块来处理
+})
+
+// 显示剪切板弹窗的 IPC 处理
+ipcMain.on('show-clipboard-popup', (_, content: string) => {
+
+  showClipboardPopup(content)
+})
+
+
 app.on('activate', function () {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
+
 app.on('window-all-closed', () => {
+  // 清理剪切板监听
+  const { cleanupClipboardMonitor } = require('../utils/clipboardWatcher')
+  cleanupClipboardMonitor()
+
   if (process.platform !== 'darwin') {
     app.quit()
   }

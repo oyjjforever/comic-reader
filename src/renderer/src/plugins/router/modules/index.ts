@@ -1,7 +1,7 @@
 export default [
     {
         path: '/',
-        // component: layout,
+        component: () => import('@renderer/layout/index.vue'),
         children: [
             {
                 path: '/',
@@ -93,4 +93,19 @@ export default [
             }
         ],
     },
+    {
+        path: '/popup',
+        component: () => import('@renderer/layout/popup-window.vue'),
+        children: [
+            {
+                path: 'search',
+                name: 'popup-search',
+                component: () => import('@renderer/views/search/index.vue'),
+                meta: {
+                    title: "剪切板弹窗",
+                    isPopup: true
+                }
+            }
+        ]
+    }
 ]

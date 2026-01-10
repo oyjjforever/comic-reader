@@ -16,6 +16,8 @@ export type setting = {
     downloadPathTwitter?: string
     // 是否启用更新检测
     enableAuthorUpdateCheck?: boolean
+    // 是否启用剪切板监听
+    enableClipboardMonitor?: boolean
     // 默认展示标签页
     defaultViewMode?: 'folders' | 'favorites' | 'history'
     // 数据库备份设置

@@ -8,6 +8,7 @@ export const defaultSetting = {
   videoResourcePath: '',
   defaultDownloadPath: '',
   enableAuthorUpdateCheck: false,
+  enableClipboardMonitor: false, // 默认开启剪切板监听
   defaultViewMode: 'folders',
   enableScheduledBackup: false,
   backupInterval: 4, // 默认4周

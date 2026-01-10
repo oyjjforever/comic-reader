@@ -4,7 +4,7 @@
       <n-dialog-provider>
         <n-message-provider>
           <setting-provider>
-            <Layout></Layout>
+            <router-view />
           </setting-provider>
         </n-message-provider>
       </n-dialog-provider>
@@ -17,7 +17,6 @@ import { useSettingStore } from '@renderer/plugins/store'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import { ref, watch, onMounted, computed } from 'vue'
 import { useOsTheme, GlobalTheme, darkTheme, lightTheme, type GlobalThemeOverrides } from 'naive-ui'
-import Layout from '@renderer/layout/index.vue'
 import { themeColors } from '@renderer/theme-config'
 const settingStore = useSettingStore()
 const newArtworkDetector = useNewArtworkDetectorStore()
@@ -46,40 +45,6 @@ const theme = computed(() => {
     return osTheme.value === 'dark' ? darkTheme : lightTheme
   }
   return lightTheme
-})
-
-// 应用启动时初始化新作品检测和自动备份
-onMounted(async () => {
-  window.electron.ipcRenderer.invoke('update:check')
-  setTimeout(async () => {
-    try {
-      if (!settingStore.setting.enableAuthorUpdateCheck) return
-      // 启动定时检测，每24小时检测一次
-      const result = newArtworkDetector.startPeriodicCheck(24 * 60 * 60 * 1000, (newArtwork) => {
-        console.log(`${newArtwork.authorName}(${newArtwork.source}) 有新作品发布！`)
-      })
-      // 如果有新作品，显示汇总通知
-      if (result.newWorks > 0) {
-        console.log(`检测完成，发现 ${result.newWorks} 位作者有新作品`)
-      }
-    } catch (error) {
-      console.error('初始化新作品检测失败:', error)
-    }
-  }, 5000)
-  setTimeout(async () => {
-    try {
-      // 检查并执行自动备份
-      const backupResult = await window.databaseBackup.checkAndPerformAutoBackup()
-
-      if (backupResult) {
-        console.log('自动备份执行成功')
-      } else {
-        console.log('暂不需要执行自动备份')
-      }
-    } catch (error) {
-      console.error('自动备份检查失败:', error)
-    }
-  }, 10000)
 })
 </script>
 
