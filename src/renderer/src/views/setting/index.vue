@@ -20,6 +20,11 @@
       <n-tab-pane name="database" tab="备份还原">
         <DatabaseSettings v-model="formData" />
       </n-tab-pane>
+
+      <!-- 局域网服务设置 -->
+      <n-tab-pane name="lanService" tab="局域网服务">
+        <LanServiceSettings v-model="formData" />
+      </n-tab-pane>
     </n-tabs>
   </div>
 </template>
@@ -34,6 +39,7 @@ import GeneralSettings from './tabs/GeneralSettings.vue'
 import ResourceSettings from './tabs/ResourceSettings.vue'
 import DownloadSettings from './tabs/DownloadSettings.vue'
 import DatabaseSettings from './tabs/DatabaseSettings.vue'
+import LanServiceSettings from './tabs/LanServiceSettings.vue'
 
 const settingStore = useSettingStore()
 const message = useMessage()
@@ -49,7 +55,10 @@ onMounted(async () => {
 
   // 根据路由参数设置默认标签页
   const tabFromQuery = route.query.tab as string
-  if (tabFromQuery && ['general', 'resource', 'download', 'database'].includes(tabFromQuery)) {
+  if (
+    tabFromQuery &&
+    ['general', 'resource', 'download', 'database', 'lanService'].includes(tabFromQuery)
+  ) {
     activeTab.value = tabFromQuery
   }
 

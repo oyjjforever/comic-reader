@@ -17,6 +17,15 @@ import specialAttention from './plugins/special-attention'
 import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
 import databaseBackup from './plugins/databaseBackup'
+
+// 远程访问服务器 IPC 桥接
+const server = {
+  status: () => ipcRenderer.invoke('server:status'),
+  start: () => ipcRenderer.invoke('server:start'),
+  stop: () => ipcRenderer.invoke('server:stop'),
+  setResourcePath: (resourcePath: string) => ipcRenderer.invoke('server:setResourcePath', resourcePath)
+}
+
 // Custom APIs for renderer
 const api = {}
 
@@ -43,6 +52,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('browseHistory', browseHistory)
     contextBridge.exposeInMainWorld('downloadHistory', downloadHistory)
     contextBridge.exposeInMainWorld('databaseBackup', databaseBackup)
+    contextBridge.exposeInMainWorld('server', server)
   } catch (error) {
     console.error(error)
   }

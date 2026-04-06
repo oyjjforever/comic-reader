@@ -97,6 +97,12 @@ declare global {
       deleteDownloadHistory: (id: number) => Promise<boolean>;
       clearDownloadHistory: (module?: string) => Promise<boolean>;
     }
+    server: {
+      status: () => Promise<{ running: boolean; port: number }>
+      start: () => Promise<{ success: boolean; port?: number; error?: string }>
+      stop: () => Promise<{ success: boolean; error?: string }>
+      setResourcePath: (resourcePath: string) => Promise<{ success: boolean }>
+    }
     databaseBackup: {
       createBackup: (backupPath?: string) => Promise<string>;
       restoreBackup: (backupFilePath: string) => Promise<void>;

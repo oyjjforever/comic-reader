@@ -28,6 +28,11 @@ router.beforeEach(async (to, _from, next) => {
     // 更新设置信息
     await settingStore.updateSetting()
 
+    // 同步 resourcePath 到 HTTP 服务器，确保 /api/browse/list 等接口在未传 path 时使用默认资源路径
+    if (settingStore.setting.resourcePath) {
+        window.server.setResourcePath(settingStore.setting.resourcePath)
+    }
+
     next()// 执行进入路由
 })
 

@@ -12,7 +12,9 @@ export const defaultSetting = {
   defaultViewMode: 'folders',
   enableScheduledBackup: false,
   backupInterval: 4, // 默认4周
-  backupPath: ''
+  backupPath: '',
+  enableLanService: false, // 默认关闭局域网中转服务
+  lanServicePort: 9527 // 默认端口
 }
 
 export const useSettingStore = defineStore('setting', {

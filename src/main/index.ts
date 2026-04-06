@@ -13,6 +13,8 @@ import {
   ignoreVersion,
   installUpdate
 } from '../utils/update'
+import { getServerInstance } from '../server/index'
+import { getDiscoveryInstance } from '../server/discovery'
 /**
  * 目录存在性缓存，避免重复 IO 检查
  */
@@ -87,6 +89,51 @@ app.whenReady().then(async () => {
   // 等待主窗口完全加载后再初始化剪切板监听
   mainWindow.webContents.once('did-finish-load', () => {
     setupClipboardWatcher(mainWindow)
+  })
+
+  // ========== 远程访问 HTTP 服务器 ==========
+  const server = getServerInstance()
+  const discovery = getDiscoveryInstance()
+
+  // 从设置中读取是否启用局域网中转服务（默认不启用）
+  // 设置由 renderer 通过 IPC 传递，此处先不自动启动
+  // renderer 中的 LanServiceSettings.vue 会在设置变更时调用 server:start / server:stop
+  log.info('[Main] LAN service will be controlled by user setting (enableLanService)')
+
+  // IPC: 获取服务器状态
+  ipcMain.handle('server:status', () => {
+    return {
+      running: server.isRunning(),
+      port: server.getPort()
+    }
+  })
+
+  // IPC: 启动服务器
+  ipcMain.handle('server:start', async () => {
+    try {
+      const actualPort = await server.start()
+      await discovery.start(actualPort)
+      return { success: true, port: actualPort }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 停止服务器
+  ipcMain.handle('server:stop', async () => {
+    try {
+      discovery.stop()
+      await server.stop()
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 设置资源路径
+  ipcMain.handle('server:setResourcePath', (_event, resourcePath: string) => {
+    server.setResourcePath(resourcePath)
+    return { success: true }
   })
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
@@ -381,6 +428,16 @@ app.on('window-all-closed', () => {
   // 清理剪切板监听
   const { cleanupClipboardMonitor } = require('../utils/clipboardWatcher')
   cleanupClipboardMonitor()
+
+  // 停止远程访问服务器和 mDNS 发现
+  try {
+    const discovery = getDiscoveryInstance()
+    const server = getServerInstance()
+    discovery.stop()
+    server.stop()
+  } catch (e) {
+    // ignore cleanup errors
+  }
 
   if (process.platform !== 'darwin') {
     app.quit()

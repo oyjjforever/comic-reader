@@ -27,4 +27,8 @@ export type setting = {
     backupInterval?: 1 | 2 | 3 | 4
     // 备份文件保存路径
     backupPath?: string
+    // 是否启用局域网中转服务
+    enableLanService?: boolean
+    // 局域网服务端口
+    lanServicePort?: number
 }

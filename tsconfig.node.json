@@ -5,7 +5,8 @@
     "src/main/*",
     "src/preload/**/*",
     "src/typings/*",
-    "src/utils/*"
+    "src/utils/*",
+    "src/server/**/*"
   ],
   "compilerOptions": {
     "composite": true,
