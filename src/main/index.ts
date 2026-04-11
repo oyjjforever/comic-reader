@@ -1,4 +1,4 @@
-import { app, net, shell, BrowserWindow, ipcMain, dialog, globalShortcut, clipboard, screen } from 'electron'
+import { app, net, shell, BrowserWindow, ipcMain, dialog, globalShortcut, clipboard, screen, Tray, Menu, nativeImage } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { spawn, execSync } from 'child_process'
@@ -27,7 +27,87 @@ function ensureDir(dirPath: string) {
   ensuredDirs.add(dirPath)
 }
 
-let mainWindow;
+let mainWindow: BrowserWindow;
+let tray: Tray | null = null;
+let isQuitting = false;
+
+/**
+ * 关闭行为配置（持久化到 userData 目录）
+ */
+interface CloseConfig {
+  closeToTray: boolean;
+  dontRemind: boolean;
+}
+
+function getCloseConfigPath(): string {
+  return path.join(app.getPath('userData'), 'close-config.json');
+}
+
+function readCloseConfig(): CloseConfig {
+  try {
+    const configPath = getCloseConfigPath();
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      return {
+        closeToTray: data.closeToTray ?? true,
+        dontRemind: data.dontRemind ?? false
+      };
+    }
+  } catch (e) {
+    log.warn('[Main] Failed to read close config:', e);
+  }
+  return { closeToTray: true, dontRemind: false };
+}
+
+function writeCloseConfig(config: CloseConfig): void {
+  try {
+    const configPath = getCloseConfigPath();
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  } catch (e) {
+    log.warn('[Main] Failed to write close config:', e);
+  }
+}
+
+function createTray(): void {
+  const trayIconPath = path.join(__dirname, '../resources/icon.png');
+  let trayIcon: Electron.NativeImage;
+  if (fs.existsSync(trayIconPath)) {
+    trayIcon = nativeImage.createFromPath(trayIconPath);
+  } else {
+    trayIcon = nativeImage.createFromPath(icon);
+  }
+  // Resize for tray (16x16 on Windows)
+  trayIcon = trayIcon.resize({ width: 16, height: 16 });
+  tray = new Tray(trayIcon);
+  tray.setToolTip('Comic Reader');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示主窗口',
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // 点击托盘图标显示窗口
+  tray.on('click', () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -37,7 +117,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     frame: false,
-    transparent: true,
+    transparent: false,
     titleBarStyle: 'hidden',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -57,8 +137,16 @@ function createWindow(): void {
   });
   mainWindow.on('ready-to-show', () => {
     setTimeout(() => {
-      mainWindow.show()
+      mainWindow!.show()
     }, 100)
+  })
+
+  // 拦截窗口关闭事件，支持最小化到托盘
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault()
+      handleWindowClose()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -83,6 +171,7 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
   createWindow()
+  createTray()
   // 初始化自动更新
   registerAutoUpdate(mainWindow)
 
@@ -183,8 +272,26 @@ app.whenReady().then(async () => {
     mainWindow.setFullScreen(true)
   });
   ipcMain.handle("window-close", () => {
-    app.exit();
+    handleWindowClose()
   });
+
+  ipcMain.handle("window-show", () => {
+    mainWindow.show()
+    mainWindow.focus()
+  });
+
+  // 关闭配置 IPC
+  ipcMain.handle('close-config:get', () => {
+    return readCloseConfig()
+  })
+
+  ipcMain.handle('close-config:set', (_event, config: CloseConfig) => {
+    writeCloseConfig(config)
+  })
+
+  ipcMain.handle('close-config:reset', () => {
+    writeCloseConfig({ closeToTray: true, dontRemind: false })
+  })
   // 解压文件函数
   async function extractFile(filePath: string, extractDir: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -420,6 +527,10 @@ ipcMain.on('show-clipboard-popup', (_, content: string) => {
 })
 
 
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
 app.on('activate', function () {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
@@ -440,6 +551,44 @@ app.on('window-all-closed', () => {
   }
 
   if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+/**
+ * 处理窗口关闭行为：根据配置决定是最小化到托盘还是退出
+ */
+function handleWindowClose(): void {
+  const config = readCloseConfig()
+
+  if (config.dontRemind) {
+    // 用户选择了不再提醒，直接按保存的偏好执行
+    if (config.closeToTray) {
+      mainWindow.hide()
+    } else {
+      isQuitting = true
+      app.quit()
+    }
+    return
+  }
+
+  // 通知渲染进程显示关闭确认对话框
+  mainWindow.webContents.send('show-close-dialog')
+}
+
+// 接收渲染进程的关闭对话框响应
+ipcMain.handle('close-dialog-response', (_event, response: { closeToTray: boolean; dontRemind: boolean }) => {
+  const { closeToTray, dontRemind } = response
+
+  // 保存用户选择
+  if (dontRemind) {
+    writeCloseConfig({ closeToTray, dontRemind: true })
+  }
+
+  if (closeToTray) {
+    mainWindow.hide()
+  } else {
+    isQuitting = true
     app.quit()
   }
 })

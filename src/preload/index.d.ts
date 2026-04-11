@@ -103,6 +103,13 @@ declare global {
       stop: () => Promise<{ success: boolean; error?: string }>
       setResourcePath: (resourcePath: string) => Promise<{ success: boolean }>
     }
+    closeConfig: {
+      get: () => Promise<{ closeToTray: boolean; dontRemind: boolean }>
+      set: (config: { closeToTray: boolean; dontRemind: boolean }) => Promise<void>
+      reset: () => Promise<void>
+      respond: (response: { closeToTray: boolean; dontRemind: boolean }) => Promise<void>
+      onShowDialog: (callback: () => void) => () => void
+    }
     databaseBackup: {
       createBackup: (backupPath?: string) => Promise<string>;
       restoreBackup: (backupFilePath: string) => Promise<void>;

@@ -26,6 +26,18 @@ const server = {
   setResourcePath: (resourcePath: string) => ipcRenderer.invoke('server:setResourcePath', resourcePath)
 }
 
+// 关闭行为配置 IPC 桥接
+const closeConfig = {
+  get: (): Promise<{ closeToTray: boolean; dontRemind: boolean }> => ipcRenderer.invoke('close-config:get'),
+  set: (config: { closeToTray: boolean; dontRemind: boolean }) => ipcRenderer.invoke('close-config:set', config),
+  reset: () => ipcRenderer.invoke('close-config:reset'),
+  respond: (response: { closeToTray: boolean; dontRemind: boolean }) => ipcRenderer.invoke('close-dialog-response', response),
+  onShowDialog: (callback: () => void) => {
+    ipcRenderer.on('show-close-dialog', callback)
+    return () => ipcRenderer.removeListener('show-close-dialog', callback)
+  }
+}
+
 // Custom APIs for renderer
 const api = {}
 
@@ -53,6 +65,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('downloadHistory', downloadHistory)
     contextBridge.exposeInMainWorld('databaseBackup', databaseBackup)
     contextBridge.exposeInMainWorld('server', server)
+    contextBridge.exposeInMainWorld('closeConfig', closeConfig)
   } catch (error) {
     console.error(error)
   }

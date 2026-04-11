@@ -37,11 +37,29 @@
         @update:value="(value) => updateSetting('enableClipboardMonitor', value)"
       />
     </n-form-item>
+
+    <n-form-item label="关闭时最小化到托盘">
+      <n-switch
+        :value="closeConfigData.closeToTray"
+        @update:value="(value) => updateCloseConfig('closeToTray', value)"
+      />
+    </n-form-item>
+
+    <n-form-item label="关闭时不再提醒">
+      <n-switch
+        :value="closeConfigData.dontRemind"
+        @update:value="(value) => updateCloseConfig('dontRemind', value)"
+      />
+    </n-form-item>
+
+    <!-- <n-form-item label="恢复默认关闭提示">
+      <n-button size="small" @click="resetCloseConfig">恢复默认</n-button>
+    </n-form-item> -->
   </n-form>
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, defineEmits, ref, onMounted } from 'vue'
 import { setting } from '../../../../../typings/setting'
 
 const props = defineProps<{
@@ -55,4 +73,41 @@ const updateSetting = (key: keyof setting, value: any) => {
   newSetting[key] = value
   emit('update:modelValue', newSetting)
 }
+
+// 关闭行为配置
+const closeConfigData = ref<{ closeToTray: boolean; dontRemind: boolean }>({
+  closeToTray: true,
+  dontRemind: false
+})
+
+const loadCloseConfig = async () => {
+  try {
+    const config = await window.closeConfig.get()
+    closeConfigData.value = config
+  } catch (e) {
+    console.error('获取关闭配置失败:', e)
+  }
+}
+
+const updateCloseConfig = async (key: 'closeToTray' | 'dontRemind', value: boolean) => {
+  closeConfigData.value[key] = value
+  try {
+    await window.closeConfig.set({ ...closeConfigData.value })
+  } catch (e) {
+    console.error('保存关闭配置失败:', e)
+  }
+}
+
+const resetCloseConfig = async () => {
+  try {
+    await window.closeConfig.reset()
+    closeConfigData.value = { closeToTray: true, dontRemind: false }
+  } catch (e) {
+    console.error('重置关闭配置失败:', e)
+  }
+}
+
+onMounted(() => {
+  loadCloseConfig()
+})
 </script>

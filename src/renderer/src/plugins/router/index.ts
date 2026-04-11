@@ -33,6 +33,18 @@ router.beforeEach(async (to, _from, next) => {
         window.server.setResourcePath(settingStore.setting.resourcePath)
     }
 
+    // 根据设置同步局域网中转服务的启停状态
+    try {
+        const serverStatus = await window.server.status()
+        if (settingStore.setting.enableLanService && !serverStatus.running) {
+            await window.server.start()
+        } else if (!settingStore.setting.enableLanService && serverStatus.running) {
+            await window.server.stop()
+        }
+    } catch (e) {
+        console.warn('[Router] Failed to sync LAN service state:', e)
+    }
+
     next()// 执行进入路由
 })
 

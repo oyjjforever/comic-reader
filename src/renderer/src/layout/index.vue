@@ -121,6 +121,32 @@
         <DownloadQueuePanel v-model:show="queueVisible" />
         <!-- 关于弹窗 -->
         <AboutDialog v-model:show="aboutDialogVisible" />
+        <!-- 关闭确认对话框 -->
+        <n-modal
+          v-model:show="closeDialogVisible"
+          preset="card"
+          title="关闭确认"
+          :closable="false"
+          :close-on-esc="false"
+          :mask-closable="false"
+          style="width: 400px"
+          :segmented="{ content: true, footer: true }"
+        >
+          <div class="close-dialog-content">
+            <p class="close-dialog-message">您希望如何处理窗口？</p>
+            <p class="close-dialog-detail">选择"最小化到托盘"将保持应用在后台运行。</p>
+            <n-checkbox v-model:checked="closeDontRemind" class="close-dialog-checkbox">
+              不再提醒
+            </n-checkbox>
+          </div>
+          <template #footer>
+            <div class="close-dialog-actions">
+              <n-button @click="onCloseDialogCancel">取消</n-button>
+              <n-button type="error" @click="onCloseDialogExit">退出程序</n-button>
+              <n-button type="primary" @click="onCloseDialogTray">最小化到托盘</n-button>
+            </div>
+          </template>
+        </n-modal>
         <router-view v-slot="{ Component }">
           <keep-alive include="book,video,jmtt,pixiv,twitter,weibo,specialAttention">
             <component ref="childComponentRef" :is="Component" />
@@ -134,7 +160,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NIcon } from 'naive-ui'
+import { NIcon, NModal, NCheckbox, NButton } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
 import {
   VideoClipMultiple24Regular,
@@ -257,6 +283,32 @@ function onUnMax() {
 function onClose() {
   window.electron.ipcRenderer.invoke('window-close')
 }
+
+// 关闭确认对话框状态
+const closeDialogVisible = ref(false)
+const closeDontRemind = ref(false)
+
+function showCloseDialog() {
+  closeDontRemind.value = false
+  closeDialogVisible.value = true
+}
+
+function onCloseDialogCancel() {
+  closeDialogVisible.value = false
+}
+
+function onCloseDialogTray() {
+  closeDialogVisible.value = false
+  window.closeConfig.respond({ closeToTray: true, dontRemind: closeDontRemind.value })
+}
+
+function onCloseDialogExit() {
+  closeDialogVisible.value = false
+  window.closeConfig.respond({ closeToTray: false, dontRemind: closeDontRemind.value })
+}
+
+let removeCloseDialogListener: (() => void) | null = null
+
 const isScreenFull = ref(false)
 onMounted(async () => {
   // 渲染进程加载完成后，主动发起请求获取窗口大小
@@ -268,6 +320,10 @@ onMounted(async () => {
     console.log('剪切板内容已改变', data)
     if (!settingStore.setting.enableClipboardMonitor) return
     window.electron.ipcRenderer.send('show-clipboard-popup')
+  })
+  // 监听关闭确认对话框事件
+  removeCloseDialogListener = window.closeConfig.onShowDialog(() => {
+    showCloseDialog()
   })
   setTimeout(async () => {
     try {
@@ -299,6 +355,13 @@ onMounted(async () => {
     }
   }, 10000)
 })
+
+onUnmounted(() => {
+  if (removeCloseDialogListener) {
+    removeCloseDialogListener()
+    removeCloseDialogListener = null
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -308,7 +371,7 @@ $background-color: #322f3b;
   height: 100vh;
   width: 100vw;
   background: #f5f5f5;
-  border-radius: 24px;
+  // border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
@@ -321,7 +384,7 @@ $background-color: #322f3b;
   flex-direction: column;
   align-items: center;
   padding: 13px 0;
-  border-radius: 24px 0 0 24px;
+  // border-radius: 24px 0 0 24px;
   position: relative;
 
   .logo-section {
@@ -458,7 +521,7 @@ $background-color: #322f3b;
 .main-content-wrapper {
   flex: 1;
   background: $background-color;
-  border-radius: 0 24px 24px 0;
+  // border-radius: 0 24px 24px 0;
   // overflow: hidden;
   position: relative;
   padding: 0px 6px 35px 0px;
@@ -702,6 +765,34 @@ $background-color: #322f3b;
     transform: scale(1);
     opacity: 1;
   }
+}
+
+// 关闭确认对话框样式
+.close-dialog-content {
+  padding: 8px 0;
+}
+
+.close-dialog-message {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.close-dialog-detail {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 16px 0;
+}
+
+.close-dialog-checkbox {
+  margin-top: 4px;
+}
+
+.close-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>
 <style lang="scss">
