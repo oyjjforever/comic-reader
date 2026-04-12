@@ -11,33 +11,50 @@ function isComicRelatedContent(text: string): boolean {
     return comicSites.some(site => text.includes(site))
 }
 
+// 计算弹窗位置
+function getPopupPosition(position: 'cursor' | 'bottom-right'): { x: number; y: number } {
+    if (position === 'bottom-right') {
+        const primaryDisplay = screen.getPrimaryDisplay()
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
+        return {
+            x: screenWidth - 610,
+            y: screenHeight - 510
+        }
+    } else {
+        const cursorPos = screen.getCursorScreenPoint()
+        return {
+            x: cursorPos.x + 10,
+            y: cursorPos.y + 10
+        }
+    }
+}
+
 // 显示剪切板弹窗
-export function showClipboardPopup(content: string) {
+export function showClipboardPopup(position: 'cursor' | 'bottom-right' = 'cursor') {
     // 检查是否已经存在弹窗
     const existingWindows = BrowserWindow.getAllWindows()
     const existingPopup = existingWindows.find(w => w.getTitle().includes('剪切板弹窗'))
 
+    const popupPos = getPopupPosition(position)
+
     if (existingPopup && !existingPopup.isDestroyed()) {
         // 如果已存在弹窗，重新计算位置并更新内容
-        const cursorPos = screen.getCursorScreenPoint()
-        existingPopup.setPosition(cursorPos.x + 10, cursorPos.y + 10)
-        existingPopup.webContents.send('clipboard-content', content)
-        existingPopup.focus() // 将弹窗置于前台
+        existingPopup.setPosition(popupPos.x, popupPos.y)
+        existingPopup.webContents.send('clipboard-content')
+        existingPopup.show() // 将弹窗置于前台
         return
     }
-
-    const cursorPos = screen.getCursorScreenPoint()
 
     const popup = new BrowserWindow({
         width: 600,
         height: 500,
-        x: cursorPos.x + 10,
-        y: cursorPos.y + 10,
+        x: popupPos.x,
+        y: popupPos.y,
         frame: false,
         alwaysOnTop: true,
         skipTaskbar: true,
         resizable: false,
-        transparent: true,
+        transparent: false,
         webPreferences: {
             contextIsolation: true,
             sandbox: false,
@@ -56,7 +73,7 @@ export function showClipboardPopup(content: string) {
 
     // 传递剪切板内容到弹出窗口
     popup.webContents.once('did-finish-load', () => {
-        popup.webContents.send('clipboard-content', content)
+        popup.webContents.send('clipboard-content')
     })
 }
 

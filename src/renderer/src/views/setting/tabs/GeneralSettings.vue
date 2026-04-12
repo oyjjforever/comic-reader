@@ -31,13 +31,6 @@
       />
     </n-form-item>
 
-    <n-form-item path="enableClipboardMonitor" label="剪切板监听">
-      <n-switch
-        :value="modelValue.enableClipboardMonitor"
-        @update:value="(value) => updateSetting('enableClipboardMonitor', value)"
-      />
-    </n-form-item>
-
     <n-form-item label="关闭时最小化到托盘">
       <n-switch
         :value="closeConfigData.closeToTray"

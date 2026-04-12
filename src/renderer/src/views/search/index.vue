@@ -117,6 +117,7 @@ import ResponsiveVirtualGrid from '../../components/responsive-virtual-grid.vue'
 import previewDialog from '../special-attention/preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
 import siteUtils from '../special-attention/site-utils.js'
+import { useSettingStore } from '@renderer/plugins/store'
 
 // 网站类型选项
 const typeOptions = [
@@ -259,7 +260,9 @@ const onPreview = (row: any) => {
 }
 
 // 剪切板内容变化时更新搜索关键字
+const settingStore = useSettingStore()
 const getClipboardContent = async () => {
+  if (!settingStore.setting.autoFillClipboard) return
   // 通过 IPC 从主进程读取当前剪切板内容
   const text = await window.clipboard.readText()
   if (text) {

@@ -36,6 +36,7 @@ async function downloadAllMedia(authorName, authorId) {
 async function searchArtworks(keyword) {
   const res = await jmtt.search(keyword)
   if (res.type === 'ComicRespData') return [res.data]
+  if (res.type === 'SearchRespData') return res.data.content.map((_) => _.id)
 }
 async function fetchArtworks(authorId) {
   // 获取作品集

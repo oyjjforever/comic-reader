@@ -508,7 +508,7 @@ ipcMain.handle('popup-close', () => {
   const windows = BrowserWindow.getAllWindows()
   const popupWindow = windows.find(w => w !== mainWindow && w.getTitle().includes('剪切板弹窗'))
   if (popupWindow && !popupWindow.isDestroyed()) {
-    popupWindow.close()
+    popupWindow.hide()
   }
 })
 
@@ -526,9 +526,9 @@ ipcMain.handle('clipboard:readText', () => {
 })
 
 // 显示剪切板弹窗的 IPC 处理
-ipcMain.on('show-clipboard-popup', (_, content: string) => {
+ipcMain.on('show-clipboard-popup', (_, position: 'cursor' | 'bottom-right' = 'cursor') => {
 
-  showClipboardPopup(content)
+  showClipboardPopup(position)
 })
 
 

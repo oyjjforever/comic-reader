@@ -319,7 +319,10 @@ onMounted(async () => {
   window.electron.ipcRenderer.on('clipboard-content-changed', (event, data) => {
     console.log('剪切板内容已改变', data)
     if (!settingStore.setting.enableClipboardMonitor) return
-    window.electron.ipcRenderer.send('show-clipboard-popup')
+    window.electron.ipcRenderer.send(
+      'show-clipboard-popup',
+      settingStore.setting.clipboardPopupPosition || 'cursor'
+    )
   })
   // 监听关闭确认对话框事件
   removeCloseDialogListener = window.closeConfig.onShowDialog(() => {

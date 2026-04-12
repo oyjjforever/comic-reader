@@ -18,6 +18,10 @@ export type setting = {
     enableAuthorUpdateCheck?: boolean
     // 是否启用剪切板监听
     enableClipboardMonitor?: boolean
+    // 剪切板弹窗位置: 'cursor' 跟随鼠标, 'bottom-right' 固定右下角
+    clipboardPopupPosition?: 'cursor' | 'bottom-right'
+    // 是否自动填入剪切板内容
+    autoFillClipboard?: boolean
     // 默认展示标签页
     defaultViewMode?: 'folders' | 'favorites' | 'history'
     // 数据库备份设置

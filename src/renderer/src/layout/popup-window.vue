@@ -61,7 +61,7 @@ $background-color: #322f3b;
   height: 100vh;
   width: 100vw;
   background: #f5f5f5;
-  border-radius: 20px;
+  // border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
@@ -69,7 +69,7 @@ $background-color: #322f3b;
 .main-content-wrapper {
   flex: 1;
   background: $background-color;
-  border-radius: 20px;
+  // border-radius: 20px;
   position: relative;
   padding: 0px 6px 6px 6px;
   overflow: hidden;
