@@ -520,6 +520,11 @@ ipcMain.on('add-to-download-queue', (_, url: string) => {
   // 可以通过事件或直接调用下载模块来处理
 })
 
+// 读取当前剪切板文本内容
+ipcMain.handle('clipboard:readText', () => {
+  return clipboard.readText() || ''
+})
+
 // 显示剪切板弹窗的 IPC 处理
 ipcMain.on('show-clipboard-popup', (_, content: string) => {
 

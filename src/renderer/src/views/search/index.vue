@@ -15,13 +15,13 @@
           @keyup.enter="handleSearch"
           clearable
         />
+        <n-button type="primary" @click="handleSearch" :loading="loading" :disabled="!keyword">
+          <template #icon>
+            <n-icon :component="Search24Regular" />
+          </template>
+          搜索
+        </n-button>
       </n-space>
-      <n-button type="primary" @click="handleSearch" :loading="loading" :disabled="!keyword">
-        <template #icon>
-          <n-icon :component="Search24Regular" />
-        </template>
-        搜索
-      </n-button>
     </div>
 
     <!-- 搜索结果 -->
@@ -30,31 +30,55 @@
         <span class="results-count">找到 {{ searchResults.length }} 个结果</span>
       </div>
       <responsive-virtual-grid
+        ref="virtualGridRef"
         :items="searchResults"
         key-field="id"
         :min-item-width="100"
         :max-item-width="100"
         :aspect-ratio="0.75"
         :gap="10"
+        mode="lazy"
+        @scroll="handleScroll"
+        @ready="onGridReady"
       >
         <template #default="{ item }">
-          <div class="search-item" @click="handleItemClick(item)">
+          <div class="search-item" :class="{ 'search-item--downloaded': item.downloaded }">
             <div class="item-cover">
-              <img
-                v-if="item.cover"
-                :src="item.cover"
-                :alt="item.title"
-                class="cover-image"
-                @error="onImageError(item)"
-              />
+              <!-- 加载中状态 -->
+              <div v-if="item.loading" class="loading-placeholder">
+                <n-spin size="small" />
+              </div>
+              <!-- 已加载状态 -->
+              <template v-else-if="item.loaded">
+                <n-image v-if="item.cover" :src="item.cover" class="cover-image">
+                  <template #error>
+                    <img :src="errorImg" />
+                  </template>
+                </n-image>
+                <div v-else class="default-cover">
+                  <n-icon :component="Image24Regular" size="48" />
+                </div>
+                <!-- 悬浮操作栏 -->
+                <div v-if="item.artworkId" class="hover-ops">
+                  <div v-if="item.pages" class="item-pages">
+                    <n-icon :component="SlideMultiple24Regular" size="12" />{{ item.pages }}
+                  </div>
+                  <button size="small" @click.stop="onDownload(item)">
+                    <n-icon :component="CloudDownload" size="24" />
+                  </button>
+                  <button size="small" @click.stop="onPreview(item)">
+                    <n-icon :component="InformationCircle" size="24" />
+                  </button>
+                </div>
+              </template>
+              <!-- 未加载状态 -->
               <div v-else class="default-cover">
                 <n-icon :component="Image24Regular" size="48" />
               </div>
             </div>
             <div class="item-info">
-              <h3 class="item-title" :title="item.title">{{ item.title }}</h3>
+              <h3 class="item-title" :title="item.title">{{ item.title || '加载中...' }}</h3>
               <div class="item-meta">
-                <span class="item-type">{{ item.type }}</span>
                 <span v-if="item.author" class="item-author">{{ item.author }}</span>
               </div>
             </div>
@@ -74,14 +98,25 @@
       <n-icon :component="Search24Regular" size="64" color="#e0e0e0" />
       <p class="initial-text">请输入关键字开始搜索</p>
     </div>
+
+    <!-- 预览弹窗 -->
+    <preview-dialog
+      v-if="previewer.show"
+      :dialog="previewer"
+      @download="onDownload"
+    ></preview-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NSelect, NInput, NButton, NIcon } from 'naive-ui'
-import { Search24Regular, Image24Regular } from '@vicons/fluent'
+import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue'
+import { NSelect, NInput, NButton, NIcon, NImage, NSpin } from 'naive-ui'
+import { Search24Regular, Image24Regular, SlideMultiple24Regular } from '@vicons/fluent'
+import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
 import ResponsiveVirtualGrid from '../../components/responsive-virtual-grid.vue'
+import previewDialog from '../special-attention/preview-dialog.vue'
+import errorImg from '@renderer/assets/error.png'
+import siteUtils from '../special-attention/site-utils.js'
 
 // 网站类型选项
 const typeOptions = [
@@ -96,8 +131,20 @@ const keyword = ref('')
 const loading = ref(false)
 const hasSearched = ref(false)
 
-// 搜索结果
+// 搜索结果（占位符数组，每项包含 {id, artworkId, source, loaded, loading, ...details}）
 const searchResults = ref<any[]>([])
+
+// 虚拟网格引用
+const virtualGridRef = ref()
+
+// 预览弹窗状态
+const previewer = reactive({
+  show: false,
+  data: {}
+})
+
+// 正在加载详情的ID集合，防止重复请求
+const loadingDetailIds = new Set<string>()
 
 // 处理搜索
 const handleSearch = async () => {
@@ -106,65 +153,29 @@ const handleSearch = async () => {
   loading.value = true
   hasSearched.value = true
   searchResults.value = []
+  loadingDetailIds.clear()
 
   try {
     const typesToSearch = searchType.value === 'all' ? ['jmtt', 'pixiv'] : [searchType.value]
 
-    const allResults = await Promise.all(
+    // 并行搜索各站点，返回 {id, source} 占位符列表
+    const allPlaceholders = await Promise.all(
       typesToSearch.map(async (type) => {
         try {
-          // 调用对应的搜索方法
-          const searchMethod = (window as any)[type]?.search
-          if (!searchMethod) {
-            console.error(`${type} 搜索方法不存在`)
-            return []
-          }
-
-          const ids = await searchMethod(keyword.value)
-
-          // 获取详细信息
-          const details = await Promise.all(
-            ids.map(async (id: string) => {
-              try {
-                // 根据类型调用不同的获取信息方法
-                const getInfoMethod = (window as any)[type]?.[
-                  type === 'jmtt' ? 'getComicInfo' : 'getArtworkInfo'
-                ]
-                if (!getInfoMethod) {
-                  console.error(`${type} getComicInfo/getArtworkInfo 方法不存在`)
-                  return null
-                }
-
-                const info = await getInfoMethod(id)
-
-                // 获取封面图片
-                let cover = ''
-                try {
-                  const getImageMethod = (window as any)[type]?.getImage
-                  if (getImageMethod && info.cover) {
-                    cover = await getImageMethod(info.cover)
-                  }
-                } catch (error) {
-                  console.error('获取封面失败:', error)
-                }
-
-                return {
-                  id: `${type}-${id}`,
-                  artworkId: id,
-                  type: type.toUpperCase(),
-                  title: info.title || '未知标题',
-                  author: info.author || '',
-                  cover: cover,
-                  info: info
-                }
-              } catch (error) {
-                console.error(`获取 ${id} 信息失败:`, error)
-                return null
-              }
-            })
-          )
-
-          return details.filter((item) => item !== null)
+          const ids = await siteUtils.searchArtworks(type, keyword.value)
+          if (!ids || !Array.isArray(ids)) return []
+          return ids.map((id: any) => ({
+            id: `${type}_${id}`,
+            artworkId: id,
+            source: type,
+            loaded: false,
+            loading: false,
+            title: '',
+            author: '',
+            cover: '',
+            pages: 0,
+            downloaded: false
+          }))
         } catch (error) {
           console.error(`搜索 ${type} 失败:`, error)
           return []
@@ -172,7 +183,8 @@ const handleSearch = async () => {
       })
     )
 
-    searchResults.value = allResults.flat()
+    // 合并所有站点的搜索结果
+    searchResults.value = allPlaceholders.flat()
   } catch (error) {
     console.error('搜索失败:', error)
   } finally {
@@ -180,22 +192,89 @@ const handleSearch = async () => {
   }
 }
 
-// 处理图片加载错误
-const onImageError = (item: any) => {
-  item.cover = ''
+// 加载可视区域内未加载项的详情
+const loadVisibleDetails = async () => {
+  const stats = virtualGridRef.value?.getStats()
+  if (!stats || searchResults.value.length === 0) return
+
+  const { start, end } = stats.visibleRange
+  const itemsToLoad: any[] = []
+
+  for (let i = start; i <= end && i < searchResults.value.length; i++) {
+    const item = searchResults.value[i]
+    if (item && !item.loaded && !item.loading && !loadingDetailIds.has(item.id)) {
+      itemsToLoad.push(item)
+      loadingDetailIds.add(item.id)
+    }
+  }
+
+  if (itemsToLoad.length === 0) return
+
+  // 标记为加载中
+  itemsToLoad.forEach((item) => {
+    item.loading = true
+  })
+
+  // 并行加载详情
+  await Promise.all(
+    itemsToLoad.map(async (item) => {
+      try {
+        const details = await siteUtils.getArtworkInfo(item.source, item.artworkId)
+        if (details) {
+          Object.assign(item, details, { loaded: true, loading: false })
+        } else {
+          item.loading = false
+        }
+      } catch (error) {
+        console.error(`获取 ${item.artworkId} 详情失败:`, error)
+        item.loading = false
+      } finally {
+        loadingDetailIds.delete(item.id)
+      }
+    })
+  )
 }
 
-// 处理项目点击
-const handleItemClick = (item: any) => {
-  // 根据类型跳转到对应的详情页面
-  if (item.type === 'JMTT') {
-    // 跳转到 JM 详情页
-    console.log('跳转到 JM 详情页:', item.artworkId)
-  } else if (item.type === 'PIXIV') {
-    // 跳转到 Pixiv 详情页
-    console.log('跳转到 Pixiv 详情页:', item.artworkId)
+// 网格滚动事件处理
+const handleScroll = () => {
+  loadVisibleDetails()
+}
+
+// 网格就绪后加载首批可见项
+const onGridReady = async () => {
+  await nextTick()
+  loadVisibleDetails()
+}
+
+// 下载单个作品
+const onDownload = async (row: any) => {
+  await siteUtils.downloadArtwork(row.source, row, {})
+  row.downloaded = true
+}
+
+// 预览作品
+const onPreview = (row: any) => {
+  previewer.data = row
+  previewer.show = true
+}
+
+// 剪切板内容变化时更新搜索关键字
+const getClipboardContent = async () => {
+  // 通过 IPC 从主进程读取当前剪切板内容
+  const text = await window.clipboard.readText()
+  if (text) {
+    keyword.value = text.trim()
   }
 }
+
+onMounted(async () => {
+  getClipboardContent()
+  window.electron.ipcRenderer.on('clipboard-content', getClipboardContent)
+})
+
+onUnmounted(() => {
+  window.electron.ipcRenderer.removeListener('clipboard-content', getClipboardContent)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -251,21 +330,38 @@ const handleItemClick = (item: any) => {
   &:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+
+    .hover-ops {
+      opacity: 1;
+    }
+  }
+
+  &--downloaded {
+    .cover-image,
+    .default-cover {
+      opacity: 0.5;
+    }
   }
 }
 
 .item-cover {
   width: 100%;
   flex: 1;
-  aspect-ratio: 3/4;
+  min-height: 0;
   background: #f0f0f0;
   overflow: hidden;
+  position: relative;
 }
 
 .cover-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+
+  :deep(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover !important;
+  }
 }
 
 .default-cover {
@@ -276,6 +372,63 @@ const handleItemClick = (item: any) => {
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+}
+
+/* 加载中占位 */
+.loading-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+}
+
+/* 页数指示器 */
+.item-pages {
+  width: fit-content;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 2px;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  color: #fff;
+  background: #00000071;
+  backdrop-filter: blur(10px);
+  border-radius: 5px;
+  font-size: 12px;
+  padding: 0px 4px;
+  z-index: 1;
+}
+
+/* 悬浮操作栏 */
+.hover-ops {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10%;
+  gap: 5px;
+  justify-content: flex-end;
+  align-items: center;
+  background: #000000ad;
+  color: #fff;
+  transition: opacity 0.25s ease;
+  z-index: 9999;
+
+  button {
+    transition-duration: 0.3s;
+    &:hover {
+      transition-duration: 0.3s;
+      transform: scale(1.2);
+    }
+  }
 }
 
 .item-info {

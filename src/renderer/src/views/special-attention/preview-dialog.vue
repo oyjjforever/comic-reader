@@ -212,14 +212,18 @@ onBeforeUnmount(() => {
 .modal-container {
   position: relative;
   max-height: 90vh;
-  height: 90vh;
-  width: 60%;
+  height: 86vh;
+  width: 90%;
   background-color: white;
   border-radius: 0.75rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   overflow: auto;
   transition: all 0.3s ease;
   animation: scale-in 0.3s ease-out forwards;
+  @media (min-width: 1024px) {
+    width: 70%;
+    height: 90vh;
+  }
 }
 
 .close-button {
@@ -242,9 +246,9 @@ onBeforeUnmount(() => {
   flex-direction: column;
   height: 100%;
   overflow: auto;
-  @media (min-width: 1024px) {
-    flex-direction: row;
-  }
+  // @media (min-width: 1024px) {
+  flex-direction: row;
+  // }
 }
 
 .image-gallery {
@@ -285,7 +289,7 @@ onBeforeUnmount(() => {
 }
 
 .project-details {
-  width: 100%;
+  width: 300px;
   padding: 1.5rem 1.5rem 1rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -298,6 +302,7 @@ onBeforeUnmount(() => {
 
 .project-header {
   margin-bottom: 1.5rem;
+  overflow: auto;
 }
 
 .project-title {

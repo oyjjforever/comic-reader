@@ -148,7 +148,7 @@
           </template>
         </n-modal>
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,jmtt,pixiv,twitter,weibo,specialAttention">
+          <keep-alive include="book,video,search,jmtt,pixiv,twitter,weibo,specialAttention">
             <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>
@@ -225,7 +225,7 @@ const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
-  // { icon: Search24Regular, name: 'search' },
+  { icon: Search24Regular, name: 'search' },
   { image: jmttImg, name: 'jmtt' },
   { image: pixivImg, name: 'pixiv' },
   { image: twitterImg, name: 'twitter' },

@@ -85,7 +85,27 @@ async function fetchArtworks(site, authorId) {
     return []
   }
 }
-
+/**
+ * 获取作品详情
+ * @param {string} artworkId - 作品ID
+ * @returns {Promise<Array>} 作品ID数组
+ */
+async function getArtworkInfo(site, artworkId) {
+  try {
+    const util = getSiteUtil(site)
+    if (util && util.getArtworkInfo) {
+      const artworkInfo = await util.getArtworkInfo(artworkId)
+      return {
+        ...artworkInfo,
+        source: site
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('获取作品详情失败:', error)
+    return []
+  }
+}
 /**
  * 分页获取作者的作品图片
  * @param {string} site - 站点名称
@@ -99,7 +119,6 @@ async function pagingImage(site, authorName, authorId, grid, page) {
   try {
     const util = getSiteUtil(site)
     return await util.pagingImage(authorName, authorId, grid, page)
-    return []
   } catch (error) {
     console.error('分页获取图片失败:', error)
     return []
@@ -204,16 +223,36 @@ function getUtil(site) {
   return sites[site]?.util
 }
 
+/**
+ * 查找作品
+ * @param {string} keyword - 作品ID
+ * @returns {Promise<Array>} 作品ID数组
+ */
+async function searchArtworks(site, keyword) {
+  try {
+    const util = getSiteUtil(site)
+    if (util && util.searchArtworks) {
+      return await util.searchArtworks(keyword)
+    }
+    return null
+  } catch (error) {
+    console.error('查找作品失败:', error)
+    return []
+  }
+}
+
 export default {
   getSiteUtil,
   getSiteIcon,
   getDownloadPath,
   getUtil,
+  getArtworkInfo,
   fetchArtworks,
   pagingImage,
   previewImage,
   hasNewArtwork,
   isLocalDownloaded,
   downloadArtwork,
-  downloadAll
+  downloadAll,
+  searchArtworks
 }

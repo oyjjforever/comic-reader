@@ -288,8 +288,8 @@ class JmClient {
     try {
       const redirect = JSON.parse(data)
       if (redirect && redirect.redirect_aid) {
-        const comic = await this.get_comic(parseInt(redirect.redirect_aid, 10))
-        return { type: 'ComicRespData', data: comic }
+        // const comic = await this.get_comic(parseInt(redirect.redirect_aid, 10))
+        return { type: 'ComicRespData', data: redirect.redirect_aid }
       }
     } catch (_) {
       // ignore

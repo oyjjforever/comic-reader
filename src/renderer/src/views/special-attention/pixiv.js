@@ -18,6 +18,9 @@ async function addToQueue(artworkIds) {
     })
   }
 }
+async function searchArtworks(keyword) {
+  return await pixiv.search(keyword)
+}
 async function downloadArtwork(artworkId) {
   addToQueue([artworkId])
 }
@@ -56,29 +59,34 @@ async function hasNewArtwork(authorName, authorId) {
     return false
   }
 }
+async function getArtworkInfo(artworkId) {
+  const [info, images] = await Promise.all([
+    pixiv.getArtworkInfo(artworkId),
+    pixiv.getArtworkImages(artworkId)
+  ])
+  // 获取图片流并转换为Blob URL
+  const coverUrl = await previewImage(images[0].urls.small) //thumb_mini
+  // 检测本地是否已下载
+  const downloaded = isLocalDownloaded(info.author, info.title)
+  return {
+    artworkId,
+    author: info.author,
+    title: info.title || '',
+    illustType: info.illustType,
+    cover: coverUrl,
+    pages: images.length,
+    imageUrls: images.map((image) => image.urls.original),
+    downloaded
+  }
+}
 async function pagingImage(authorName, authorId, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
   const promises = ids.map(async (id) => {
     try {
-      const [info, images] = await Promise.all([
-        pixiv.getArtworkInfo(id),
-        pixiv.getArtworkImages(id)
-      ])
-      // 检测本地是否已下载
-      const downloaded = isLocalDownloaded(authorName, info.title)
-      // 获取图片流并转换为Blob URL
-      const coverUrl = await previewImage(images[0].urls.small) //thumb_mini
-      return {
-        artworkId: id,
-        author: authorName,
-        title: info.title || '',
-        illustType: info.illustType,
-        cover: coverUrl,
-        pages: images.length,
-        imageUrls: images.map((image) => image.urls.original),
-        downloaded
-      }
+      // 获取作品详情
+      const artworkInfo = await getArtworkInfo(id)
+      return artworkInfo
     } catch (error) {
       console.error(`获取作品 ${id} 信息失败:`, error)
       return {}
@@ -98,9 +106,11 @@ export default {
   downloadIllusts,
   downloadAllMedia,
   downloadManga,
+  getArtworkInfo,
   fetchArtworks,
   pagingImage,
   previewImage,
   hasNewArtwork,
+  searchArtworks,
   isLocalDownloaded
 }

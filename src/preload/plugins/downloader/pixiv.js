@@ -216,7 +216,7 @@ async function search(keyword) {
   artworkIds = artworkIds.concat(filrstPage.data.map((_) => _.id))
   const totalPage = filrstPage.lastPage
   for (let i = 2; i <= totalPage; i++) {
-    const page = await searchByPage(i)
+    const page = await searchByPage(keyword, i)
     artworkIds = artworkIds.concat(page.data.map((_) => _.id))
   }
   return artworkIds

@@ -120,5 +120,8 @@ declare global {
       getDatabasePath: () => string;
       getBackupDirectory: (customPath?: string) => string;
     }
+    clipboard: {
+      readText: () => Promise<string>
+    }
   }
 }

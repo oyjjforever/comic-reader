@@ -33,6 +33,10 @@ async function downloadAllMedia(authorName, authorId) {
     downloadArtwork(authorName, comic.id)
   }
 }
+async function searchArtworks(keyword) {
+  const res = await jmtt.search(keyword)
+  if (res.type === 'ComicRespData') return [res.data]
+}
 async function fetchArtworks(authorId) {
   // 获取作品集
   const res = await jmtt.getComicsByAuthor(authorId)
@@ -54,28 +58,31 @@ async function hasNewArtwork(authorName, authorId) {
     return false
   }
 }
+async function getArtworkInfo(artworkId) {
+  const comicInfo = await jmtt.getComicInfo(artworkId)
+  const firstComic = comicInfo.chapter_infos[0]
+  // 获取图片流并转换为Blob URL
+  const firstComicImages = await jmtt.getChapterImages(firstComic.id)
+  const coverUrl = await previewImage(firstComicImages[0])
+  // 检测本地是否已下载
+  const downloaded = isLocalDownloaded(comicInfo.author[0], comicInfo.name)
+  return {
+    artworkId,
+    author: comicInfo.author[0],
+    title: comicInfo.name || '',
+    cover: coverUrl,
+    pages: firstComicImages.length,
+    imageUrls: firstComicImages,
+    downloaded
+  }
+}
 async function pagingImage(authorName, authorId, grid, page) {
   const start = page.index * page.size
   const ids = grid.allRows.slice(start, start + page.size)
   const promises = ids.map(async (id) => {
     try {
-      const comicInfo = await jmtt.getComicInfo(id)
-      const firstComic = comicInfo.chapter_infos[0]
-      // 检测本地是否已下载
-      const downloaded = isLocalDownloaded(authorName, comicInfo.name)
-      // 获取图片流并转换为Blob URL
-      const firstComicImages = await jmtt.getChapterImages(firstComic.id)
-      const coverUrl = await previewImage(firstComicImages[0])
-      return {
-        artworkId: id,
-        author: authorName,
-        // comicInfo,
-        title: comicInfo.name || '',
-        cover: coverUrl,
-        pages: firstComicImages.length,
-        imageUrls: firstComicImages,
-        downloaded
-      }
+      const artworkInfo = await getArtworkInfo(id)
+      return artworkInfo
     } catch (error) {
       console.error(`获取作品 ${id} 信息失败:`, error)
       return {}
@@ -93,9 +100,11 @@ function isLocalDownloaded(authorName, workName) {
 export default {
   downloadArtwork,
   downloadAllMedia,
+  getArtworkInfo,
   fetchArtworks,
   pagingImage,
   previewImage,
   hasNewArtwork,
+  searchArtworks,
   isLocalDownloaded
 }

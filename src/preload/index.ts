@@ -18,6 +18,11 @@ import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
 import databaseBackup from './plugins/databaseBackup'
 
+// 剪切板 IPC 桥接
+const clipboard = {
+  readText: (): Promise<string> => ipcRenderer.invoke('clipboard:readText')
+}
+
 // 远程访问服务器 IPC 桥接
 const server = {
   status: () => ipcRenderer.invoke('server:status'),
@@ -66,6 +71,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('databaseBackup', databaseBackup)
     contextBridge.exposeInMainWorld('server', server)
     contextBridge.exposeInMainWorld('closeConfig', closeConfig)
+    contextBridge.exposeInMainWorld('clipboard', clipboard)
   } catch (error) {
     console.error(error)
   }
