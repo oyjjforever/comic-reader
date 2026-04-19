@@ -104,12 +104,25 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
       const i = next
       if (i >= items.length) break
       next++
-      try {
-        await onItem(items[i], i)
-        success++
-      } catch (e) {
-        console.log('🚀 ~ worker ~ error:', e)
+      let lastError
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          await onItem(items[i], i)
+          lastError = null
+          break
+        } catch (e) {
+          lastError = e
+          if (attempt < 5) {
+            console.log(`🚀 ~ worker ~ retry ${attempt}/5 for item ${i}:`, e)
+            await new Promise((r) => setTimeout(r, 1000 * attempt))
+          }
+        }
+      }
+      if (lastError) {
+        console.log(`🚀 ~ worker ~ failed after 5 retries for item ${i}:`, lastError)
         fail++
+      } else {
+        success++
       }
       onProgress?.(success, fail, items.length)
     }
