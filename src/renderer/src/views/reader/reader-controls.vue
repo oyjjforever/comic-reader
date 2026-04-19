@@ -286,7 +286,7 @@ export default defineComponent({
 
   /* 顶部控制栏（通用） */
   .top-controls {
-    @apply absolute top-5 left-0 right-0 flex items-center justify-between p-6 z-10;
+    @apply absolute top-0 left-0 right-0 flex items-center justify-between p-3 z-10;
     z-index: 100;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
     transition:

@@ -29,6 +29,17 @@ import videoReader from './type/video/index.vue'
 import readerControls from './reader-controls.vue'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
+
+interface ReaderProps {
+  folderPath?: string
+  filePath?: string
+}
+
+const props = defineProps<ReaderProps>()
+const emit = defineEmits<{
+  (e: 'close'): void
+}>()
+
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
@@ -43,11 +54,11 @@ const readerComponent = computed(() => {
 const isAutoPlaying = ref(false)
 const zoomLevel = ref(1)
 const page = reactive({
-  list: [],
+  list: [] as any[],
   index: 0,
   total: 0
 })
-let currentFile = ref({})
+let currentFile = ref<any>({})
 onMounted(() => {
   fetchData()
 })
@@ -56,19 +67,23 @@ onUnmounted(() => {
 })
 const fetchData = async () => {
   try {
-    if (route.query.folderPath) {
-      page.list = await window.media.getFiles(decodeURIComponent(route.query.folderPath))
+    // 优先使用 props，其次使用 route query（兼容路由模式）
+    const folderPath = props.folderPath || (route.query.folderPath as string)
+    const filePath = props.filePath || (route.query.filePath as string)
+
+    if (folderPath) {
+      page.list = await window.media.getFiles(decodeURIComponent(folderPath))
       page.total = page.list.length
     }
-    if (route.query.filePath) {
-      page.list = [await window.file.getFileInfo(decodeURIComponent(route.query.filePath))]
+    if (filePath) {
+      page.list = [await window.file.getFileInfo(decodeURIComponent(filePath))]
       page.total = 1
     }
     jumpToPage(0)
-  } catch (error) {
+  } catch (error: any) {
     message.error(error.message)
     // 返回上一页
-    router.back()
+    goBack()
   }
 }
 
@@ -137,7 +152,12 @@ const toggleFullscreen = () => {
 // 返回功能
 const goBack = () => {
   stopAutoPlay()
-  router.back()
+  // 优先使用 emit close（覆盖层模式），其次使用 router.back()（路由模式）
+  emit('close')
+  // 如果不是通过 props 传入的路径，说明是路由模式，需要返回
+  if (!props.folderPath && !props.filePath) {
+    router.back()
+  }
 }
 </script>
 

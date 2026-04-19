@@ -148,7 +148,7 @@
           </template>
         </n-modal>
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,search,jmtt,pixiv,twitter,weibo,specialAttention">
+          <keep-alive include="book,video,reader,search,jmtt,pixiv,twitter,weibo,specialAttention">
             <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>

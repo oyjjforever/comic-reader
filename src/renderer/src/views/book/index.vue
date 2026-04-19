@@ -1,33 +1,44 @@
 <template>
-  <resource-browser
-    ref="resourceBrowserRef"
-    :resource-path="resourcePath"
-    :provide-tree="provideBookTree"
-    :provide-favorites="provideBookFavorites"
-    namespace="book"
-  >
-    <template #card="{ item }">
-      <media-card
-        :folder="item"
-        class="grid-item"
-        namespace="book"
-        @to-read="toRead(item)"
-        @click="toRead(item)"
-      />
-    </template>
-  </resource-browser>
+  <div class="book-container">
+    <resource-browser
+      ref="resourceBrowserRef"
+      :resource-path="resourcePath"
+      :provide-tree="provideBookTree"
+      :provide-favorites="provideBookFavorites"
+      namespace="book"
+    >
+      <template #card="{ item }">
+        <media-card
+          :folder="item"
+          class="grid-item"
+          namespace="book"
+          @to-read="toRead(item)"
+          @click="toRead(item)"
+        />
+      </template>
+    </resource-browser>
+
+    <!-- 全屏阅读器覆盖层 -->
+    <div v-if="isReading" class="reader-overlay">
+      <reader-view :folder-path="encodeURIComponent(currentBookPath)" @close="closeReader" />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts" name="book">
 import type { FolderInfo } from '@/typings/file'
 import MediaCard from '@renderer/components/media-card.vue'
 import ResourceBrowser from '@renderer/components/resource-browser.vue'
+import ReaderView from '@renderer/views/reader/index.vue'
 import { useSettingStore } from '@renderer/plugins/store'
 const message = useMessage()
 const settingStore = useSettingStore()
-const router = useRouter()
 
 const resourcePath = computed(() => settingStore.setting.resourcePath)
+
+// 阅读器覆盖层状态
+const isReading = ref(false)
+const currentBookPath = ref('')
 
 // 抽象的数据提供者
 const provideBookTree = async (rootPath: string) => {
@@ -65,23 +76,34 @@ const toRead = (book: FolderInfo) => {
     message.warning('该文件夹不包含任何文件')
     return
   }
-  // 检查是否为混合类型文件夹
-  // if (book.contentType === 'mixed') {
-  //   // 使用 naive-ui 的消息提示
-  //   message.warning(
-  //     '该文件夹包含多种类型的文件，请将不同类型的文件独立拆分到子文件夹中后再进行阅读'
-  //   )
-  //   return
-  // }
 
-  // 跳转到阅读页面
-  router.push({
-    name: 'reader',
-    query: {
-      folderPath: encodeURIComponent(book.fullPath)
-    }
-  })
+  // 使用全屏覆盖层打开阅读器
+  currentBookPath.value = book.fullPath
+  isReading.value = true
+}
+
+const closeReader = () => {
+  isReading.value = false
+  currentBookPath.value = ''
 }
 
 const resourceBrowserRef = ref()
 </script>
+
+<style lang="scss" scoped>
+.book-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.reader-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: #000;
+}
+</style>

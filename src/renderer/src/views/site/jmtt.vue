@@ -61,7 +61,7 @@ async function download() {
   if (downloadType === 'one') {
     await jmttUtil.downloadArtwork(null, comicId.value)
   } else if (downloadType === 'batch') {
-    await jmttUtil.downloadAll(searchQuery.value)
+    await jmttUtil.downloadAllMedia(searchQuery.value)
   }
 }
 const onDownloadPrepare = async (event: any, data: any) => {
