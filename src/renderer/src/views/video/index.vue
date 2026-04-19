@@ -21,7 +21,15 @@
 
     <!-- 全屏阅读器覆盖层 -->
     <div v-if="isReading" class="reader-overlay">
-      <reader-view :file-path="encodeURIComponent(currentFilePath)" @close="closeReader" />
+      <reader-view
+        :key="currentFilePath"
+        :file-path="encodeURIComponent(currentFilePath)"
+        :has-next="hasNext"
+        :has-prev="hasPrev"
+        @close="closeReader"
+        @next="loadNext"
+        @prev="loadPrev"
+      />
     </div>
   </div>
 </template>
@@ -40,6 +48,18 @@ const videoResourcePath = computed(() => settingStore.setting.videoResourcePath)
 // 阅读器覆盖层状态
 const isReading = ref(false)
 const currentFilePath = ref('')
+const currentFileIndex = ref(-1)
+
+// 计算是否有上/下一个
+const hasNext = computed(() => {
+  if (currentFileIndex.value < 0) return false
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  return currentFileIndex.value < rows.length - 1
+})
+const hasPrev = computed(() => {
+  if (currentFileIndex.value < 0) return false
+  return currentFileIndex.value > 0
+})
 
 // 抽象的数据提供者（视频）
 const provideVideoTree = async (rootPath: string) => {
@@ -70,12 +90,36 @@ const provideVideoFavorites = async () => {
 const toRead = (book: FolderInfo) => {
   // 使用全屏覆盖层打开阅读器
   currentFilePath.value = book.fullPath
+  // 在当前网格列表中查找索引
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  currentFileIndex.value = rows.findIndex((item: FolderInfo) => item.fullPath === book.fullPath)
   isReading.value = true
 }
 
 const closeReader = () => {
   isReading.value = false
   currentFilePath.value = ''
+  currentFileIndex.value = -1
+}
+
+// 加载下一个
+const loadNext = () => {
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  const nextIndex = currentFileIndex.value + 1
+  if (nextIndex < rows.length) {
+    currentFilePath.value = rows[nextIndex].fullPath
+    currentFileIndex.value = nextIndex
+  }
+}
+
+// 加载上一个
+const loadPrev = () => {
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  const prevIndex = currentFileIndex.value - 1
+  if (prevIndex >= 0) {
+    currentFilePath.value = rows[prevIndex].fullPath
+    currentFileIndex.value = prevIndex
+  }
 }
 
 const resourceBrowserRef = ref()

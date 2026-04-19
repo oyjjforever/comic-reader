@@ -20,7 +20,15 @@
 
     <!-- 全屏阅读器覆盖层 -->
     <div v-if="isReading" class="reader-overlay">
-      <reader-view :folder-path="encodeURIComponent(currentBookPath)" @close="closeReader" />
+      <reader-view
+        :key="currentBookPath"
+        :folder-path="encodeURIComponent(currentBookPath)"
+        :has-next="hasNext"
+        :has-prev="hasPrev"
+        @close="closeReader"
+        @next="loadNext"
+        @prev="loadPrev"
+      />
     </div>
   </div>
 </template>
@@ -39,6 +47,18 @@ const resourcePath = computed(() => settingStore.setting.resourcePath)
 // 阅读器覆盖层状态
 const isReading = ref(false)
 const currentBookPath = ref('')
+const currentBookIndex = ref(-1)
+
+// 计算是否有上/下一篇
+const hasNext = computed(() => {
+  if (currentBookIndex.value < 0) return false
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  return currentBookIndex.value < rows.length - 1
+})
+const hasPrev = computed(() => {
+  if (currentBookIndex.value < 0) return false
+  return currentBookIndex.value > 0
+})
 
 // 抽象的数据提供者
 const provideBookTree = async (rootPath: string) => {
@@ -79,12 +99,36 @@ const toRead = (book: FolderInfo) => {
 
   // 使用全屏覆盖层打开阅读器
   currentBookPath.value = book.fullPath
+  // 在当前网格列表中查找索引
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  currentBookIndex.value = rows.findIndex((item: FolderInfo) => item.fullPath === book.fullPath)
   isReading.value = true
 }
 
 const closeReader = () => {
   isReading.value = false
   currentBookPath.value = ''
+  currentBookIndex.value = -1
+}
+
+// 加载下一篇
+const loadNext = () => {
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  const nextIndex = currentBookIndex.value + 1
+  if (nextIndex < rows.length) {
+    currentBookPath.value = rows[nextIndex].fullPath
+    currentBookIndex.value = nextIndex
+  }
+}
+
+// 加载上一篇
+const loadPrev = () => {
+  const rows = resourceBrowserRef.value?.getFilterRows() || []
+  const prevIndex = currentBookIndex.value - 1
+  if (prevIndex >= 0) {
+    currentBookPath.value = rows[prevIndex].fullPath
+    currentBookIndex.value = prevIndex
+  }
 }
 
 const resourceBrowserRef = ref()

@@ -7,6 +7,10 @@
       :is-auto-playing="isAutoPlaying"
       :show-zoom-controls="false"
       :zoom-percent="zoomLevel * 100"
+      :disabled-prev="page.index <= 0 && !props.hasPrev"
+      :disabled-next="page.index >= page.total - 1 && !props.hasNext"
+      :has-next="props.hasNext"
+      :has-prev="props.hasPrev"
       @back="goBack"
       @toggleFullscreen="toggleFullscreen"
       @toggleAutoPlay="toggleAutoPlay"
@@ -33,11 +37,18 @@ import { reactive } from 'vue'
 interface ReaderProps {
   folderPath?: string
   filePath?: string
+  hasNext?: boolean
+  hasPrev?: boolean
 }
 
-const props = defineProps<ReaderProps>()
+const props = withDefaults(defineProps<ReaderProps>(), {
+  hasNext: false,
+  hasPrev: false
+})
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'next'): void
+  (e: 'prev'): void
 }>()
 
 const route = useRoute()
@@ -97,11 +108,17 @@ const jumpToPage = async (index: number) => {
 const nextPage = async () => {
   if (page.index < page.total - 1) {
     await jumpToPage(page.index + 1)
+  } else if (props.hasNext) {
+    // 已是最后一页，且有下一篇，通知父组件切换
+    emit('next')
   }
 }
 const prevPage = async () => {
   if (page.index > 0) {
     await jumpToPage(page.index - 1)
+  } else if (props.hasPrev) {
+    // 已是第一页，且有上一篇，通知父组件切换
+    emit('prev')
   }
 }
 // 进度条变化处理

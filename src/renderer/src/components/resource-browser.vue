@@ -1255,7 +1255,9 @@ defineExpose({
   // 暴露多选模式相关的方法和状态
   isMultiSelectMode: () => isMultiSelectMode.value,
   selectedCards: () => selectedCards.value,
-  toggleMultiSelectMode
+  toggleMultiSelectMode,
+  // 暴露当前网格数据
+  getFilterRows: () => grid.filterRows
 })
 </script>
 

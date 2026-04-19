@@ -84,6 +84,7 @@
       :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledPrevComputed }"
       @click="$emit('prev')"
       :disabled="disabledPrevComputed"
+      :title="prevTitle"
       @mouseenter="onControlsEnter"
       @mouseleave="onControlsLeave"
     >
@@ -98,6 +99,7 @@
       :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledNextComputed }"
       @click="$emit('next')"
       :disabled="disabledNextComputed"
+      :title="nextTitle"
       @mouseenter="onControlsEnter"
       @mouseleave="onControlsLeave"
     >
@@ -143,7 +145,9 @@ export default defineComponent({
     showZoomControls: { type: Boolean, default: false },
     zoomPercent: { type: Number, default: 100 },
     disabledPrev: { type: Boolean, default: undefined },
-    disabledNext: { type: Boolean, default: undefined }
+    disabledNext: { type: Boolean, default: undefined },
+    hasNext: { type: Boolean, default: false },
+    hasPrev: { type: Boolean, default: false }
   },
   emits: [
     'back',
@@ -245,6 +249,16 @@ export default defineComponent({
       return props.currentPage >= props.totalPages
     })
 
+    // 动态提示文字：区分翻页和切换作品
+    const prevTitle = computed(() => {
+      if (props.currentPage <= 1 && props.hasPrev) return '上一部作品'
+      return '上一页'
+    })
+    const nextTitle = computed(() => {
+      if (props.currentPage >= props.totalPages && props.hasNext) return '下一部作品'
+      return '下一页'
+    })
+
     const progressInputRef = ref<HTMLInputElement | null>(null)
     const isDraggingProgress = ref(false)
     const progressTooltip = ref({
@@ -268,6 +282,8 @@ export default defineComponent({
       onNaiveSliderUpdate,
       disabledPrevComputed,
       disabledNextComputed,
+      prevTitle,
+      nextTitle,
       progressInputRef,
       isDraggingProgress,
       progressTooltip,
