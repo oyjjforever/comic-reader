@@ -28,7 +28,8 @@ const server = {
   status: () => ipcRenderer.invoke('server:status'),
   start: () => ipcRenderer.invoke('server:start'),
   stop: () => ipcRenderer.invoke('server:stop'),
-  setResourcePath: (resourcePath: string) => ipcRenderer.invoke('server:setResourcePath', resourcePath)
+  setResourcePath: (resourcePath: string) => ipcRenderer.invoke('server:setResourcePath', resourcePath),
+  setVideoResourcePath: (videoResourcePath: string) => ipcRenderer.invoke('server:setVideoResourcePath', videoResourcePath)
 }
 
 // 关闭行为配置 IPC 桥接

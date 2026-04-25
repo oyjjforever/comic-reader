@@ -1,10 +1,19 @@
 import axios from 'axios'
 import { ipcRenderer } from 'electron'
+import http from 'http'
+import https from 'https'
+
+// 全局 Keep-Alive 代理池，复用 TCP 连接，减少握手开销
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50, keepAliveMsecs: 30000 })
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50, keepAliveMsecs: 30000 })
+
 function buildAxios(config) {
   const instance = axios.create({
     adapter: 'http', // 强制使用 Node http 适配器，避免渲染/XHR 改写请求头
     // 超时可根据需要调整
     timeout: 10000,
+    httpAgent,
+    httpsAgent,
     // 代理
     proxy:
       config?.proxyMode === 'Custom'

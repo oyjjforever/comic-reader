@@ -224,6 +224,12 @@ app.whenReady().then(async () => {
     server.setResourcePath(resourcePath)
     return { success: true }
   })
+
+  // IPC: 设置视频资源路径
+  ipcMain.handle('server:setVideoResourcePath', (_event, videoResourcePath: string) => {
+    server.setVideoResourcePath(videoResourcePath)
+    return { success: true }
+  })
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
     return checkUpdate(mainWindow)

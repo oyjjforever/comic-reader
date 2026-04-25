@@ -33,6 +33,11 @@ router.beforeEach(async (to, _from, next) => {
         window.server.setResourcePath(settingStore.setting.resourcePath)
     }
 
+    // 同步 videoResourcePath 到 HTTP 服务器
+    if (settingStore.setting.videoResourcePath) {
+        window.server.setVideoResourcePath(settingStore.setting.videoResourcePath)
+    }
+
     // 根据设置同步局域网中转服务的启停状态
     try {
         const serverStatus = await window.server.status()

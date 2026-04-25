@@ -17,6 +17,7 @@ export class ComicReaderServer {
     private server: http.Server | null = null
     private port: number
     private resourcePath: string = ''
+    private videoResourcePath: string = ''
     private running: boolean = false
 
     constructor(port: number = DEFAULT_PORT) {
@@ -28,6 +29,13 @@ export class ComicReaderServer {
      */
     setResourcePath(resourcePath: string) {
         this.resourcePath = resourcePath
+    }
+
+    /**
+     * 设置视频资源根路径
+     */
+    setVideoResourcePath(videoResourcePath: string) {
+        this.videoResourcePath = videoResourcePath
     }
 
     /**
@@ -151,6 +159,7 @@ export class ComicReaderServer {
             version: '1.0.0',
             hostname: os.hostname(),
             resourcePath: this.resourcePath,
+            videoResourcePath: this.videoResourcePath,
             port: this.port
         })
     }
