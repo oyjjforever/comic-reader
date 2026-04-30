@@ -22,6 +22,11 @@ const MIME_TYPES: Record<string, string> = {
     '.mov': 'video/quicktime',
     '.mkv': 'video/x-matroska',
     '.webm': 'video/webm',
+    '.wmv': 'video/x-ms-wmv',
+    '.flv': 'video/x-flv',
+    '.m4v': 'video/mp4',
+    '.ogg': 'video/ogg',
+    '.ogv': 'video/ogg',
     '.pdf': 'application/pdf',
     '.epub': 'application/epub+zip',
     '.zip': 'application/zip',
@@ -77,7 +82,7 @@ export async function handleFileRequest(
         const mimeType = getMimeType(normalizedPath)
         const fileSize = stat.size
 
-        // 如果是缩略图请求，尝试生成缩略图
+        // 如果是缩略图请求，处理图片缩略图
         if (isThumbnail) {
             await handleThumbnail(req, res, normalizedPath, mimeType, url)
             return
@@ -90,10 +95,15 @@ export async function handleFileRequest(
             // 解析 Range header: "bytes=start-end"
             const parts = rangeHeader.replace(/bytes=/, '').split('-')
             const start = parseInt(parts[0], 10)
-            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+            let end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
 
-            // 校验范围
-            if (start >= fileSize || end >= fileSize || start > end) {
+            // 将 end 限制在文件大小范围内（HTTP 规范：超出范围应自动调整）
+            if (end >= fileSize) {
+                end = fileSize - 1
+            }
+
+            // 校验范围：仅当 start 超出文件大小时才返回 416
+            if (start >= fileSize || start > end) {
                 res.writeHead(416, {
                     'Content-Range': `bytes */${fileSize}`
                 })
@@ -150,7 +160,8 @@ export async function handleFileRequest(
 
 /**
  * 处理缩略图请求
- * 目前直接返回原图（后续可用 Sharp 生成缩略图）
+ * - 图片：直接返回原图（后续可用 Sharp 生成缩略图）
+ * - 视频：客户端自行使用 video_thumbnail 等方式生成缩略图
  */
 async function handleThumbnail(
     req: http.IncomingMessage,
@@ -159,9 +170,7 @@ async function handleThumbnail(
     mimeType: string,
     url: URL
 ) {
-    // TODO: 后续可使用 Sharp 生成缩略图
-    // const width = parseInt(url.searchParams.get('width') || '300', 10)
-    // 目前直接返回原图
+    // 图片文件：直接返回原图
     const stat = await fsp.stat(filePath)
 
     res.writeHead(200, {

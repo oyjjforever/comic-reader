@@ -3,6 +3,7 @@ import PixivUtil from './pixiv.js'
 import TwitterUtil from './twitter.js'
 import WeiboUtil from './weibo.js'
 import JmttUtil from './jmtt.js'
+import PicamanUtil from './picaman.js'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -31,6 +32,11 @@ const sites = {
     util: JmttUtil,
     icon: jmttImg,
     downloadPathSetting: 'downloadPathJmtt'
+  },
+  picaman: {
+    util: PicamanUtil,
+    icon: null,
+    downloadPathSetting: 'downloadPathPicaman'
   }
 }
 
@@ -188,7 +194,8 @@ async function downloadArtwork(site, row, item) {
       pixiv: () => util.downloadArtwork(row.artworkId),
       twitter: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url),
       jmtt: () => util.downloadArtwork(item.authorName, row.artworkId),
-      weibo: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url)
+      weibo: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url),
+      picaman: () => util.downloadArtwork(item.authorName, row.artworkId)
     }
 
     const downloadMethod = downloadMethods[site]

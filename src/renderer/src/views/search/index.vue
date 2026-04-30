@@ -108,7 +108,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" name="search">
 import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue'
 import { NSelect, NInput, NButton, NIcon, NImage, NSpin } from 'naive-ui'
 import { Search24Regular, Image24Regular, SlideMultiple24Regular } from '@vicons/fluent'
@@ -123,7 +123,8 @@ import { useSettingStore } from '@renderer/plugins/store'
 const typeOptions = [
   { label: '全部', value: 'all' },
   { label: 'JM', value: 'jmtt' },
-  { label: 'Pixiv', value: 'pixiv' }
+  { label: 'Pixiv', value: 'pixiv' },
+  { label: 'Picaman', value: 'picaman' }
 ]
 
 // 搜索表单状态
@@ -157,7 +158,7 @@ const handleSearch = async () => {
   loadingDetailIds.clear()
 
   try {
-    const typesToSearch = searchType.value === 'all' ? ['jmtt', 'pixiv'] : [searchType.value]
+    const typesToSearch = searchType.value === 'all' ? ['jmtt', 'pixiv', 'picaman'] : [searchType.value]
 
     // 并行搜索各站点，返回 {id, source} 占位符列表
     const allPlaceholders = await Promise.all(

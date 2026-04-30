@@ -89,6 +89,14 @@ export default [
                             title: "pornhub",
                             keepAlive: true
                         }
+                    }, {
+                        path: 'picaman',
+                        name: "picaman",
+                        component: () => import('@renderer/views/site/picaman.vue'),
+                        meta: {
+                            title: "picaman",
+                            keepAlive: true
+                        }
                     }]
             }
         ],

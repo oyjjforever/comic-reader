@@ -148,7 +148,7 @@
           </template>
         </n-modal>
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,reader,search,jmtt,pixiv,twitter,weibo,specialAttention">
+          <keep-alive include="book,video,reader,search,jmtt,pixiv,twitter,weibo,picaman,specialAttention">
             <component ref="childComponentRef" :is="Component" />
           </keep-alive>
         </router-view>
@@ -184,6 +184,7 @@ import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
+import picamanImg from '@renderer/assets/picaman.ico'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import AboutDialog from '@renderer/components/about-dialog.vue'
@@ -229,7 +230,8 @@ const menuItems = [
   { image: jmttImg, name: 'jmtt' },
   { image: pixivImg, name: 'pixiv' },
   { image: twitterImg, name: 'twitter' },
-  { image: weiboImg, name: 'weibo' }
+  { image: weiboImg, name: 'weibo' },
+  { image: picamanImg, name: 'picaman' }
   // { image: pornhubImg, name: 'pornhub' }
 ]
 
@@ -421,7 +423,7 @@ $background-color: #322f3b;
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
   }
 
   .bottom-menu {

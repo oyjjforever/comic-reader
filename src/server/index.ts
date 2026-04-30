@@ -136,6 +136,12 @@ export class ComicReaderServer {
                 await handleFileRequest(req, res, url)
             } else if (pathname === '/api/thumbnail') {
                 await handleFileRequest(req, res, url, true)
+            } else if (pathname.startsWith('/api/videofile/')) {
+                // 干净 URL 路由：/api/videofile/<encoded-path>
+                // 用于 Android MediaMetadataRetriever 等不支持查询参数的客户端
+                const encodedPath = pathname.substring('/api/videofile/'.length)
+                const videoUrl = new URL(`http://localhost/api/file?path=${encodedPath}`)
+                await handleFileRequest(req, res, videoUrl)
             } else if (pathname.startsWith('/api/favorites')) {
                 await handleFavoritesRequest(req, res, pathname, url)
             } else if (pathname.startsWith('/api/history')) {

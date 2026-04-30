@@ -1,6 +1,6 @@
 import { reactive, ref, nextTick } from 'vue'
 
-const { jmtt, pixiv, twitter, weibo, file } = window
+const { jmtt, pixiv, twitter, weibo, picaman, file } = window
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -388,6 +388,43 @@ async function runPornhub(task) {
   }
 }
 
+async function runPicaman(task) {
+  const { comicInfo, baseDir } = task.payload
+  try {
+    updateTask(task, { status: 'running', errorMessage: undefined })
+    const workDir = `${baseDir}\\${file.simpleSanitize(comicInfo.author)}\\${file.simpleSanitize(comicInfo.title || 'unknown')}`
+    await isPathExists(workDir, task)
+    const images = comicInfo.imgList || []
+    if (!images.length) throw new Error('未找到可下载的图片')
+    await runWithConcurrency(
+      images,
+      task,
+      async (img, i) => {
+        const ext = img.url.split('.').pop() || 'jpg'
+        const savePath = `${workDir}\\${i.toString().padStart(5, '0')}.${ext}`
+        await picaman.downloadImage(savePath, img.url)
+      },
+      (success, fail, total) => {
+        updateTask(task, {
+          progress: {
+            success,
+            fail,
+            total
+          }
+        })
+        task.onSuccess?.()
+      }
+    )
+    updateTask(task, { from: 'picaman', status: 'success', localFilePath: workDir })
+  } catch (e) {
+    console.log('🚀 ~ runPicaman ~ e:', e)
+    if (task._cancel) {
+      updateTask(task, { status: 'canceled' })
+      return
+    }
+  }
+}
+
 async function executeTask(task) {
   switch (task.site) {
     case 'jmtt':
@@ -404,6 +441,9 @@ async function executeTask(task) {
       break
     case 'pornhub':
       await runPornhub(task)
+      break
+    case 'picaman':
+      await runPicaman(task)
       break
     default:
       updateTask(task, { status: 'error' })

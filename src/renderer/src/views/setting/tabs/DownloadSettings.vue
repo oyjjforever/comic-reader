@@ -72,6 +72,19 @@
           </n-button>
         </n-input-group>
       </n-form-item>
+      <n-form-item path="downloadPathPicaman" label="Picaman 下载路径">
+        <n-input-group>
+          <n-input
+            :value="modelValue.downloadPathPicaman"
+            @update:value="(value) => updateSetting('downloadPathPicaman', value)"
+            placeholder="可选，未设置则使用默认下载路径"
+            readonly
+          />
+          <n-button type="primary" @click="selectResourcePath('downloadPathPicaman')">
+            选择文件夹
+          </n-button>
+        </n-input-group>
+      </n-form-item>
     </div>
   </n-form>
 </template>

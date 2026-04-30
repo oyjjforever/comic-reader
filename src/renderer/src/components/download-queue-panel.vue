@@ -152,6 +152,7 @@ import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
+import picamanImg from '@renderer/assets/picaman.ico'
 import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
 function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
@@ -159,6 +160,7 @@ function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'pixiv') return pixivImg
   if (site === 'twitter') return twitterImg
   if (site === 'weibo') return weiboImg
+  if (site === 'picaman') return picamanImg
 }
 
 function calcPercent(t: any) {

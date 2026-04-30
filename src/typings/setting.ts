@@ -14,6 +14,8 @@ export type setting = {
     downloadPathJmtt?: string
     downloadPathPixiv?: string
     downloadPathTwitter?: string
+    downloadPathWeibo?: string
+    downloadPathPicaman?: string
     // 是否启用更新检测
     enableAuthorUpdateCheck?: boolean
     // 是否启用剪切板监听
