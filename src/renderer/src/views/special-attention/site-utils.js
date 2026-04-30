@@ -8,7 +8,7 @@ import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
-
+import picamanImg from '@renderer/assets/picaman.ico'
 const settingStore = useSettingStore(pinia)
 
 // 站点配置映射，以站点类型为键
@@ -35,7 +35,7 @@ const sites = {
   },
   picaman: {
     util: PicamanUtil,
-    icon: null,
+    icon: picamanImg,
     downloadPathSetting: 'downloadPathPicaman'
   }
 }
@@ -235,11 +235,11 @@ function getUtil(site) {
  * @param {string} keyword - 作品ID
  * @returns {Promise<Array>} 作品ID数组
  */
-async function searchArtworks(site, keyword) {
+async function searchArtworks(site, keyword, page = 1) {
   try {
     const util = getSiteUtil(site)
     if (util && util.searchArtworks) {
-      return await util.searchArtworks(keyword)
+      return await util.searchArtworks(keyword, page)
     }
     return null
   } catch (error) {

@@ -18,8 +18,9 @@ async function addToQueue(artworkIds) {
     })
   }
 }
-async function searchArtworks(keyword) {
-  return await pixiv.search(keyword)
+async function searchArtworks(keyword, page = 1) {
+  const res = await pixiv.searchByPage(keyword, page)
+  return (res?.data || []).map((_) => _.id)
 }
 async function downloadArtwork(artworkId) {
   addToQueue([artworkId])

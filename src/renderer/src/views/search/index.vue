@@ -85,6 +85,14 @@
           </div>
         </template>
       </responsive-virtual-grid>
+      <!-- 加载更多指示器 -->
+      <div v-if="isLoadingMore" class="load-more-indicator">
+        <n-spin size="small" />
+        <span>加载更多中...</span>
+      </div>
+      <div v-else-if="!hasMore" class="load-more-indicator no-more">
+        <span>没有更多结果了</span>
+      </div>
     </div>
 
     <!-- 空状态 -->
@@ -133,6 +141,11 @@ const keyword = ref('')
 const loading = ref(false)
 const hasSearched = ref(false)
 
+// 分页状态
+const currentPage = ref(1)
+const hasMore = ref(true)
+const isLoadingMore = ref(false)
+
 // 搜索结果（占位符数组，每项包含 {id, artworkId, source, loaded, loading, ...details}）
 const searchResults = ref<any[]>([])
 
@@ -148,23 +161,31 @@ const previewer = reactive({
 // 正在加载详情的ID集合，防止重复请求
 const loadingDetailIds = new Set<string>()
 
-// 处理搜索
+// 获取当前需要搜索的站点列表
+const getTypesToSearch = () => {
+  return searchType.value === 'all' ? ['jmtt', 'pixiv', 'picaman'] : [searchType.value]
+}
+
+// 处理搜索（首页）
 const handleSearch = async () => {
   if (!keyword.value.trim()) return
 
   loading.value = true
   hasSearched.value = true
   searchResults.value = []
+  currentPage.value = 1
+  hasMore.value = true
+  isLoadingMore.value = false
   loadingDetailIds.clear()
 
   try {
-    const typesToSearch = searchType.value === 'all' ? ['jmtt', 'pixiv', 'picaman'] : [searchType.value]
+    const typesToSearch = getTypesToSearch()
 
-    // 并行搜索各站点，返回 {id, source} 占位符列表
+    // 并行搜索各站点第1页
     const allPlaceholders = await Promise.all(
       typesToSearch.map(async (type) => {
         try {
-          const ids = await siteUtils.searchArtworks(type, keyword.value)
+          const ids = await siteUtils.searchArtworks(type, keyword.value, 1)
           if (!ids || !Array.isArray(ids)) return []
           return ids.map((id: any) => ({
             id: `${type}_${id}`,
@@ -185,12 +206,66 @@ const handleSearch = async () => {
       })
     )
 
-    // 合并所有站点的搜索结果
-    searchResults.value = allPlaceholders.flat()
+    const results = allPlaceholders.flat()
+    searchResults.value = results
+
+    // 如果第一页就没有结果，标记没有更多
+    if (results.length === 0) {
+      hasMore.value = false
+    }
   } catch (error) {
     console.error('搜索失败:', error)
   } finally {
     loading.value = false
+  }
+}
+
+// 加载下一页
+const loadMore = async () => {
+  if (isLoadingMore.value || !hasMore.value || !hasSearched.value) return
+
+  isLoadingMore.value = true
+  currentPage.value++
+
+  try {
+    const typesToSearch = getTypesToSearch()
+
+    const newPlaceholders = await Promise.all(
+      typesToSearch.map(async (type) => {
+        try {
+          const ids = await siteUtils.searchArtworks(type, keyword.value, currentPage.value)
+          if (!ids || !Array.isArray(ids)) return []
+          return ids.map((id: any) => ({
+            id: `${type}_${id}_p${currentPage.value}`,
+            artworkId: id,
+            source: type,
+            loaded: false,
+            loading: false,
+            title: '',
+            author: '',
+            cover: '',
+            pages: 0,
+            downloaded: false
+          }))
+        } catch (error) {
+          console.error(`搜索 ${type} 第${currentPage.value}页失败:`, error)
+          return []
+        }
+      })
+    )
+
+    const newResults = newPlaceholders.flat()
+
+    if (newResults.length === 0) {
+      hasMore.value = false
+    } else {
+      searchResults.value = [...searchResults.value, ...newResults]
+    }
+  } catch (error) {
+    console.error('加载更多失败:', error)
+    currentPage.value-- // 回退页码
+  } finally {
+    isLoadingMore.value = false
   }
 }
 
@@ -237,9 +312,24 @@ const loadVisibleDetails = async () => {
   )
 }
 
+// 检测是否滚动到底部
+const checkScrollBottom = () => {
+  const stats = virtualGridRef.value?.getStats()
+  if (!stats) return
+
+  const { end } = stats.visibleRange
+  const totalItems = searchResults.value.length
+
+  // 当可见区域接近底部（距离底部不到10个item）时触发加载更多
+  if (end >= totalItems - 10 && hasMore.value && !isLoadingMore.value) {
+    loadMore()
+  }
+}
+
 // 网格滚动事件处理
 const handleScroll = () => {
   loadVisibleDetails()
+  checkScrollBottom()
 }
 
 // 网格就绪后加载首批可见项
@@ -492,6 +582,21 @@ onUnmounted(() => {
   margin-top: 16px;
   font-size: 16px;
   color: #999;
+}
+
+/* 加载更多指示器 */
+.load-more-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0;
+  font-size: 13px;
+  color: #999;
+
+  &.no-more {
+    color: #ccc;
+  }
 }
 
 @media (max-width: 768px) {

@@ -15,7 +15,7 @@ async function downloadArtwork(authorName, comicId) {
   }
   queue.addTask({
     site: 'picaman',
-    title: `[${comicInfo.author || authorName || '未知'}]${comicInfo.name || comicId}`,
+    title: `[${comicInfo.author || authorName || '未知'}]${comicInfo.title || comicId}`,
     payload: {
       comicInfo,
       baseDir: downloadPath
@@ -23,9 +23,10 @@ async function downloadArtwork(authorName, comicId) {
   })
 }
 
-async function searchArtworks(keyword) {
-  const res = await picaman.search(keyword)
-  return res.comics.map(_=>_.id)
+async function searchArtworks(keyword, page = 1) {
+  const res = await picaman.search(keyword, page)
+  if (res?.comics) return res.comics.map((_) => _.id)
+  return []
 }
 
 async function fetchArtworks(tag) {
