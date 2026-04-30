@@ -124,5 +124,8 @@ declare global {
     clipboard: {
       readText: () => Promise<string>
     }
+    windowManager: {
+      create: (options?: { route?: string; title?: string; width?: number; height?: number }) => Promise<{ success: boolean }>
+    }
   }
 }

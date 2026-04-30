@@ -102,6 +102,9 @@
           </div>
         </div>
         <div class="main-content-header__right">
+          <div class="wb-site" @click="onCreateWindow" title="新建窗口">
+            <n-icon :component="Add16Regular" size="12" />
+          </div>
           <div class="wb-min" @click="onMin">
             <n-icon :component="MinusOutlined" size="12" />
           </div>
@@ -176,7 +179,8 @@ import {
   Cart16Filled,
   Star24Regular,
   PeopleTeam24Regular,
-  Search24Regular
+  Search24Regular,
+  Add16Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import { useSettingStore } from '@renderer/plugins/store'
@@ -284,6 +288,9 @@ function onUnMax() {
 }
 function onClose() {
   window.electron.ipcRenderer.invoke('window-close')
+}
+function onCreateWindow() {
+  window.windowManager.create()
 }
 
 // 关闭确认对话框状态

@@ -33,6 +33,12 @@ const server = {
   setVideoResourcePath: (videoResourcePath: string) => ipcRenderer.invoke('server:setVideoResourcePath', videoResourcePath)
 }
 
+// 窗口管理 IPC 桥接
+const windowManager = {
+  create: (options?: { route?: string; title?: string; width?: number; height?: number }): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('window-create', options)
+}
+
 // 关闭行为配置 IPC 桥接
 const closeConfig = {
   get: (): Promise<{ closeToTray: boolean; dontRemind: boolean }> => ipcRenderer.invoke('close-config:get'),
@@ -75,6 +81,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('server', server)
     contextBridge.exposeInMainWorld('closeConfig', closeConfig)
     contextBridge.exposeInMainWorld('clipboard', clipboard)
+    contextBridge.exposeInMainWorld('windowManager', windowManager)
   } catch (error) {
     console.error(error)
   }

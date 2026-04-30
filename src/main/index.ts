@@ -263,28 +263,92 @@ app.whenReady().then(async () => {
     })
     return result
   })
-  ipcMain.on("get-window-size", () => {
-    return mainWindow.isFullScreen()
+  ipcMain.on("get-window-size", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win ? win.isFullScreen() : false
   });
-  ipcMain.handle("window-min", () => {
-    mainWindow.minimize();
+  ipcMain.handle("window-min", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) win.minimize()
   });
-  ipcMain.handle("window-unmax", () => {
-    mainWindow.setFullScreen(false)
-    mainWindow.setSize(1280, 720);
-    mainWindow.center();
+  ipcMain.handle("window-unmax", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      win.setFullScreen(false)
+      win.setSize(1280, 720)
+      win.center()
+    }
   });
-  ipcMain.handle("window-max", () => {
-    mainWindow.setFullScreen(true)
+  ipcMain.handle("window-max", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) win.setFullScreen(true)
   });
-  ipcMain.handle("window-close", () => {
-    handleWindowClose()
+  ipcMain.handle("window-close", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    if (win === mainWindow) {
+      handleWindowClose()
+    } else {
+      win.close()
+    }
   });
 
-  ipcMain.handle("window-show", () => {
-    mainWindow.show()
-    mainWindow.focus()
+  ipcMain.handle("window-show", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      win.show()
+      win.focus()
+    }
   });
+
+  // 创建新窗口
+  ipcMain.handle("window-create", (_event, options?: { route?: string; title?: string; width?: number; height?: number }) => {
+    const route = options?.route || '/'
+    const title = options?.title || '新窗口'
+    const width = options?.width || 1280
+    const height = options?.height || 720
+
+    const newWin = new BrowserWindow({
+      width,
+      height,
+      minWidth: 1024,
+      minHeight: 720,
+      show: false,
+      autoHideMenuBar: true,
+      frame: false,
+      transparent: false,
+      titleBarStyle: 'hidden',
+      title: title,
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true,
+        preload: path.join(__dirname, '../preload/index.cjs'),
+      }
+    })
+
+    newWin.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    })
+
+    newWin.on('ready-to-show', () => {
+      setTimeout(() => {
+        newWin.show()
+      }, 100)
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      newWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${route}`)
+    } else {
+      newWin.loadFile(path.join(__dirname, '../renderer/index.html'), {
+        hash: route
+      })
+    }
+
+    return { success: true }
+  })
 
   // 关闭配置 IPC
   ipcMain.handle('close-config:get', () => {
