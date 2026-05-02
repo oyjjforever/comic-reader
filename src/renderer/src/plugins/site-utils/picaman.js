@@ -4,7 +4,8 @@ import { useSettingStore, pinia } from '@renderer/plugins/store'
 const settingStore = useSettingStore(pinia)
 
 async function downloadArtwork(authorName, comicId) {
-  const downloadPath = settingStore.setting?.downloadPathPicaman || settingStore.setting?.defaultDownloadPath
+  const downloadPath =
+    settingStore.setting?.downloadPathPicaman || settingStore.setting?.defaultDownloadPath
   // 获取漫画详情
   let comicInfo
   try {
@@ -91,7 +92,25 @@ async function hasNewArtwork(authorName, authorId) {
   }
 }
 
+const siteView = {
+  url: 'https://www.wnacg.com/',
+  updateStatus(currentUrl) {
+    const match = currentUrl.match(/photos-(?:index|slide)-aid-(\d+)/)
+    if (match) {
+      return { canDownload: true, canAttention: false, extra: { comicId: match[1] } }
+    }
+    return { canDownload: false, canAttention: false, extra: {} }
+  },
+  async download({ extra }) {
+    if (extra.comicId) {
+      await downloadArtwork(null, extra.comicId)
+    }
+  }
+  // picaman 不支持特别关注，不提供 addSpecialAttention
+}
+
 export default {
+  siteView,
   downloadArtwork,
   getArtworkInfo,
   fetchArtworks,

@@ -4,11 +4,13 @@ import TwitterUtil from './twitter.js'
 import WeiboUtil from './weibo.js'
 import JmttUtil from './jmtt.js'
 import PicamanUtil from './picaman.js'
+import PornhubUtil from './pornhub.js'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
+import pornhubImg from '@renderer/assets/pornhub.ico'
 const settingStore = useSettingStore(pinia)
 
 // 站点配置映射，以站点类型为键
@@ -37,6 +39,11 @@ const sites = {
     util: PicamanUtil,
     icon: picamanImg,
     downloadPathSetting: 'downloadPathPicaman'
+  },
+  pornhub: {
+    util: PornhubUtil,
+    icon: pornhubImg,
+    downloadPathSetting: 'defaultDownloadPath'
   }
 }
 
@@ -248,6 +255,16 @@ async function searchArtworks(site, keyword, page = 1) {
   }
 }
 
+/**
+ * 获取站点 view 配置（用于统一的 site/index.vue 组件）
+ * @param {string} site - 站点名称
+ * @returns {Object|null} 站点 view 配置
+ */
+function getSiteViewConfig(site) {
+  const util = getSiteUtil(site)
+  return util?.siteView || null
+}
+
 export default {
   getSiteUtil,
   getSiteIcon,
@@ -261,5 +278,6 @@ export default {
   isLocalDownloaded,
   downloadArtwork,
   downloadAll,
-  searchArtworks
+  searchArtworks,
+  getSiteViewConfig
 }

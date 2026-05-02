@@ -102,7 +102,55 @@ function isLocalDownloaded(authorName, workName) {
   const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
   return file.pathExists(localPath)
 }
+import { extractFromUrl } from '@renderer/plugins/site-utils/utils.js'
+
+const siteView = {
+  url: 'https://www.pixiv.net/',
+  updateStatus(currentUrl) {
+    let downloadType = null
+    let canDownload = true
+    if (currentUrl.includes('artworks')) {
+      downloadType = 'artwork'
+    } else if (currentUrl.includes('illustrations')) {
+      downloadType = 'illusts'
+    } else if (currentUrl.includes('series')) {
+      downloadType = 'managa'
+    } else {
+      canDownload = false
+    }
+    const canAttention = !!currentUrl && currentUrl.includes('users')
+    return { canDownload, canAttention, extra: { downloadType } }
+  },
+  async download({ extra, getCurrentUrl, tip }) {
+    if (extra.downloadType === 'artwork') {
+      const artworkId = extractFromUrl(getCurrentUrl(), 'artworks')
+      if (!artworkId) throw new Error('未获取到作品ID')
+      await downloadArtwork(artworkId)
+    } else if (extra.downloadType === 'illusts') {
+      const userId = extractFromUrl(getCurrentUrl(), 'users')
+      if (!userId) throw new Error('未获取到用户ID')
+      await downloadIllusts(userId)
+    } else if (extra.downloadType === 'managa') {
+      const mangaId = extractFromUrl(getCurrentUrl(), 'series')
+      if (!mangaId) throw new Error('未获取到漫画ID')
+      await downloadManga(mangaId)
+    }
+  },
+  async addSpecialAttention({ getCurrentUrl, tip }) {
+    const userId = extractFromUrl(getCurrentUrl(), 'users')
+    const firstArtworkId = (await pixiv.getArtworksByUserId(userId)).illusts[0]
+    const authorName = (await pixiv.getArtworkInfo(firstArtworkId)).author
+    await window.specialAttention.add({
+      source: 'pixiv',
+      authorId: userId,
+      authorName
+    })
+    tip.success('已添加到特别关注')
+  }
+}
+
 export default {
+  siteView,
   downloadArtwork,
   downloadIllusts,
   downloadAllMedia,

@@ -15,8 +15,8 @@
           v-for="(item, index) in menuItems"
           :key="index"
           class="menu-item"
-          :class="{ active: currentRoute === item.name }"
-          @click="handleMenuClick(index, item.name)"
+          :class="{ active: isMenuActive(item) }"
+          @click="handleMenuClick(index, item)"
         >
           <n-icon
             v-if="item.icon"
@@ -42,8 +42,8 @@
           v-for="(item, index) in bottomMenuItems"
           :key="index"
           class="menu-item"
-          :class="{ active: currentRoute === item.name }"
-          @click="handleMenuClick(index, item.name)"
+          :class="{ active: isMenuActive(item) }"
+          @click="handleMenuClick(index, item)"
         >
           <n-icon size="20" :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'">
             <component :is="item.icon" />
@@ -102,7 +102,7 @@
           </div>
         </div>
         <div class="main-content-header__right">
-          <div class="wb-site" @click="onCreateWindow" title="新建窗口">
+          <div class="wb-site" style="margin-right: 20px" @click="onCreateWindow" title="新建窗口">
             <n-icon :component="Add16Regular" size="12" />
           </div>
           <div class="wb-min" @click="onMin">
@@ -150,18 +150,35 @@
             </div>
           </template>
         </n-modal>
+        <!-- 非 site 路由使用 router-view + keep-alive -->
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,reader,search,jmtt,pixiv,twitter,weibo,picaman,specialAttention">
-            <component ref="childComponentRef" :is="Component" />
+          <keep-alive include="book,video,reader,search,specialAttention">
+            <component
+              v-if="!isSiteRoute"
+              ref="nonSiteComponentRef"
+              :is="Component"
+              :key="route.fullPath"
+            />
           </keep-alive>
         </router-view>
+        <!-- site 路由使用动态组件 + v-show，保持各站点独立缓存 -->
+        <div v-show="isSiteRoute" class="site-container">
+          <div
+            v-for="(_, siteName) in siteInstances"
+            :key="siteName"
+            v-show="activeSite === siteName"
+            class="site-wrapper"
+          >
+            <SiteView :ref="(el) => setSiteRef(siteName, el)" :site="siteName" />
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NIcon, NModal, NCheckbox, NButton } from 'naive-ui'
 import { SettingsSharp } from '@vicons/ionicons5'
@@ -194,17 +211,40 @@ import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import AboutDialog from '@renderer/components/about-dialog.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
+import SiteView from '@renderer/views/site/index.vue'
 import twitter from '../views/special-attention/twitter'
 const settingStore = useSettingStore()
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
-const childComponentRef = ref()
+
+// ===== 站点动态组件管理 =====
+const siteInstances = reactive<Record<string, boolean>>({})
+const activeSite = ref<string>('')
+const siteRefs = ref<Record<string, any>>({})
+const nonSiteComponentRef = ref()
+const isSiteRoute = computed(() => route.name === 'site-view')
+
+// 设置站点组件 ref
+function setSiteRef(siteName: string, el: any) {
+  if (el) {
+    siteRefs.value[siteName] = el
+  }
+}
+
+// 获取当前活跃的子组件（站点或非站点）
+const activeChildComponent = computed(() => {
+  if (isSiteRoute.value && activeSite.value) {
+    return siteRefs.value[activeSite.value]
+  }
+  return nonSiteComponentRef.value
+})
+
 const canDownload = computed(
-  () => !!(childComponentRef.value && (childComponentRef.value as any).canDownload)
+  () => !!(activeChildComponent.value && (activeChildComponent.value as any).canDownload)
 )
 const canAttention = computed(
-  () => !!(childComponentRef.value && (childComponentRef.value as any).canAttention)
+  () => !!(activeChildComponent.value && (activeChildComponent.value as any).canAttention)
 )
 const isDev = import.meta.env.DEV
 const hasActiveDownloads = computed(() => {
@@ -231,41 +271,59 @@ const menuItems = [
   { icon: VideoClipMultiple24Regular, name: 'video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
   { icon: Search24Regular, name: 'search' },
-  { image: jmttImg, name: 'jmtt' },
-  { image: pixivImg, name: 'pixiv' },
-  { image: twitterImg, name: 'twitter' },
-  { image: weiboImg, name: 'weibo' },
-  { image: picamanImg, name: 'picaman' }
-  // { image: pornhubImg, name: 'pornhub' }
+  { image: jmttImg, name: 'site-view', site: 'jmtt' },
+  { image: pixivImg, name: 'site-view', site: 'pixiv' },
+  { image: twitterImg, name: 'site-view', site: 'twitter' },
+  { image: weiboImg, name: 'site-view', site: 'weibo' },
+  { image: picamanImg, name: 'site-view', site: 'picaman' }
+  // { image: pornhubImg, name: 'site-view', site: 'pornhub' }
 ]
 
 const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
 
 // 事件处理
-function handleMenuClick(index: number, name: string) {
-  router.push({ name })
+function handleMenuClick(index: number, item: any) {
+  if (item.site) {
+    // 创建站点实例（如果不存在）
+    if (!siteInstances[item.site]) {
+      siteInstances[item.site] = true
+    }
+    activeSite.value = item.site
+    router.push({ name: item.name, params: { site: item.site } })
+  } else {
+    router.push({ name: item.name })
+  }
+}
+function isMenuActive(item: any) {
+  if (item.site) {
+    return route.name === item.name && route.params.site === item.site
+  }
+  return route.name === item.name
 }
 function onDownload() {
-  childComponentRef.value?.download()
+  activeChildComponent.value?.download()
 }
 function onAddSpecialAttention() {
-  ;(childComponentRef.value as any)?.addSpecialAttention?.()
+  ;(activeChildComponent.value as any)?.addSpecialAttention?.()
+}
+// 获取当前活跃站点的 webview
+function getActiveWebview(): any {
+  if (activeSite.value && siteRefs.value[activeSite.value]) {
+    return (siteRefs.value[activeSite.value] as any)?.webviewRef
+  }
+  return null
 }
 function onBack() {
-  const webview = document.querySelector('webview')
-  webview?.goBack()
+  getActiveWebview()?.goBack()
 }
 function onForward() {
-  const webview = document.querySelector('webview')
-  webview?.goForward()
+  getActiveWebview()?.goForward()
 }
 function onRefresh() {
-  const webview = document.querySelector('webview')
-  webview?.reload()
+  getActiveWebview()?.reload()
 }
 function onDebug() {
-  const webview = document.querySelector('webview')
-  webview?.openDevTools()
+  getActiveWebview()?.openDevTools()
 }
 const queueVisible = ref(false)
 const aboutDialogVisible = ref(false)
@@ -663,6 +721,20 @@ $background-color: #322f3b;
     background: #fff;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100'  fill='white'/%3E%3C/svg%3E");
     mask-size: 100%;
+    position: relative;
+
+    .site-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+
+      .site-wrapper {
+        width: 100%;
+        height: 100%;
+      }
+    }
   }
 }
 

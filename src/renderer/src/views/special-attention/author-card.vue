@@ -98,7 +98,7 @@ import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDe
 import { getDefaultDownloadPath } from '../site/utils'
 import previewDialog from './preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
-import siteUtils from './site-utils.js'
+import siteUtils from '@renderer/plugins/site-utils/index.js'
 import {
   SlideMultiple24Regular,
   ArrowUp24Regular,

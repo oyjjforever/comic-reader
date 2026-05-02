@@ -1,6 +1,7 @@
 const { jmtt, file } = window
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import { useSettingStore, pinia } from '@renderer/plugins/store'
+import { getDefaultDownloadPath } from '@renderer/plugins/site-utils/utils.js'
 const settingStore = useSettingStore(pinia)
 
 async function downloadArtwork(authorName, comicId) {
@@ -99,7 +100,75 @@ function isLocalDownloaded(authorName, workName) {
   const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
   return file.pathExists(localPath)
 }
+const siteView = {
+  url: 'https://jmcomic-zzz.one/',
+  updateStatus(currentUrl) {
+    const match = currentUrl.match(/\/album\/(\d+)/)
+    const isBatch = currentUrl.includes('main_tag=2')
+    let searchQuery = null
+    if (isBatch) {
+      try {
+        const urlObj = new URL(currentUrl)
+        searchQuery = decodeURIComponent(urlObj.searchParams.get('search_query'))
+      } catch {
+        searchQuery = null
+      }
+    }
+    return {
+      canDownload: !!(match || isBatch),
+      canAttention: isBatch,
+      extra: {
+        comicId: match ? match[1] : null,
+        downloadType: match ? 'one' : isBatch ? 'batch' : null,
+        searchQuery
+      }
+    }
+  },
+  async download({ extra }) {
+    if (extra.downloadType === 'one') {
+      await downloadArtwork(null, extra.comicId)
+    } else if (extra.downloadType === 'batch') {
+      await downloadAllMedia(extra.searchQuery)
+    }
+  },
+  async addSpecialAttention({ extra, tip }) {
+    await window.specialAttention.add({
+      source: 'jmtt',
+      authorId: extra.searchQuery,
+      authorName: extra.searchQuery
+    })
+    tip.success('已添加到特别关注')
+  },
+  onMounted(webview) {
+    const { jmtt, file } = window
+    const onDownloadPrepare = async (event, data) => {
+      let defaultDownloadPath = await getDefaultDownloadPath('downloadPathJmtt')
+      // 获取文件名称
+      const currentUrl = typeof webview.getURL === 'function' ? webview.getURL() : webview.src
+      const match = currentUrl.match(/\/album_download\/(\d+)/)
+      const comicId = match ? match[1] : null
+      const comicInfo = await jmtt.getComicInfo(comicId)
+      try {
+        await window.electron.ipcRenderer.invoke('download:start', {
+          fileName: `${file.simpleSanitize(comicInfo.name)}.zip`,
+          url: data.url,
+          savePath: `${defaultDownloadPath}/${comicInfo.author[0] || '未分类'}`,
+          autoExtract: true
+        })
+      } catch (e) {
+        console.error(`下载失败：${e?.message || e}`)
+      }
+    }
+    window.electron.ipcRenderer.on('download:prepare', onDownloadPrepare)
+    // 返回清理函数
+    return () => {
+      window.electron.ipcRenderer.removeListener('download:prepare', onDownloadPrepare)
+    }
+  }
+}
+
 export default {
+  siteView,
   downloadArtwork,
   downloadAllMedia,
   getArtworkInfo,

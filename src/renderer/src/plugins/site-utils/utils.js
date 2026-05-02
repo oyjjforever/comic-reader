@@ -17,6 +17,24 @@ export async function getDefaultDownloadPath(key) {
 }
 
 const { message } = createDiscreteApi(['message'])
+
+/**
+ * 从 URL 路径中提取指定 key 后面的路径段
+ * @param {string} currentUrl - 完整 URL
+ * @param {string} key - 要查找的路径段
+ * @returns {string|null} key 后面的路径段值
+ */
+export function extractFromUrl(currentUrl, key) {
+  try {
+    const parts = currentUrl.split('/').filter(Boolean)
+    const idx = parts.findIndex((p) => p === key)
+    if (idx !== -1 && parts[idx + 1]) return parts[idx + 1]
+    return null
+  } catch {
+    return null
+  }
+}
+
 export class Tip {
   constructor() {
     this.instance = null

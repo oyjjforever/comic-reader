@@ -124,7 +124,7 @@ import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
 import ResponsiveVirtualGrid from '../../components/responsive-virtual-grid.vue'
 import previewDialog from '../special-attention/preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
-import siteUtils from '../special-attention/site-utils.js'
+import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { useSettingStore } from '@renderer/plugins/store'
 
 // 网站类型选项

@@ -174,7 +174,49 @@ function isLocalDownloaded(authorName, workName) {
   const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
   return file.pathExists(localPath)
 }
+import { extractFromUrl } from '@renderer/plugins/site-utils/utils.js'
+
+const siteView = {
+  url: 'https://x.com/',
+  updateStatus(currentUrl) {
+    const author = extractFromUrl(currentUrl, 'x.com')
+    let downloadType = null
+    let canDownload = true
+    if (currentUrl.includes('status')) {
+      downloadType = 'video'
+    } else if (author !== 'home') {
+      downloadType = 'media'
+    } else {
+      canDownload = false
+    }
+    return { canDownload, canAttention: author !== 'home', extra: { downloadType } }
+  },
+  async download({ extra, getCurrentUrl, tip }) {
+    const author = extractFromUrl(getCurrentUrl(), 'x.com')
+    if (!author) throw new Error('无法从当前URL解析 screen_name')
+    const userId = await twitter.getUserIdByName(author)
+    if (!userId) throw new Error('未获取到用户ID')
+    if (extra.downloadType === 'media') {
+      await downloadAllMedia(author, userId)
+    } else if (extra.downloadType === 'video') {
+      const twitterId = extractFromUrl(getCurrentUrl(), 'status')
+      await downloadVideo(author, twitterId)
+    }
+  },
+  async addSpecialAttention({ getCurrentUrl, tip }) {
+    const author = extractFromUrl(getCurrentUrl(), 'x.com')
+    const userId = await twitter.getUserIdByName(author)
+    await window.specialAttention.add({
+      source: 'twitter',
+      authorId: userId,
+      authorName: author
+    })
+    tip.success('已添加到特别关注')
+  }
+}
+
 export default {
+  siteView,
   downloadArtwork,
   downloadAllMedia,
   downloadVideo,

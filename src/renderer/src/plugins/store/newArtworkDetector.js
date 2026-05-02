@@ -1,8 +1,5 @@
 import { defineStore } from 'pinia'
-import PixivUtil from '@renderer/views/special-attention/pixiv.js'
-import JmttUtil from '@renderer/views/special-attention/jmtt.js'
-import TwitterUtil from '@renderer/views/special-attention/twitter.js'
-
+import siteUtils from '@renderer/plugins/site-utils/index.js'
 export const useNewArtworkDetectorStore = defineStore('newArtworkDetector', {
   state: () => ({
     isDetecting: false,
@@ -51,16 +48,11 @@ export const useNewArtworkDetectorStore = defineStore('newArtworkDetector', {
 
         for (const author of authors) {
           try {
-            let hasNew = false
-
-            // 根据来源调用相应的检测方法
-            if (author.source === 'pixiv') {
-              hasNew = await PixivUtil.hasNewArtwork(author.authorName, author.authorId)
-            } else if (author.source === 'jmtt') {
-              hasNew = await JmttUtil.hasNewArtwork(author.authorName, author.authorId)
-            } else if (author.source === 'twitter') {
-              hasNew = await TwitterUtil.hasNewArtwork(author.authorName, author.authorId)
-            }
+            let hasNew = await siteUtils.hasNewArtwork(
+              author.source,
+              author.authorName,
+              author.authorId
+            )
 
             if (hasNew) {
               newWorksCount++

@@ -57,10 +57,7 @@
 </template>
 
 <script setup>
-import PixivUtil from './pixiv.js'
-import TwitterUtil from './twitter.js'
-import JmttUtil from './jmtt.js'
-import WeiboUtil from './weibo.js'
+import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { CloseOutline } from '@vicons/ionicons5'
 import { SlideMultiple24Regular } from '@vicons/fluent'
 // Define props
@@ -126,15 +123,7 @@ const loadImage = async (index) => {
 // 占位方法：下载URL并通过blob转换成内存URL
 const downloadAndConvertToBlob = async (url) => {
   try {
-    if (props.dialog.data.source === 'pixiv') {
-      return await PixivUtil.previewImage(url)
-    } else if (props.dialog.data.source === 'twitter') {
-      return await TwitterUtil.previewImage(url)
-    } else if (props.dialog.data.source === 'jmtt') {
-      return await JmttUtil.previewImage(url)
-    } else if (props.dialog.data.source === 'weibo') {
-      return await WeiboUtil.previewImage(url)
-    }
+    return await siteUtils.previewImage(props.dialog.data.source, url)
   } catch (error) {
     console.error('Failed to download image:', error)
     return null

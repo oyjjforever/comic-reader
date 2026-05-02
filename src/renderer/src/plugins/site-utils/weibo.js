@@ -161,7 +161,71 @@ function isLocalDownloaded(authorName, workName) {
   const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
   return file.pathExists(localPath)
 }
+import { extractFromUrl } from '@renderer/plugins/site-utils/utils.js'
+
+const siteView = {
+  url: 'https://weibo.com/',
+  updateStatus(currentUrl) {
+    const authorIdBySearch = extractFromUrl(currentUrl, 'weibo.com')
+    const authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl(currentUrl, 'u')
+      : authorIdBySearch.split('?')[0]
+    const authorName = extractFromUrl(currentUrl, 'n')
+    const canDownload = !!authorId || !!authorName
+    const canAttention = !!authorId || !!authorName
+    return { canDownload, canAttention, extra: { authorIdBySearch } }
+  },
+  async download({ getCurrentUrl, tip }) {
+    const authorIdBySearch = extractFromUrl(getCurrentUrl(), 'weibo.com')
+    let authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl(getCurrentUrl(), 'u')
+      : authorIdBySearch.split('?')[0]
+    let authorName = extractFromUrl(getCurrentUrl(), 'n')
+    if (authorId && !authorName) authorName = await weibo.getAuthorNameById(authorId)
+    if (authorName && !authorId) authorId = await weibo.getAuthorIdByName(authorName)
+    await downloadAllMedia(authorName, authorId)
+  },
+  async addSpecialAttention({ getCurrentUrl, tip }) {
+    const authorIdBySearch = extractFromUrl(getCurrentUrl(), 'weibo.com')
+    let authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl(getCurrentUrl(), 'u')
+      : authorIdBySearch.split('?')[0]
+    let authorName = extractFromUrl(getCurrentUrl(), 'n')
+    if (authorId && !authorName) authorName = await weibo.getAuthorNameById(authorId)
+    if (authorName && !authorId) authorId = await weibo.getAuthorIdByName(authorName)
+    await window.specialAttention.add({
+      source: 'weibo',
+      authorId,
+      authorName
+    })
+    tip.success('已添加到特别关注')
+  },
+  onMounted(webview) {
+    webview.addEventListener('dom-ready', () => {
+      webview.executeJavaScript(`
+    // 重写window.open
+    const originalOpen = window.open;
+    window.open = function(url, target, features) {
+      // 在当前窗口打开
+      window.location.href = url;
+      return null;
+    };
+    
+    // 拦截所有链接点击
+    document.addEventListener('click', function(e) {
+      const link = e.target.closest('a');
+      if (link && link.target === '_blank') {
+        e.preventDefault();
+        window.location.href = link.href;
+      }
+    });
+  `)
+    })
+  }
+}
+
 export default {
+  siteView,
   downloadArtwork,
   downloadAllMedia,
   pagingImage,

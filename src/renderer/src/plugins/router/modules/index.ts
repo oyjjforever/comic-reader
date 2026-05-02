@@ -50,54 +50,14 @@ export default [
                 name: "site",
                 children: [
                     {
-                        path: 'jmtt',
-                        name: "jmtt",
-                        component: () => import('@renderer/views/site/jmtt.vue'),
+                        path: ':site',
+                        name: "site-view",
+                        component: () => import('@renderer/views/site/index.vue'),
                         meta: {
-                            title: "jmtt",
                             keepAlive: true
                         }
-                    }, {
-                        path: 'pixiv',
-                        name: "pixiv",
-                        component: () => import('@renderer/views/site/pixiv.vue'),
-                        meta: {
-                            title: "pixiv",
-                            keepAlive: true
-                        }
-                    }, {
-                        path: 'twitter',
-                        name: "twitter",
-                        component: () => import('@renderer/views/site/twitter.vue'),
-                        meta: {
-                            title: "twitter",
-                            keepAlive: true
-                        }
-                    }, {
-                        path: 'weibo',
-                        name: "weibo",
-                        component: () => import('@renderer/views/site/weibo.vue'),
-                        meta: {
-                            title: "weibo",
-                            keepAlive: true
-                        }
-                    }, {
-                        path: 'pornhub',
-                        name: "pornhub",
-                        component: () => import('@renderer/views/site/pornhub.vue'),
-                        meta: {
-                            title: "pornhub",
-                            keepAlive: true
-                        }
-                    }, {
-                        path: 'picaman',
-                        name: "picaman",
-                        component: () => import('@renderer/views/site/picaman.vue'),
-                        meta: {
-                            title: "picaman",
-                            keepAlive: true
-                        }
-                    }]
+                    }
+                ]
             }
         ],
     },
