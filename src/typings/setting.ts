@@ -4,10 +4,14 @@ export type setting = {
     theme: 'auto' | 'light' | 'dark'
     // 书籍/文件排序
     bookSort: 'id ASC' | 'id DESC' | 'updated_at ASC' | 'updated_at DESC'
-    // 资源路径
-    resourcePath: string
-    // 电影资源路径
-    videoResourcePath: string
+    // 资源路径（旧字段，保留用于迁移）
+    resourcePath?: string
+    // 电影资源路径（旧字段，保留用于迁移）
+    videoResourcePath?: string
+    // 多个漫画书资源路径
+    resourcePaths: string[]
+    // 多个电影资源路径
+    videoResourcePaths: string[]
     // 默认下载路径（可选）
     defaultDownloadPath?: string
     // 站点专属下载路径（可选）

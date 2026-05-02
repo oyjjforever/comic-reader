@@ -2,7 +2,7 @@
   <div class="book-container">
     <resource-browser
       ref="resourceBrowserRef"
-      :resource-path="resourcePath"
+      :resource-paths="resourcePaths"
       :provide-tree="provideBookTree"
       :provide-favorites="provideBookFavorites"
       namespace="book"
@@ -42,7 +42,7 @@ import { useSettingStore } from '@renderer/plugins/store'
 const message = useMessage()
 const settingStore = useSettingStore()
 
-const resourcePath = computed(() => settingStore.setting.resourcePath)
+const resourcePaths = computed(() => settingStore.setting.resourcePaths || [])
 
 // 阅读器覆盖层状态
 const isReading = ref(false)

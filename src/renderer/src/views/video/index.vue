@@ -2,7 +2,7 @@
   <div class="video-container">
     <resource-browser
       ref="resourceBrowserRef"
-      :resource-path="videoResourcePath"
+      :resource-paths="videoResourcePaths"
       :provide-tree="provideVideoTree"
       :provide-list="provideVideoList"
       :provide-favorites="provideVideoFavorites"
@@ -43,7 +43,7 @@ import { useSettingStore } from '@renderer/plugins/store'
 const message = useMessage()
 const settingStore = useSettingStore()
 
-const videoResourcePath = computed(() => settingStore.setting.videoResourcePath)
+const videoResourcePaths = computed(() => settingStore.setting.videoResourcePaths || [])
 
 // 阅读器覆盖层状态
 const isReading = ref(false)

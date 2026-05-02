@@ -4,8 +4,10 @@ import { defineStore } from 'pinia'
 export const defaultSetting = {
   theme: 'light',
   bookSort: 'id DESC',
-  resourcePath: '',
-  videoResourcePath: '',
+  resourcePath: '', // 旧字段，保留用于迁移
+  videoResourcePath: '', // 旧字段，保留用于迁移
+  resourcePaths: [], // 多个漫画书资源路径
+  videoResourcePaths: [], // 多个电影资源路径
   defaultDownloadPath: '',
   enableAuthorUpdateCheck: false,
   enableClipboardMonitor: false, // 默认关闭剪切板监听
@@ -48,6 +50,20 @@ export const useSettingStore = defineStore('setting', {
           if (settingData[key] == undefined) {
             settingData[key] = defaultSetting[key]
           }
+        }
+
+        // 迁移旧的单路径字段到新的数组字段
+        if (
+          (!settingData.resourcePaths || settingData.resourcePaths.length === 0) &&
+          settingData.resourcePath
+        ) {
+          settingData.resourcePaths = [settingData.resourcePath]
+        }
+        if (
+          (!settingData.videoResourcePaths || settingData.videoResourcePaths.length === 0) &&
+          settingData.videoResourcePath
+        ) {
+          settingData.videoResourcePaths = [settingData.videoResourcePath]
         }
 
         // 将设置保存到store

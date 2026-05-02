@@ -79,7 +79,7 @@
       </div>
     </header>
 
-    <main class="main-content" v-if="resourcePath">
+    <main class="main-content" v-if="resourcePaths && resourcePaths.length > 0">
       <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
         <div class="sidebar-content">
           <!-- 文件夹树视图 -->
@@ -92,8 +92,9 @@
             label-field="name"
             block-line
             class="folder-tree"
-            :default-expanded-keys="[props.resourcePath]"
+            :default-expanded-keys="resourcePaths"
             :render-label="renderTreeNode"
+            :indent="20"
           />
 
           <!-- 标签树视图 -->
@@ -241,7 +242,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@renderer/plugins/store'
 
 interface ResourceBrowserProps {
-  resourcePath: string | null
+  resourcePaths: string[]
   // 数据提供者
   provideTree: (rootPath: string) => Promise<any[]>
   provideList?: (folderPath: string) => Promise<FolderInfo[]>
@@ -326,13 +327,15 @@ const isSidebarHidden = computed(() => {
 })
 
 const refreshFolderData = () => {
-  if (props.resourcePath) {
+  if (props.resourcePaths && props.resourcePaths.length > 0) {
     fetchTreeData()
     if (tree.currentKey) {
       fetchGridData(tree.currentKey)
     } else {
-      fetchGridData(props.resourcePath)
-      tree.currentKey = props.resourcePath
+      // 默认加载第一个路径的内容
+      const firstPath = props.resourcePaths[0]
+      fetchGridData(firstPath)
+      tree.currentKey = firstPath
     }
   }
 }
@@ -388,7 +391,7 @@ const query = async (keyword?: string) => {
 }
 const debounceQuery = debounce(query, 300)
 const refresh = async () => {
-  if (!props.resourcePath) return
+  if (!props.resourcePaths || props.resourcePaths.length === 0) return
   isLoading.value = true
   // 重置网格准备状态
   isGridReady.value = false
@@ -486,12 +489,24 @@ const nodeProps = ({ option }: { option: any }) => {
 
 // 渲染树节点
 const renderTreeNode = ({ option }: { option: any }) => {
-  return h('div', { class: 'tree-node-content' }, [
-    option.isBookmarked
-      ? h(NIcon, { component: BookmarkIcon, class: 'bookmark-icon', size: 16 })
-      : null,
-    h('span', { class: 'tree-node-label' }, option.name)
-  ])
+  const isRoot = option.isRoot
+  return h(
+    'div',
+    {
+      class: {
+        'tree-node-content': true,
+        'root-tree-node': isRoot
+      }
+    },
+    [
+      isRoot
+        ? h(NIcon, { component: FolderIcon, class: 'root-folder-icon', size: 16 })
+        : option.isBookmarked
+          ? h(NIcon, { component: BookmarkIcon, class: 'bookmark-icon', size: 16 })
+          : null,
+      h('span', { class: ['tree-node-label', isRoot ? 'root-node-label' : ''] }, option.name)
+    ]
+  )
 }
 // 懒加载处理
 const handleTreeLoad = (node: any) => {
@@ -912,23 +927,45 @@ const handleScroll = (event: Event) => {
   }
 }
 
-// 加载树
+// 加载树（支持多个根路径）
 const fetchTreeData = async () => {
-  if (!props.resourcePath) return
+  if (!props.resourcePaths || props.resourcePaths.length === 0) return
   try {
-    const treeData = await props.provideTree(props.resourcePath)
-
-    // 检查每个顶层节点是否已被收藏
-    for (const node of treeData) {
+    const rootNodes = []
+    for (const path of props.resourcePaths) {
+      if (!path) continue
       try {
-        node.isBookmarked = await window.tag.isFolderTagged(node.fullPath, props.namespace)
-      } catch (error) {
-        console.warn(`Failed to check bookmark status for ${node.fullPath}:`, error)
-        node.isBookmarked = false
+        const treeData = await props.provideTree(path)
+
+        // 检查每个顶层节点是否已被收藏
+        for (const node of treeData) {
+          try {
+            node.isBookmarked = await window.tag.isFolderTagged(node.fullPath, props.namespace)
+          } catch (error) {
+            console.warn(`Failed to check bookmark status for ${node.fullPath}:`, error)
+            node.isBookmarked = false
+          }
+        }
+
+        rootNodes.push({
+          name: path,
+          fullPath: path,
+          isRoot: true,
+          children: treeData
+        })
+      } catch (error: any) {
+        console.warn(`Failed to load tree for path ${path}:`, error)
+        // 即使某个路径加载失败，仍然添加根节点（无子节点）
+        rootNodes.push({
+          name: path,
+          fullPath: path,
+          isRoot: true,
+          children: []
+        })
       }
     }
 
-    tree.data = [{ name: '资源目录', fullPath: props.resourcePath, children: treeData }]
+    tree.data = rootNodes
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
   }
@@ -1493,6 +1530,25 @@ defineExpose({
     gap: 4px;
   }
 
+  /* 根节点样式 */
+  .root-tree-node {
+    font-weight: 600;
+    font-size: 13px;
+    color: #1f2937;
+    padding: 4px 0;
+
+    .root-folder-icon {
+      color: #6b7280;
+      flex-shrink: 0;
+    }
+
+    .root-node-label {
+      font-size: 12px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+  }
+
   .bookmark-icon {
     color: #f59e0b;
     flex-shrink: 0;
@@ -1503,6 +1559,20 @@ defineExpose({
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* 根节点之间的分隔线 */
+  .folder-tree {
+    .n-tree-node--root {
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 4px;
+      margin-bottom: 4px;
+
+      &:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+    }
   }
 
   /* 标签项样式 */
