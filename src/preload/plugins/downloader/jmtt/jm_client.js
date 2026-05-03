@@ -3,8 +3,15 @@ import axios from 'axios'
 import crypto from 'crypto'
 import fsp from 'fs/promises'
 import fs from 'fs'
-import sharp from 'sharp'
 import path from 'path'
+
+// sharp: 生产环境中位于 resources/node_modules/sharp（asar 外部），开发环境直接从 node_modules 加载
+let sharp
+try {
+  sharp = require('sharp')
+} catch {
+  sharp = require(path.join(process.resourcesPath, 'node_modules', 'sharp'))
+}
 const IMAGE_DOMAIN = 'cdn-msp2.jmapiproxy2.cc'
 let API_DOMAIN = 'www.cdnhth.cc'
 const API_DOMAIN_POOL = [

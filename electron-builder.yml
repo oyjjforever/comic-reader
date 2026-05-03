@@ -6,10 +6,67 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!docs/*'
+  - '!plans/*'
+  - '!python_scripts/*'
+  - '!scripts/*'
+  # 排除 resources 中的大文件目录（icon.png 仍需保留在 asar 中用于托盘图标）
+  - '!resources/llm-module/**'
+  - '!resources/python_scripts/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!response.json'
+  - '!data/**'
+  # 排除 @electron/llm 和 node-llama-cpp（改为内置 ZIP 按需解压）
+  - '!**/node_modules/@electron/llm/**'
+  - '!**/node_modules/@node-llama-cpp/**'
+  - '!**/node_modules/node-llama-cpp/**'
+  # 排除仅渲染进程使用的包（已被 Vite 打包到 renderer 中）
+  - '!**/node_modules/@vicons/**'
+  - '!**/node_modules/naive-ui/**'
+  - '!**/node_modules/vue-router/**'
+  - '!**/node_modules/pinia/**'
+  - '!**/node_modules/vue-pdf-embed/**'
+  - '!**/node_modules/pdfjs-dist/**'
+  - '!**/node_modules/epubjs/**'
+  - '!**/node_modules/lodash/**'
+  - '!**/node_modules/@imengyu/**'
+  # 排除构建工具（仅开发时使用）
+  - '!**/node_modules/sass/**'
+  - '!**/node_modules/tailwindcss/**'
+  - '!**/node_modules/postcss/**'
+  - '!**/node_modules/autoprefixer/**'
+  # 排除未使用的包
+  - '!**/node_modules/canvas/**'
+  # 排除构建缓存和临时文件
+  - '!**/node_modules/.vite/**'
+  - '!**/node_modules/.cache/**'
+  - '!**/node_modules/.better-sqlite*/**'
+  # 排除大型传递依赖（naive-ui 子依赖，已随 naive-ui 排除）
+  - '!**/node_modules/date-fns/**'
+  - '!**/node_modules/@css-render/**'
+  - '!**/node_modules/evtd/**'
+  - '!**/node_modules/treemate/**'
+  - '!**/node_modules/vooks/**'
+  - '!**/node_modules/vdirs/**'
+  - '!**/node_modules/xicons/**'
+  # sqlite3: 排除构建产物和源码，仅保留运行时必需文件
+  - '!**/node_modules/sqlite3/deps/**'
+  - '!**/node_modules/sqlite3/src/**'
+  - '!**/node_modules/sqlite3/node_modules/**'
+  - '!**/node_modules/sqlite3/node-addon-api/**'
+  - '!**/node_modules/sqlite3/build/deps/**'
+  - '!**/node_modules/sqlite3/build/Release/obj/**'
+  - '!**/node_modules/sqlite3/build/Release/*.exp'
+  - '!**/node_modules/sqlite3/build/Release/*.iobj'
+  - '!**/node_modules/sqlite3/build/Release/*.ipdb'
+  - '!**/node_modules/sqlite3/build/Release/*.lib'
+  - '!**/node_modules/sqlite3/build/*.vcxproj*'
+  # sharp + @img: 移出 asar，通过 extraResources 放到 resources/node_modules/
+  # 避免原生 DLL 在 asar 中占用空间（asarUnpack 不会创建空洞）
+  - '!**/node_modules/sharp/**'
+  - '!**/node_modules/@img/**'
 extraResources:
   - from: python_scripts
     to: python_scripts
@@ -20,8 +77,28 @@ extraResources:
   - from: resources/ffmpeg
     to: ffmpeg
     filter: ['**/*']
-asarUnpack:
-  - resources/**
+  - from: resources/llm-module
+    to: llm-module
+    filter: ['**/*.zip']
+  # sharp: 仅包含运行时必需文件（排除 C++ 头文件和安装脚本）
+  - from: node_modules/sharp
+    to: node_modules/sharp
+    filter:
+      - '**/*'
+      - '!src/**'
+      - '!install/**'
+  # @img/sharp-win32-x64: 原生二进制（libvips DLL + .node）
+  - from: node_modules/@img/sharp-win32-x64
+    to: node_modules/@img/sharp-win32-x64
+    filter: ['**/*']
+  # @img/colour: sharp 的颜色空间转换依赖（小型 JS 包）
+  - from: node_modules/@img/colour
+    to: node_modules/@img/colour
+    filter: ['**/*']
+  # detect-libc: sharp 的平台检测依赖（小型 JS 包，~26KB）
+  - from: node_modules/detect-libc
+    to: node_modules/detect-libc
+    filter: ['**/*']
 win:
   executableName: comic-reader
 nsis:

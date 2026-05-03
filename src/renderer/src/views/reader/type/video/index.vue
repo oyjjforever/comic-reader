@@ -24,20 +24,112 @@
       :realtime-text="realtimeText"
       :is-generating="isSubtitleGenerating"
       :generate-percent="generatePercent"
+      :translated-map="translatedMap"
     />
 
-    <!-- 字幕控制面板 -->
-    <subtitle-controls
-      ref="subtitleControlsRef"
-      :show-controls="showControls"
-      :video-path="video.fullPath"
-      :is-generating="isSubtitleGenerating"
-      :generate-percent="generatePercent"
-      :has-cache="hasSubtitleCache"
-      @toggle="onSubtitleToggle"
-      @generate="onGenerateSubtitle"
-      @update-settings="onSubtitleSettingsUpdate"
-    />
+    <!-- 字幕控制按钮 -->
+    <div
+      class="subtitle-controls"
+      :class="{ 'controls-hidden': !showControls }"
+      @mouseenter="onControlsEnter"
+      @mouseleave="onControlsLeave"
+    >
+      <n-space align="center">
+        <!-- 字幕开关（合并生成功能） -->
+        <n-button
+          :type="subtitleButtonType"
+          size="small"
+          :disabled="isSubtitleGenerating"
+          @click="onSubtitleClick"
+        >
+          <template #icon>
+            <n-icon :component="SubtitleIcon" />
+          </template>
+          <template v-if="isSubtitleGenerating">
+            <span class="btn-progress">{{ generatePercent }}%</span>
+          </template>
+          <template v-else>
+            {{ subtitleEnabled ? '字幕开' : '字幕关' }}
+          </template>
+        </n-button>
+
+        <!-- 翻译开关 -->
+        <n-button
+          v-if="subtitleEnabled && hasSubtitleCache"
+          :type="translateEnabled ? 'success' : 'error'"
+          size="small"
+          @click="toggleTranslate"
+        >
+          <template #icon>
+            <n-icon :component="TranslateIcon" />
+          </template>
+          {{ translateEnabled ? '翻译开' : '翻译关' }}
+        </n-button>
+
+        <!-- 设置按钮 -->
+        <n-popover trigger="hover" placement="top">
+          <template #trigger>
+            <n-button size="small" type="info" quaternary>
+              <template #icon>
+                <n-icon :component="SettingsIcon" />
+              </template>
+            </n-button>
+          </template>
+
+          <div class="subtitle-settings">
+            <div class="setting-item">
+              <label>语言</label>
+              <n-select
+                v-model:value="subtitleSettings.language"
+                :options="languageOptions"
+                size="small"
+                style="width: 120px"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label>字体大小</label>
+              <n-slider
+                v-model:value="subtitleSettings.fontSize"
+                :min="14"
+                :max="48"
+                :step="2"
+                style="width: 120px"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label>位置</label>
+              <n-radio-group v-model:value="subtitleSettings.position" size="small">
+                <n-radio-button value="bottom">底部</n-radio-button>
+                <n-radio-button value="top">顶部</n-radio-button>
+              </n-radio-group>
+            </div>
+
+            <div class="setting-item">
+              <label>透明度</label>
+              <n-slider
+                v-model:value="subtitleSettings.opacity"
+                :min="0.3"
+                :max="1"
+                :step="0.1"
+                style="width: 120px"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label>翻译目标</label>
+              <n-select
+                v-model:value="subtitleSettings.translateTarget"
+                :options="translateTargetOptions"
+                size="small"
+                style="width: 120px"
+              />
+            </div>
+          </div>
+        </n-popover>
+      </n-space>
+    </div>
 
     <!-- 时间点收藏按钮 -->
     <div
@@ -153,12 +245,24 @@
 </template>
 
 <script setup lang="ts">
-import { Bookmark as BookmarkIcon, Create as EditIcon, Trash as TrashIcon } from '@vicons/ionicons5'
+import {
+  Bookmark as BookmarkIcon,
+  Create as EditIcon,
+  Trash as TrashIcon,
+  Text as SubtitleIcon,
+  Settings as SettingsIcon,
+  Language as TranslateIcon
+} from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
-import type { SubtitleSegment, SubtitleLanguage, SubtitlePosition } from '@/typings/subtitle'
+import type {
+  SubtitleSegment,
+  SubtitleLanguage,
+  SubtitlePosition,
+  TranslateTarget
+} from '@/typings/subtitle'
+import { TRANSLATE_TARGET_OPTIONS } from '@/typings/subtitle'
 import dlnaCast from './dlna-cast.vue'
 import subtitleOverlay from './subtitle-overlay.vue'
-import subtitleControls from './subtitle-controls.vue'
 
 const message = useMessage()
 const router = useRouter()
@@ -187,7 +291,6 @@ const currentTime = ref(0)
 const duration = ref(0)
 
 // ========== 字幕相关状态 ==========
-const subtitleControlsRef = ref()
 const subtitleEnabled = ref(false)
 const isSubtitleGenerating = ref(false)
 const generatePercent = ref(0)
@@ -198,8 +301,40 @@ const subtitleSettings = ref({
   language: 'ja' as SubtitleLanguage,
   fontSize: 24,
   position: 'bottom' as SubtitlePosition,
-  opacity: 0.8
+  opacity: 0.8,
+  translateTarget: 'zh' as TranslateTarget,
+  translateModelAlias: 'HY-MT1.5-1.8B-Q4_K_M'
 })
+
+// ========== 字幕 UI 配置 ==========
+const languageOptions = [
+  { label: '自动检测', value: 'auto' },
+  { label: '日本語', value: 'ja' },
+  { label: '中文', value: 'zh' },
+  { label: 'English', value: 'en' },
+  { label: '한국어', value: 'ko' }
+]
+const translateTargetOptions = TRANSLATE_TARGET_OPTIONS
+
+// 字幕按钮样式：生成中为 info，已开启为 success，否则为 default
+const subtitleButtonType = computed(() => {
+  if (isSubtitleGenerating.value) return 'error'
+  return subtitleEnabled.value ? 'success' : 'error'
+})
+
+// ========== 翻译相关状态 ==========
+/** 已翻译的段落映射：segmentId → 翻译文本 */
+const translatedMap = ref<Record<number, string>>({})
+/** 翻译功能是否开启 */
+const translateEnabled = ref(false)
+/** 正在翻译中的段落 ID 集合（避免重复请求） */
+const translatingIds = new Set<number>()
+/** 预翻译的提前时间（秒） */
+const TRANSLATE_LOOKAHEAD = 2
+/** 本地 LLM 模型是否已加载 */
+const isModelLoaded = ref(false)
+/** 本地 LLM 模型是否正在加载 */
+const isModelLoading = ref(false)
 
 // 收藏相关数据
 const bookmarks = ref<VideoBookmark[]>([])
@@ -224,9 +359,18 @@ const isHoveringControls = ref(false)
 
 // ========== 字幕功能方法 ==========
 
-// 字幕开关切换
-const onSubtitleToggle = (enabled: boolean) => {
-  subtitleEnabled.value = enabled
+// 统一字幕点击：无缓存时自动生成，有缓存时切换
+const onSubtitleClick = () => {
+  if (isSubtitleGenerating.value) return
+
+  if (!hasSubtitleCache.value) {
+    // 无缓存：触发生成，同时标记为开启
+    subtitleEnabled.value = true
+    onGenerateSubtitle()
+  } else {
+    // 有缓存：切换字幕开关
+    subtitleEnabled.value = !subtitleEnabled.value
+  }
 }
 
 // 生成字幕
@@ -264,14 +408,125 @@ const onGenerateSubtitle = async () => {
   }
 }
 
-// 字幕设置更新
-const onSubtitleSettingsUpdate = (settings: {
-  language: SubtitleLanguage
-  fontSize: number
-  position: SubtitlePosition
-  opacity: number
-}) => {
-  subtitleSettings.value = { ...subtitleSettings.value, ...settings }
+// 切换翻译（合并原 onTranslateToggle）
+const toggleTranslate = async () => {
+  translateEnabled.value = !translateEnabled.value
+  if (translateEnabled.value) {
+    // 开启翻译时加载本地 LLM 模型
+    await loadTranslateModel()
+  } else {
+    // 关闭翻译时卸载模型并清空数据
+    translatedMap.value = {}
+    translatingIds.clear()
+    await unloadTranslateModel()
+  }
+}
+
+/**
+ * 加载本地翻译模型
+ */
+const loadTranslateModel = async () => {
+  if (isModelLoaded.value || isModelLoading.value) return
+  if (!window.electronAi) {
+    console.warn('[Subtitle] window.electronAi 不可用，翻译功能无法使用')
+    return
+  }
+
+  try {
+    isModelLoading.value = true
+    const modelAlias = subtitleSettings.value.translateModelAlias || 'HY-MT1.5-1.8B-Q4_K_M'
+    const targetLang = subtitleSettings.value.translateTarget || 'zh'
+
+    const targetLangName: Record<string, string> = {
+      zh: 'Chinese',
+      en: 'English',
+      ja: 'Japanese',
+      ko: 'Korean',
+      fr: 'French',
+      de: 'German',
+      es: 'Spanish',
+      ru: 'Russian',
+      pt: 'Portuguese',
+      it: 'Italian'
+    }
+    const langName = targetLangName[targetLang] || 'Chinese'
+
+    await window.electronAi.create({
+      modelAlias,
+      systemPrompt: `You are a professional translator. Translate the following text to ${langName}. Output only the translation.`,
+      temperature: 0.3
+    })
+    isModelLoaded.value = true
+    console.log('[Subtitle] 翻译模型加载成功')
+  } catch (err: any) {
+    console.error('[Subtitle] 翻译模型加载失败:', err?.message)
+    message?.error?.(`翻译模型加载失败: ${err?.message || '未知错误'}`)
+    translateEnabled.value = false
+  } finally {
+    isModelLoading.value = false
+  }
+}
+
+/**
+ * 卸载翻译模型
+ */
+const unloadTranslateModel = async () => {
+  if (!isModelLoaded.value || !window.electronAi) return
+  try {
+    await window.electronAi.destroy()
+    isModelLoaded.value = false
+    console.log('[Subtitle] 翻译模型已卸载')
+  } catch (err: any) {
+    console.warn('[Subtitle] 翻译模型卸载失败:', err?.message)
+  }
+}
+
+/**
+ * 翻译即将播放的字幕段落
+ * 只翻译当前时间到未来5秒内、且尚未翻译的段落
+ */
+const translateUpcomingSegments = async () => {
+  if (!translateEnabled.value || !isModelLoaded.value) return
+  if (subtitleSegments.value.length === 0) return
+
+  const time = currentTime.value
+  const lookahead = time + TRANSLATE_LOOKAHEAD
+
+  // 找出在未来5秒内开始、且尚未翻译、且不在翻译中的段落
+  const upcomingSegments = subtitleSegments.value.filter(
+    (seg) =>
+      seg.startTime >= time &&
+      seg.startTime <= lookahead &&
+      !translatedMap.value[seg.id] &&
+      !translatingIds.has(seg.id)
+  )
+
+  for (const seg of upcomingSegments) {
+    translatingIds.add(seg.id)
+    // 异步翻译，不阻塞其他段落的检测
+    translateSingleSegment(seg)
+  }
+}
+
+/**
+ * 翻译单个字幕段落（使用本地 LLM）
+ */
+const translateSingleSegment = async (seg: SubtitleSegment) => {
+  if (!isModelLoaded.value || !window.electronAi) return
+
+  try {
+    const translated = await window.electronAi.prompt(seg.text, { timeout: 30000 })
+    // 检查翻译是否仍然启用（用户可能在请求期间关闭了翻译）
+    if (translated && translateEnabled.value) {
+      // 清理 LLM 可能输出的多余内容（引号、解释等）
+      const cleaned = translated.trim().replace(/^["「」『』]|["「」『』]$/g, '')
+      translatedMap.value = { ...translatedMap.value, [seg.id]: cleaned }
+    }
+  } catch (err: any) {
+    console.warn(`[Subtitle] 段落 ${seg.id} 翻译失败:`, err?.message)
+  } finally {
+    translatingIds.delete(seg.id)
+  }
 }
 
 // 加载字幕缓存
@@ -286,6 +541,29 @@ const loadSubtitleCache = async () => {
     }
   } catch (error: any) {
     console.error('加载字幕缓存失败:', error)
+  }
+}
+
+// 加载字幕设置
+const loadSubtitleSettings = async () => {
+  try {
+    const settings = await window.subtitle.getSettings()
+    if (settings) {
+      subtitleSettings.value = {
+        ...subtitleSettings.value,
+        ...settings
+      }
+    }
+  } catch (error: any) {
+    console.error('加载字幕设置失败:', error)
+  }
+}
+
+// 自动开始翻译（加载模型 + 开启标志，翻译会在 timeupdate 中自动触发）
+const autoStartTranslate = async () => {
+  if (subtitleSegments.value.length > 0 && subtitleSettings.value.translateEnabled) {
+    translateEnabled.value = true
+    await loadTranslateModel()
   }
 }
 
@@ -339,6 +617,8 @@ const onControlsLeave = () => {
 const onTimeUpdate = () => {
   if (videoRef.value) {
     currentTime.value = videoRef.value.currentTime
+    // 按需翻译即将播放的字幕
+    translateUpcomingSegments()
   }
 }
 
@@ -457,8 +737,19 @@ const fetchData = async () => {
     // 加载收藏列表
     await loadBookmarks()
 
+    // 加载字幕设置
+    await loadSubtitleSettings()
+
     // 加载字幕缓存
     await loadSubtitleCache()
+
+    // 如果有缓存，直接开启字幕显示和翻译
+    if (hasSubtitleCache.value && subtitleSegments.value.length > 0) {
+      subtitleEnabled.value = true
+      // 自动开始翻译
+      await autoStartTranslate()
+    }
+    // 没有缓存时默认关闭，用户可手动点击字幕按钮生成
   } catch (error: any) {
     message.error(error.message)
   }
@@ -469,11 +760,13 @@ onMounted(() => {
   fetchData()
 })
 
-// 组件卸载时清理定时器
-onUnmounted(() => {
+// 组件卸载时清理定时器和翻译模型
+onUnmounted(async () => {
   if (autoHideTimer.value) {
     clearTimeout(autoHideTimer.value)
   }
+  // 卸载翻译模型
+  await unloadTranslateModel()
 })
 </script>
 
@@ -492,6 +785,32 @@ onUnmounted(() => {
     height: 100%;
     width: 100%;
     background-color: #000;
+  }
+
+  // 字幕控制按钮
+  .subtitle-controls {
+    position: absolute;
+    top: 16px;
+    right: 200px;
+    z-index: 110;
+    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
+
+    &.controls-hidden {
+      opacity: 0;
+      transform: translateY(-100%);
+      pointer-events: none;
+    }
+
+    .btn-progress {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
   }
 
   // 收藏控制按钮
@@ -656,6 +975,26 @@ onUnmounted(() => {
   }
 }
 
+// 字幕设置弹出面板样式
+.subtitle-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px;
+
+  .setting-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    label {
+      min-width: 60px;
+      font-size: 13px;
+      color: #666;
+    }
+  }
+}
+
 // 响应式设计
 @media (max-width: 768px) {
   .video-player {
@@ -667,6 +1006,11 @@ onUnmounted(() => {
 
     .bookmark-controls {
       left: 10px;
+      top: 10px;
+    }
+
+    .subtitle-controls {
+      right: 10px;
       top: 10px;
     }
   }

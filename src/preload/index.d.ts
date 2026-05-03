@@ -11,7 +11,8 @@ import type {
   ModelInfo,
   SubtitleSettings,
   SubtitleSegment,
-  WhisperModelName
+  WhisperModelName,
+  TranslateTarget
 } from '@/typings/subtitle'
 
 declare global {
@@ -167,6 +168,82 @@ declare global {
         percent: number
         status: 'downloading' | 'extracting' | 'done'
       }) => void) => () => void
+      translate: (segments: SubtitleSegment[], from: string, to: string) => Promise<{
+        success: boolean
+        segments?: SubtitleSegment[]
+        error?: string
+      }>
+      translateSingle: (text: string, from: string, to: string) => Promise<{
+        success: boolean
+        translated?: string
+        error?: string
+      }>
+      clearTranslateCache: () => Promise<{ success: boolean }>
+      onTranslateProgress: (callback: (progress: {
+        current: number
+        total: number
+        percent: number
+      }) => void) => () => void
+      onTranslateSegment: (callback: (data: {
+        segment: SubtitleSegment
+        index: number
+      }) => void) => () => void
+      getTranslateModels: () => Promise<Array<{
+        alias: string
+        displayName: string
+        size: string
+        sizeBytes: number
+        downloadUrl: string
+        downloaded: boolean
+        path?: string
+      }>>
+      downloadTranslateModel: (modelAlias: string) => Promise<{ success: boolean; error?: string }>
+      deleteTranslateModel: (modelAlias: string) => Promise<{ success: boolean; error?: string }>
+      onTranslateModelDownloadProgress: (callback: (progress: {
+        modelAlias: string
+        percent: number
+        receivedBytes: number
+        totalBytes: number
+        status: 'downloading' | 'done'
+      }) => void) => () => void
+      // LLM 模块管理
+      getLlmModuleStatus: () => Promise<{
+        installed: boolean
+        version: string | null
+        installedAt: string | null
+        moduleDir: string
+        moduleSize: number
+        moduleSizeFormatted: string
+        bundledZipAvailable: boolean
+      }>
+      autoInstallLlmModule: () => Promise<{ success: boolean; error?: string }>
+      uninstallLlmModule: () => Promise<{ success: boolean; error?: string }>
+    }
+    /** @electron/llm 提供的本地 LLM API */
+    electronAi: {
+      create: (options: {
+        modelAlias: string
+        systemPrompt?: string
+        initialPrompts?: Array<{
+          role: 'system' | 'user' | 'assistant'
+          type: 'text' | 'image' | 'audio'
+          content: string | ArrayBuffer
+        }>
+        topK?: number
+        temperature?: number
+      }) => Promise<void>
+      destroy: () => Promise<void>
+      prompt: (input: string, options?: {
+        responseJSONSchema?: object
+        requestUUID?: string
+        timeout?: number
+      }) => Promise<string>
+      promptStreaming: (input: string, options?: {
+        responseJSONSchema?: object
+        requestUUID?: string
+        timeout?: number
+      }) => Promise<AsyncIterableIterator<string>>
+      abortRequest: (requestUUID: string) => void
     }
   }
 }

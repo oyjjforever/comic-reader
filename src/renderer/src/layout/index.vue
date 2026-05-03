@@ -803,7 +803,7 @@ $background-color: #322f3b;
   animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   animation-fill-mode: both;
 
-  @for $i from 1 through 6 {
+  @for $i from 1 through 10 {
     &:nth-child(#{$i}) {
       animation-delay: #{$i * 0.1}s;
     }

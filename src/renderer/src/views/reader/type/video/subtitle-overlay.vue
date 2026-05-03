@@ -9,12 +9,22 @@
   >
     <!-- 预生成字幕（带时间轴） -->
     <div v-if="currentSegment" class="subtitle-text" :key="currentSegment.id">
-      {{ currentSegment.text }}
+      <!-- 有翻译时只显示翻译文本，不显示原文 -->
+      <template v-if="translatedText">
+        {{ translatedText }}
+      </template>
+      <!-- 没有翻译时显示原文 -->
+      <template v-else>
+        {{ currentSegment.text }}
+      </template>
     </div>
 
     <!-- 实时字幕 -->
     <div v-else-if="realtimeText" class="subtitle-text realtime">
       {{ realtimeText }}
+      <div v-if="translatedRealtimeText" class="subtitle-translation">
+        {{ translatedRealtimeText }}
+      </div>
     </div>
 
     <!-- 生成进度提示 -->
@@ -48,6 +58,10 @@ const props = withDefaults(
     isGenerating?: boolean
     /** 生成进度百分比 */
     generatePercent?: number
+    /** 翻译映射表：segmentId → 翻译文本 */
+    translatedMap?: Record<number, string>
+    /** 翻译后的实时文本 */
+    translatedRealtimeText?: string
   }>(),
   {
     visible: true,
@@ -65,6 +79,12 @@ const currentSegment = computed(() => {
 
   const time = props.currentTime
   return props.segments.find((seg) => time >= seg.startTime && time <= seg.endTime) || null
+})
+
+// 根据当前段落的 id 从 translatedMap 中查找翻译文本
+const translatedText = computed(() => {
+  if (!props.translatedMap || !currentSegment.value) return null
+  return props.translatedMap[currentSegment.value.id] || null
 })
 </script>
 
@@ -105,6 +125,15 @@ const currentSegment = computed(() => {
 
     &.realtime {
       border-left: 3px solid #4caf50;
+    }
+
+    .subtitle-translation {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+      font-size: calc(var(--font-size) * 0.85);
+      color: rgba(255, 255, 255, 0.9);
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
     }
   }
 

@@ -89,6 +89,7 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .setting {
+  overflow: auto;
   padding: 20px;
   width: 100%;
   height: 100%;

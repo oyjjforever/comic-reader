@@ -38,7 +38,26 @@ import {
   downloadWhisper,
   downloadFfmpeg
 } from './services/binary-manager'
-import type { WhisperModelName, SubtitleLanguage, SubtitleSettings } from '../typings/subtitle'
+import {
+  translateText,
+  translateSegments,
+  clearTranslateCache
+} from './services/translate-service'
+import {
+  getAllTranslateModels,
+  downloadTranslateModel,
+  deleteTranslateModel,
+  getTranslateModelPath
+} from './services/translate-model-manager'
+import {
+  isLlmModuleInstalled,
+  getLlmModuleInfo,
+  autoInstallLlmModule,
+  loadLlmModule,
+  uninstallLlmModule,
+  getLlmModuleSize
+} from './services/llm-module-manager'
+import type { WhisperModelName, SubtitleLanguage, SubtitleSettings, TranslateTarget } from '../typings/subtitle'
 import { DEFAULT_SUBTITLE_SETTINGS } from '../typings/subtitle'
 /**
  * 目录存在性缓存，避免重复 IO 检查
@@ -203,6 +222,30 @@ app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // ========== 初始化 @electron/llm（本地 LLM 翻译，自动安装） ==========
+  try {
+    // 首次运行时自动从内置 ZIP 解压安装
+    const installResult = await autoInstallLlmModule()
+    if (!installResult.success) {
+      log.warn('[Main] @electron/llm 自动安装失败:', installResult.error)
+    }
+
+    // 加载模块
+    if (isLlmModuleInstalled()) {
+      const loaded = await loadLlmModule((modelAlias: string) => {
+        return getTranslateModelPath(modelAlias)
+      })
+      if (loaded) {
+        log.info('[Main] @electron/llm 加载成功')
+      } else {
+        log.warn('[Main] @electron/llm 加载失败')
+      }
+    }
+  } catch (err: any) {
+    log.warn('[Main] @electron/llm 初始化失败（翻译功能不可用）:', err?.message)
+  }
+
   createWindow()
   createTray()
   // 初始化自动更新
@@ -560,6 +603,98 @@ app.whenReady().then(async () => {
     } catch (err: any) {
       return { success: false, error: err.message }
     }
+  })
+
+  // IPC: 翻译字幕段落（批量）
+  ipcMain.handle('subtitle:translate', async (_event, segments: Array<{
+    id: number
+    startTime: number
+    endTime: number
+    text: string
+  }>, from: string, to: string) => {
+    try {
+      const translated = await translateSegments(segments, from, to, mainWindow)
+      return { success: true, segments: translated }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 翻译单条文本（按需翻译）
+  ipcMain.handle('subtitle:translate-single', async (_event, text: string, from: string, to: string) => {
+    try {
+      const translated = await translateText(text, from, to)
+      return { success: true, translated }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 清理翻译缓存
+  ipcMain.handle('subtitle:clear-translate-cache', async () => {
+    clearTranslateCache()
+    return { success: true }
+  })
+
+  // ========== 翻译模型管理 IPC ==========
+
+  // IPC: 获取所有翻译模型
+  ipcMain.handle('subtitle:get-translate-models', () => {
+    return getAllTranslateModels()
+  })
+
+  // IPC: 下载翻译模型
+  ipcMain.handle('subtitle:download-translate-model', async (_event, modelAlias: string) => {
+    try {
+      await downloadTranslateModel(modelAlias, mainWindow)
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 删除翻译模型
+  ipcMain.handle('subtitle:delete-translate-model', async (_event, modelAlias: string) => {
+    try {
+      deleteTranslateModel(modelAlias)
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // ========== LLM 模块管理 IPC ==========
+
+  // IPC: 检查 LLM 模块状态
+  ipcMain.handle('llm:check-status', () => {
+    const info = getLlmModuleInfo()
+    const moduleSize = info.installed ? getLlmModuleSize() : 0
+    return {
+      ...info,
+      moduleSize,
+      moduleSizeFormatted: formatBytes(moduleSize)
+    }
+  })
+
+  // IPC: 从内置 ZIP 自动安装 LLM 模块
+  ipcMain.handle('llm:auto-install', async () => {
+    try {
+      const result = await autoInstallLlmModule()
+      if (result.success) {
+        // 安装成功后自动加载模块
+        await loadLlmModule((modelAlias: string) => {
+          return getTranslateModelPath(modelAlias)
+        })
+      }
+      return result
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 卸载 LLM 模块
+  ipcMain.handle('llm:uninstall', () => {
+    return uninstallLlmModule()
   })
 
   // 解压文件函数
