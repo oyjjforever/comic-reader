@@ -13,6 +13,32 @@
       <source :src="`file://${video.fullPath}`" type="video/mp4" />
     </video>
 
+    <!-- 字幕叠加层 -->
+    <subtitle-overlay
+      :segments="subtitleSegments"
+      :current-time="currentTime"
+      :visible="subtitleEnabled"
+      :position="subtitleSettings.position"
+      :font-size="subtitleSettings.fontSize"
+      :opacity="subtitleSettings.opacity"
+      :realtime-text="realtimeText"
+      :is-generating="isSubtitleGenerating"
+      :generate-percent="generatePercent"
+    />
+
+    <!-- 字幕控制面板 -->
+    <subtitle-controls
+      ref="subtitleControlsRef"
+      :show-controls="showControls"
+      :video-path="video.fullPath"
+      :is-generating="isSubtitleGenerating"
+      :generate-percent="generatePercent"
+      :has-cache="hasSubtitleCache"
+      @toggle="onSubtitleToggle"
+      @generate="onGenerateSubtitle"
+      @update-settings="onSubtitleSettingsUpdate"
+    />
+
     <!-- 时间点收藏按钮 -->
     <div
       class="bookmark-controls"
@@ -129,7 +155,10 @@
 <script setup lang="ts">
 import { Bookmark as BookmarkIcon, Create as EditIcon, Trash as TrashIcon } from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
+import type { SubtitleSegment, SubtitleLanguage, SubtitlePosition } from '@/typings/subtitle'
 import dlnaCast from './dlna-cast.vue'
+import subtitleOverlay from './subtitle-overlay.vue'
+import subtitleControls from './subtitle-controls.vue'
 
 const message = useMessage()
 const router = useRouter()
@@ -157,6 +186,21 @@ const showCastModal = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 
+// ========== 字幕相关状态 ==========
+const subtitleControlsRef = ref()
+const subtitleEnabled = ref(false)
+const isSubtitleGenerating = ref(false)
+const generatePercent = ref(0)
+const hasSubtitleCache = ref(false)
+const subtitleSegments = ref<SubtitleSegment[]>([])
+const realtimeText = ref('')
+const subtitleSettings = ref({
+  language: 'ja' as SubtitleLanguage,
+  fontSize: 24,
+  position: 'bottom' as SubtitlePosition,
+  opacity: 0.8
+})
+
 // 收藏相关数据
 const bookmarks = ref<VideoBookmark[]>([])
 const editingBookmark = ref<VideoBookmark | null>(null)
@@ -177,6 +221,73 @@ function onCastPlayed() {
 const AUTO_HIDE_DELAY = 3000
 const autoHideTimer = ref<number | null>(null)
 const isHoveringControls = ref(false)
+
+// ========== 字幕功能方法 ==========
+
+// 字幕开关切换
+const onSubtitleToggle = (enabled: boolean) => {
+  subtitleEnabled.value = enabled
+}
+
+// 生成字幕
+const onGenerateSubtitle = async () => {
+  if (!video.value.fullPath) return
+
+  try {
+    isSubtitleGenerating.value = true
+    generatePercent.value = 0
+
+    // 注册进度监听
+    const removeListener = window.subtitle.onGenerateProgress((progress) => {
+      generatePercent.value = progress.percent
+    })
+
+    const vttPath = await window.subtitle.generate(video.value.fullPath, {
+      language: subtitleSettings.value.language,
+      model: 'small', // 使用默认模型
+      force: false
+    })
+
+    removeListener()
+
+    // 解析 VTT 文件
+    subtitleSegments.value = await window.subtitle.parseVtt(vttPath)
+    hasSubtitleCache.value = true
+    subtitleEnabled.value = true
+
+    message.success(`字幕生成完成，共 ${subtitleSegments.value.length} 个段落`)
+  } catch (error: any) {
+    message.error(`字幕生成失败: ${error.message}`)
+  } finally {
+    isSubtitleGenerating.value = false
+    generatePercent.value = 0
+  }
+}
+
+// 字幕设置更新
+const onSubtitleSettingsUpdate = (settings: {
+  language: SubtitleLanguage
+  fontSize: number
+  position: SubtitlePosition
+  opacity: number
+}) => {
+  subtitleSettings.value = { ...subtitleSettings.value, ...settings }
+}
+
+// 加载字幕缓存
+const loadSubtitleCache = async () => {
+  if (!video.value.fullPath) return
+
+  try {
+    const cacheInfo = await window.subtitle.checkCache(video.value.fullPath)
+    if (cacheInfo.cached && cacheInfo.subtitlePath) {
+      subtitleSegments.value = await window.subtitle.parseVtt(cacheInfo.subtitlePath)
+      hasSubtitleCache.value = true
+    }
+  } catch (error: any) {
+    console.error('加载字幕缓存失败:', error)
+  }
+}
 
 // 播放器点击事件
 const onPlayerClick = () => {
@@ -345,6 +456,9 @@ const fetchData = async () => {
 
     // 加载收藏列表
     await loadBookmarks()
+
+    // 加载字幕缓存
+    await loadSubtitleCache()
   } catch (error: any) {
     message.error(error.message)
   }

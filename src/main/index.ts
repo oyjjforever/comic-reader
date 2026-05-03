@@ -15,6 +15,31 @@ import {
 } from '../utils/update'
 import { getServerInstance } from '../server/index'
 import { getDiscoveryInstance } from '../server/discovery'
+import {
+  getAllModels,
+  downloadModel,
+  deleteModel as deleteWhisperModel
+} from './services/model-manager'
+import {
+  checkSubtitleCache,
+  generateSubtitleProgressive,
+  cancelGeneration,
+  parseVttFile,
+  getGenerationStatus,
+  clearSubtitleCache
+} from './services/whisper-service'
+import {
+  readSubtitleSettings,
+  getSubtitleDataSize,
+  getSubtitleDataDir
+} from './services/subtitle-config'
+import {
+  getBinaryStatus,
+  downloadWhisper,
+  downloadFfmpeg
+} from './services/binary-manager'
+import type { WhisperModelName, SubtitleLanguage, SubtitleSettings } from '../typings/subtitle'
+import { DEFAULT_SUBTITLE_SETTINGS } from '../typings/subtitle'
 /**
  * 目录存在性缓存，避免重复 IO 检查
  */
@@ -25,6 +50,14 @@ function ensureDir(dirPath: string) {
     fs.mkdirSync(dirPath, { recursive: true })
   }
   ensuredDirs.add(dirPath)
+}
+
+/** 格式化字节数为可读字符串 */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
 
 let mainWindow: BrowserWindow;
@@ -362,6 +395,173 @@ app.whenReady().then(async () => {
   ipcMain.handle('close-config:reset', () => {
     writeCloseConfig({ closeToTray: true, dontRemind: false })
   })
+
+  // ========== 字幕相关 IPC ==========
+
+  // 字幕设置持久化路径
+  function getSubtitleSettingsPath(): string {
+    return path.join(app.getPath('userData'), 'subtitle-settings.json')
+  }
+
+  function writeSubtitleSettings(settings: SubtitleSettings): void {
+    try {
+      const settingsPath = getSubtitleSettingsPath()
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+    } catch (e) {
+      log.warn('[Main] Failed to write subtitle settings:', e)
+    }
+  }
+
+  // IPC: 检查字幕缓存
+  ipcMain.handle('subtitle:check-cache', (_event, videoPath: string) => {
+    return checkSubtitleCache(videoPath)
+  })
+
+  // IPC: 渐进式生成字幕
+  ipcMain.handle('subtitle:generate', async (_event, videoPath: string, options?: {
+    language: SubtitleLanguage
+    model: WhisperModelName
+    force?: boolean
+  }) => {
+    const settings = readSubtitleSettings()
+    return generateSubtitleProgressive(videoPath, mainWindow, {
+      language: options?.language || settings.defaultLanguage,
+      model: options?.model || settings.defaultModel,
+      useGpu: settings.useGpu,
+      force: options?.force || false
+    })
+  })
+
+  // IPC: 取消生成
+  ipcMain.handle('subtitle:cancel-generate', async () => {
+    cancelGeneration()
+  })
+
+  // IPC: 解析 VTT 文件
+  ipcMain.handle('subtitle:parse-vtt', (_event, vttPath: string) => {
+    return parseVttFile(vttPath)
+  })
+
+  // IPC: 获取所有模型
+  ipcMain.handle('subtitle:get-models', () => {
+    return getAllModels()
+  })
+
+  // IPC: 下载模型
+  ipcMain.handle('subtitle:download-model', async (_event, modelName: WhisperModelName) => {
+    return downloadModel(modelName, mainWindow)
+  })
+
+  // IPC: 删除模型
+  ipcMain.handle('subtitle:delete-model', (_event, modelName: WhisperModelName) => {
+    deleteWhisperModel(modelName)
+  })
+
+  // IPC: 获取字幕设置
+  ipcMain.handle('subtitle:get-settings', () => {
+    return readSubtitleSettings()
+  })
+
+  // IPC: 更新字幕设置
+  ipcMain.handle('subtitle:update-settings', (_event, settings: Partial<SubtitleSettings>) => {
+    const current = readSubtitleSettings()
+    const updated = { ...current, ...settings }
+    writeSubtitleSettings(updated)
+  })
+
+  // IPC: 获取字幕数据目录和占用空间
+  ipcMain.handle('subtitle:get-data-info', () => {
+    const dataDir = getSubtitleDataDir()
+    const dataSize = getSubtitleDataSize()
+    return {
+      dataDir,
+      dataSize,
+      dataSizeFormatted: formatBytes(dataSize)
+    }
+  })
+
+  // IPC: 选择字幕数据存储目录
+  ipcMain.handle('subtitle:select-data-dir', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: '选择字幕数据存储位置'
+    })
+    if (result.canceled || !result.filePaths[0]) {
+      return null
+    }
+    return result.filePaths[0]
+  })
+
+  // IPC: 迁移字幕数据到新目录
+  ipcMain.handle('subtitle:migrate-data', async (_event, newPath: string) => {
+    const currentSettings = readSubtitleSettings()
+    const oldPath = currentSettings.subtitleDataPath || app.getPath('userData')
+
+    if (oldPath === newPath) return { success: true }
+
+    // 迁移子目录
+    const subDirs = ['whisper-models', 'subtitle-cache', 'subtitle-temp']
+    for (const subDir of subDirs) {
+      const srcDir = path.join(oldPath, subDir)
+      const destDir = path.join(newPath, subDir)
+      if (fs.existsSync(srcDir)) {
+        // 确保目标目录存在
+        ensureDir(destDir)
+        // 复制所有文件
+        const entries = fs.readdirSync(srcDir)
+        for (const entry of entries) {
+          const src = path.join(srcDir, entry)
+          const dest = path.join(destDir, entry)
+          if (!fs.existsSync(dest)) {
+            fs.copyFileSync(src, dest)
+          }
+        }
+      }
+    }
+
+    // 更新设置
+    currentSettings.subtitleDataPath = newPath
+    writeSubtitleSettings(currentSettings)
+
+    log.info(`[Main] 字幕数据已迁移到: ${newPath}`)
+    return { success: true }
+  })
+
+  // IPC: 清理字幕缓存
+  ipcMain.handle('subtitle:clear-cache', () => {
+    clearSubtitleCache()
+  })
+
+  // IPC: 获取生成状态
+  ipcMain.handle('subtitle:get-status', () => {
+    return getGenerationStatus()
+  })
+
+  // IPC: 获取二进制文件状态
+  ipcMain.handle('subtitle:get-binary-status', () => {
+    return getBinaryStatus()
+  })
+
+  // IPC: 下载 whisper.cpp
+  ipcMain.handle('subtitle:download-whisper', async () => {
+    try {
+      await downloadWhisper(mainWindow)
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 下载 FFmpeg
+  ipcMain.handle('subtitle:download-ffmpeg', async () => {
+    try {
+      await downloadFfmpeg(mainWindow)
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
   // 解压文件函数
   async function extractFile(filePath: string, extractDir: string): Promise<void> {
     return new Promise((resolve, reject) => {

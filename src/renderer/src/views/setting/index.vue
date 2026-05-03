@@ -30,6 +30,11 @@
       <n-tab-pane name="lanService" tab="局域网服务">
         <LanServiceSettings v-model="formData" />
       </n-tab-pane>
+
+      <!-- 字幕设置 -->
+      <n-tab-pane name="subtitle" tab="字幕设置">
+        <SubtitleSettings />
+      </n-tab-pane>
     </n-tabs>
   </div>
 </template>
@@ -46,6 +51,7 @@ import ResourceSettings from './tabs/ResourceSettings.vue'
 import DownloadSettings from './tabs/DownloadSettings.vue'
 import DatabaseSettings from './tabs/DatabaseSettings.vue'
 import LanServiceSettings from './tabs/LanServiceSettings.vue'
+import SubtitleSettings from './tabs/SubtitleSettings.vue'
 
 const settingStore = useSettingStore()
 const message = useMessage()
@@ -63,7 +69,7 @@ onMounted(async () => {
   const tabFromQuery = route.query.tab as string
   if (
     tabFromQuery &&
-    ['general', 'clipboard', 'resource', 'download', 'database', 'lanService'].includes(
+    ['general', 'clipboard', 'resource', 'download', 'database', 'lanService', 'subtitle'].includes(
       tabFromQuery
     )
   ) {

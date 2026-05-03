@@ -18,6 +18,7 @@ import specialAttention from './plugins/special-attention'
 import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
 import databaseBackup from './plugins/databaseBackup'
+import subtitle from './plugins/subtitle'
 
 // 剪切板 IPC 桥接
 const clipboard = {
@@ -82,6 +83,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('closeConfig', closeConfig)
     contextBridge.exposeInMainWorld('clipboard', clipboard)
     contextBridge.exposeInMainWorld('windowManager', windowManager)
+    contextBridge.exposeInMainWorld('subtitle', subtitle)
   } catch (error) {
     console.error(error)
   }

@@ -4,6 +4,15 @@ import { Database } from 'sqlite'
 import type { books } from '@/typings/database'
 import type { FolderInfo, FileInfo } from '@/typings/file'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
+import type {
+  SubtitleCacheInfo,
+  GenerateOptions,
+  GenerateProgress,
+  ModelInfo,
+  SubtitleSettings,
+  SubtitleSegment,
+  WhisperModelName
+} from '@/typings/subtitle'
 
 declare global {
   interface Window {
@@ -126,6 +135,38 @@ declare global {
     }
     windowManager: {
       create: (options?: { route?: string; title?: string; width?: number; height?: number }) => Promise<{ success: boolean }>
+    }
+    subtitle: {
+      checkCache: (videoPath: string) => Promise<SubtitleCacheInfo>
+      generate: (videoPath: string, options?: GenerateOptions) => Promise<string>
+      cancelGenerate: () => Promise<void>
+      parseVtt: (vttPath: string) => Promise<SubtitleSegment[]>
+      getModels: () => Promise<ModelInfo[]>
+      downloadModel: (modelName: WhisperModelName) => Promise<void>
+      deleteModel: (modelName: WhisperModelName) => Promise<void>
+      getSettings: () => Promise<SubtitleSettings>
+      updateSettings: (settings: Partial<SubtitleSettings>) => Promise<void>
+      clearCache: () => Promise<void>
+      getStatus: () => Promise<{ isGenerating: boolean }>
+      getDataInfo: () => Promise<{ dataDir: string; dataSize: number; dataSizeFormatted: string }>
+      selectDataDir: () => Promise<string | null>
+      migrateData: (newPath: string) => Promise<{ success: boolean }>
+      onGenerateProgress: (callback: (progress: GenerateProgress) => void) => () => void
+      onDownloadProgress: (callback: (progress: { model: string; percent: number; receivedBytes: number; totalBytes: number }) => void) => () => void
+      onRealtimeText: (callback: (text: string, isFinal: boolean) => void) => () => void
+      getBinaryStatus: () => Promise<{
+        whisperInstalled: boolean
+        ffmpegInstalled: boolean
+        whisperPath: string
+        ffmpegPath: string
+      }>
+      downloadWhisper: () => Promise<{ success: boolean; error?: string }>
+      downloadFfmpeg: () => Promise<{ success: boolean; error?: string }>
+      onBinaryDownloadProgress: (callback: (progress: {
+        binary: 'whisper' | 'ffmpeg'
+        percent: number
+        status: 'downloading' | 'extracting' | 'done'
+      }) => void) => () => void
     }
   }
 }
