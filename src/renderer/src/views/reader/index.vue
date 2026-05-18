@@ -100,6 +100,12 @@ const fetchData = async () => {
 
 const autoPlayTimer = ref<NodeJS.Timeout | null>(null)
 
+// 最后一页/第一页提示相关
+const nextHintShown = ref(false)
+let nextHintTimer: ReturnType<typeof setTimeout> | null = null
+const prevHintShown = ref(false)
+let prevHintTimer: ReturnType<typeof setTimeout> | null = null
+
 const jumpToPage = async (index: number) => {
   if (index < 0 || index >= page.total) return
   page.index = index
@@ -107,18 +113,52 @@ const jumpToPage = async (index: number) => {
 }
 const nextPage = async () => {
   if (page.index < page.total - 1) {
+    nextHintShown.value = false
     await jumpToPage(page.index + 1)
   } else if (props.hasNext) {
-    // 已是最后一页，且有下一篇，通知父组件切换
-    emit('next')
+    // 已是最后一页，且有下一篇
+    if (nextHintShown.value) {
+      // 第二次触发，进入下一篇
+      nextHintShown.value = false
+      if (nextHintTimer) {
+        clearTimeout(nextHintTimer)
+        nextHintTimer = null
+      }
+      emit('next')
+    } else {
+      // 第一次触发，显示提示
+      nextHintShown.value = true
+      message.info('已是最后一页，再次操作将进入下一篇', { duration: 3000 })
+      // 3秒后自动重置提示状态
+      nextHintTimer = setTimeout(() => {
+        nextHintShown.value = false
+      }, 3000)
+    }
   }
 }
 const prevPage = async () => {
   if (page.index > 0) {
+    prevHintShown.value = false
     await jumpToPage(page.index - 1)
   } else if (props.hasPrev) {
-    // 已是第一页，且有上一篇，通知父组件切换
-    emit('prev')
+    // 已是第一页，且有上一篇
+    if (prevHintShown.value) {
+      // 第二次触发，进入上一篇
+      prevHintShown.value = false
+      if (prevHintTimer) {
+        clearTimeout(prevHintTimer)
+        prevHintTimer = null
+      }
+      emit('prev')
+    } else {
+      // 第一次触发，显示提示
+      prevHintShown.value = true
+      message.info('已是第一页，再次操作将进入上一篇', { duration: 3000 })
+      // 3秒后自动重置提示状态
+      prevHintTimer = setTimeout(() => {
+        prevHintShown.value = false
+      }, 3000)
+    }
   }
 }
 // 进度条变化处理

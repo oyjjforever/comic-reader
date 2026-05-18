@@ -45,7 +45,7 @@ async function getArtworkInfo(artworkId) {
   // 获取封面
   const coverUrl = await previewImage(comicInfo.imgList[0]?.url)
   // 检测本地是否已下载
-  const downloaded = isLocalDownloaded(comicInfo.author, comicInfo.name)
+  const downloaded = isLocalDownloaded(comicInfo.author, comicInfo.title)
   return {
     artworkId,
     author: comicInfo.author || '',
@@ -85,7 +85,7 @@ async function hasNewArtwork(authorName, authorId) {
     const ids = res?.list || []
     if (!ids.length) return false
     const info = await picaman.getComicInfo(ids[0].id || ids[0])
-    const downloaded = isLocalDownloaded(authorName, info.name)
+    const downloaded = isLocalDownloaded(authorName, info.title)
     return !downloaded
   } catch (error) {
     return false

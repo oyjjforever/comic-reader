@@ -78,7 +78,7 @@
     <slot />
 
     <!-- 左右切换按钮 -->
-    <button
+    <!-- <button
       v-if="totalPages > 1"
       class="nav-button nav-left"
       :class="{ 'controls-hidden': !effectiveShowControls, disabled: disabledPrevComputed }"
@@ -106,7 +106,7 @@
       <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
         <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
       </svg>
-    </button>
+    </button> -->
     <!-- 底部进度条 -->
     <div
       v-if="totalPages > 1"
@@ -133,6 +133,8 @@
 
 <script lang="ts">
 import { defineComponent, computed, ref, onUnmounted } from 'vue'
+
+const THROTTLE_INTERVAL = 100
 
 export default defineComponent({
   name: 'ReaderControls',
@@ -170,6 +172,9 @@ export default defineComponent({
     const AUTO_HIDE_DELAY = 3000
     const autoHideTimer = ref<number | null>(null)
     const isHoveringControls = ref(false)
+    // 节流时间戳
+    let lastPrevTime = 0
+    let lastNextTime = 0
 
     const effectiveShowControls = computed(() => {
       return typeof props.showControls === 'boolean'
@@ -216,10 +221,17 @@ export default defineComponent({
       // showControlsTemporarily()
       const dy = ev.deltaY
       if (dy === 0) return
+      const now = Date.now()
       if (dy > 0) {
-        if (!disabledNextComputed.value) emit('next')
+        if (!disabledNextComputed.value && now - lastNextTime >= THROTTLE_INTERVAL) {
+          lastNextTime = now
+          emit('next')
+        }
       } else {
-        if (!disabledPrevComputed.value) emit('prev')
+        if (!disabledPrevComputed.value && now - lastPrevTime >= THROTTLE_INTERVAL) {
+          lastPrevTime = now
+          emit('prev')
+        }
       }
       ev.preventDefault()
     }
