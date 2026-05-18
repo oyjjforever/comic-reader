@@ -2,26 +2,54 @@
   <div class="search-container">
     <!-- 搜索表单 -->
     <div class="search-form">
-      <n-space>
+      <div class="search-form-row">
         <n-select
           v-model:value="searchType"
           :options="typeOptions"
           placeholder="选择网站类型"
-          style="width: 120px"
+          style="width: 120px; flex-shrink: 0"
         />
         <n-input
           v-model:value="keyword"
-          placeholder="输入搜索关键字"
-          @keyup.enter="handleSearch"
+          type="textarea"
+          placeholder="输入搜索关键字（每行一条记录）"
+          :autosize="{ minRows: 1, maxRows: 4 }"
           clearable
         />
-        <n-button type="primary" @click="handleSearch" :loading="loading" :disabled="!keyword">
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button
+              :type="autoExtract ? 'primary' : 'default'"
+              @click="autoExtract = !autoExtract"
+              style="flex-shrink: 0"
+            >
+              <template #icon>
+                <n-icon :component="NumberSymbol24Regular" />
+              </template>
+              {{ autoExtract ? '提取' : '原文' }}
+            </n-button>
+          </template>
+          {{
+            autoExtract
+              ? '当前为自动提取数字（切换到原文搜索）'
+              : '当前为原文搜索（切换到自动提取数字）'
+          }}
+        </n-tooltip>
+        <n-button type="success" @click="onSearch" :loading="loading" :disabled="!keyword">
           <template #icon>
             <n-icon :component="Search24Regular" />
           </template>
           搜索
         </n-button>
-      </n-space>
+      </div>
+      <!-- 数字提取提示 -->
+      <div v-if="autoExtract" class="number-extract-hint">
+        <n-icon :component="NumberSymbol24Regular" size="16" />
+        <span>已提取 {{ extractedKeywords.length }} 个搜索关键字：</span>
+        <n-tag v-for="(kw, idx) in extractedKeywords" :key="idx" size="small" round type="info">
+          {{ kw }}
+        </n-tag>
+      </div>
     </div>
 
     <!-- 搜索结果 -->
@@ -117,9 +145,14 @@
 </template>
 
 <script setup lang="ts" name="search">
-import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue'
-import { NSelect, NInput, NButton, NIcon, NImage, NSpin } from 'naive-ui'
-import { Search24Regular, Image24Regular, SlideMultiple24Regular } from '@vicons/fluent'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { NSelect, NInput, NButton, NIcon, NImage, NSpin, NTag, NTooltip } from 'naive-ui'
+import {
+  Search24Regular,
+  Image24Regular,
+  SlideMultiple24Regular,
+  NumberSymbol24Regular
+} from '@vicons/fluent'
 import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
 import ResponsiveVirtualGrid from '../../components/responsive-virtual-grid.vue'
 import previewDialog from '../special-attention/preview-dialog.vue'
@@ -140,6 +173,7 @@ const searchType = ref('all')
 const keyword = ref('')
 const loading = ref(false)
 const hasSearched = ref(false)
+const autoExtract = ref(true) // 是否自动提取数字关键字
 
 // 分页状态
 const currentPage = ref(1)
@@ -161,111 +195,160 @@ const previewer = reactive({
 // 正在加载详情的ID集合，防止重复请求
 const loadingDetailIds = new Set<string>()
 
+// 当前搜索使用的关键字列表（用于加载更多时保持一致）
+const activeSearchKeywords = ref<string[]>([])
+
+/**
+ * 从文本中提取数字关键字
+ * 按行分割，每行提取所有连续数字拼接成一个搜索关键字
+ * 例如："今天和网友桜湯ハル14月3日97局对战胜率达到百分之90的比赛录像" → "1439790"
+ * 纯数字行直接作为关键字，如 "361413" → "361413"
+ */
+const extractKeywordsFromText = (text: string): string[] => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const keywords: string[] = []
+
+  for (const line of lines) {
+    // 提取所有连续数字
+    const numbers = line.match(/\d+/g)
+    if (numbers && numbers.length > 0) {
+      // 将所有数字拼接为一个搜索关键字
+      const combined = numbers.join('')
+      if (combined) {
+        keywords.push(combined)
+      }
+    }
+  }
+
+  // 去重，并过滤掉长度小于5的关键字（太短的数字没有搜索意义）
+  return [...new Set(keywords)].filter((kw) => kw.length >= 5)
+}
+
+// 计算属性：实时显示从当前输入中提取的关键字（仅在自动提取模式下显示）
+const extractedKeywords = computed(() => {
+  if (!autoExtract.value || !keyword.value.trim()) return []
+  return extractKeywordsFromText(keyword.value)
+})
+
+/**
+ * 获取搜索关键字列表
+ * 自动提取模式：按行提取数字
+ * 原文模式：按行直接使用原文
+ */
+const getSearchKeywords = (): string[] => {
+  const text = keyword.value.trim()
+  if (!text) return []
+
+  if (autoExtract.value) {
+    return extractKeywordsFromText(text)
+  }
+
+  // 原文模式：按行分割，每行作为一个关键字
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  return [...new Set<string>(lines)]
+}
+
 // 获取当前需要搜索的站点列表
 const getTypesToSearch = () => {
   return searchType.value === 'all' ? ['jmtt', 'pixiv', 'picaman'] : [searchType.value]
 }
-
-// 处理搜索（首页）
-const handleSearch = async () => {
-  if (!keyword.value.trim()) return
-
-  loading.value = true
-  hasSearched.value = true
-  searchResults.value = []
+const onSearch = () => {
   currentPage.value = 1
-  hasMore.value = true
-  isLoadingMore.value = false
-  loadingDetailIds.clear()
+  fetchData()
+}
+// 统一搜索函数，根据 currentPage 判断是首次搜索还是加载更多
+const fetchData = async () => {
+  const isFirstPage = currentPage.value === 1
+
+  if (isFirstPage) {
+    if (!keyword.value.trim()) return
+    const keywords = getSearchKeywords()
+    if (keywords.length === 0) return
+    activeSearchKeywords.value = keywords
+    loading.value = true
+    hasSearched.value = true
+    searchResults.value = []
+    hasMore.value = true
+    loadingDetailIds.clear()
+  } else {
+    if (isLoadingMore.value || !hasMore.value || !hasSearched.value) return
+    isLoadingMore.value = true
+  }
 
   try {
+    const keywords = activeSearchKeywords.value
+    const seenIds = isFirstPage
+      ? new Set<string>()
+      : new Set<string>(searchResults.value.map((r) => r.id))
     const typesToSearch = getTypesToSearch()
 
-    // 并行搜索各站点第1页
-    const allPlaceholders = await Promise.all(
-      typesToSearch.map(async (type) => {
-        try {
-          const ids = await siteUtils.searchArtworks(type, keyword.value, 1)
-          if (!ids || !Array.isArray(ids)) return []
-          return ids.map((id: any) => ({
-            id: `${type}_${id}`,
-            artworkId: id,
-            source: type,
-            loaded: false,
-            loading: false,
-            title: '',
-            author: '',
-            cover: '',
-            pages: 0,
-            downloaded: false
-          }))
-        } catch (error) {
-          console.error(`搜索 ${type} 失败:`, error)
-          return []
-        }
-      })
+    const newResults = (
+      await Promise.all(
+        keywords.map(async (kw) =>
+          Promise.all(
+            typesToSearch.map(async (type) => {
+              try {
+                const ids = await siteUtils.searchArtworks(type, kw, currentPage.value)
+                if (!ids || !Array.isArray(ids)) return []
+                return ids.map((id: any) => {
+                  const uniqueId =
+                    currentPage.value === 1
+                      ? `${type}_${id}`
+                      : `${type}_${id}_p${currentPage.value}`
+                  if (seenIds.has(uniqueId)) return null
+                  seenIds.add(uniqueId)
+                  return {
+                    id: uniqueId,
+                    artworkId: id,
+                    source: type,
+                    loaded: false,
+                    loading: false,
+                    title: '',
+                    author: '',
+                    cover: '',
+                    pages: 0,
+                    downloaded: false,
+                    searchKeyword: kw
+                  }
+                })
+              } catch (error) {
+                console.error(`搜索 ${type} 关键字 ${kw} 第${currentPage.value}页失败:`, error)
+                return []
+              }
+            })
+          )
+        )
+      )
     )
+      .flat()
+      .flat()
+      .filter(Boolean)
 
-    const results = allPlaceholders.flat()
-    searchResults.value = results
+    // 第一页直接赋值，后续页追加
+    if (isFirstPage) {
+      searchResults.value = newResults
+    } else {
+      searchResults.value.push(...newResults)
+    }
 
-    // 如果第一页就没有结果，标记没有更多
-    if (results.length === 0) {
+    if (newResults.length === 0) {
       hasMore.value = false
     }
   } catch (error) {
     console.error('搜索失败:', error)
+    if (!isFirstPage) currentPage.value--
   } finally {
-    loading.value = false
-  }
-}
-
-// 加载下一页
-const loadMore = async () => {
-  if (isLoadingMore.value || !hasMore.value || !hasSearched.value) return
-
-  isLoadingMore.value = true
-  currentPage.value++
-
-  try {
-    const typesToSearch = getTypesToSearch()
-
-    const newPlaceholders = await Promise.all(
-      typesToSearch.map(async (type) => {
-        try {
-          const ids = await siteUtils.searchArtworks(type, keyword.value, currentPage.value)
-          if (!ids || !Array.isArray(ids)) return []
-          return ids.map((id: any) => ({
-            id: `${type}_${id}_p${currentPage.value}`,
-            artworkId: id,
-            source: type,
-            loaded: false,
-            loading: false,
-            title: '',
-            author: '',
-            cover: '',
-            pages: 0,
-            downloaded: false
-          }))
-        } catch (error) {
-          console.error(`搜索 ${type} 第${currentPage.value}页失败:`, error)
-          return []
-        }
-      })
-    )
-
-    const newResults = newPlaceholders.flat()
-
-    if (newResults.length === 0) {
-      hasMore.value = false
+    if (isFirstPage) {
+      loading.value = false
     } else {
-      searchResults.value = [...searchResults.value, ...newResults]
+      isLoadingMore.value = false
     }
-  } catch (error) {
-    console.error('加载更多失败:', error)
-    currentPage.value-- // 回退页码
-  } finally {
-    isLoadingMore.value = false
   }
 }
 
@@ -322,7 +405,8 @@ const checkScrollBottom = () => {
 
   // 当可见区域接近底部（距离底部不到10个item）时触发加载更多
   if (end >= totalItems - 10 && hasMore.value && !isLoadingMore.value) {
-    loadMore()
+    currentPage.value++
+    fetchData()
   }
 }
 
@@ -383,12 +467,30 @@ onUnmounted(() => {
 
 .search-form {
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  flex-direction: column;
+  gap: 8px;
   padding: 20px;
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.search-form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.number-extract-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #666;
+  flex-wrap: wrap;
 }
 
 .search-results {
@@ -399,8 +501,7 @@ onUnmounted(() => {
 }
 
 .results-header {
-  padding: 12px 0;
-  margin-bottom: 16px;
+  margin: 10px;
 }
 
 .results-count {
@@ -605,9 +706,12 @@ onUnmounted(() => {
   }
 
   .search-form {
+    padding: 16px;
+  }
+
+  .search-form-row {
     flex-direction: column;
     gap: 8px;
-    padding: 16px;
   }
 
   .item-info {
