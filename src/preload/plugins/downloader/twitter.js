@@ -275,7 +275,8 @@ async function getVideoUrls(tweetId) {
     headers
   })
   return (
-    res.data?.tweetResult?.result?.legacy?.extended_entities?.media?.[0]?.video_info?.variants || []
+    res.data?.tweetResult?.result?.tweet?.legacy?.extended_entities?.media?.[0]?.video_info
+      ?.variants || []
   )
 }
 
