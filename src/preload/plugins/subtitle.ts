@@ -268,6 +268,25 @@ const subtitle = {
         ipcRenderer.invoke('llm:auto-install'),
 
     /**
+     * 从 GitHub Releases 远程下载并安装 LLM 模块
+     */
+    downloadLlmModuleFromRemote: (): Promise<{ success: boolean; error?: string }> =>
+        ipcRenderer.invoke('llm:download-from-remote'),
+
+    /**
+     * 监听 LLM 模块远程下载进度
+     */
+    onLlmDownloadProgress: (callback: (progress: {
+        status: 'downloading' | 'extracting' | 'done' | 'error'
+        percent: number
+        error?: string
+    }) => void): (() => void) => {
+        const handler = (_event: any, progress: any) => callback(progress)
+        ipcRenderer.on('llm:download-progress', handler)
+        return () => ipcRenderer.removeListener('llm:download-progress', handler)
+    },
+
+    /**
      * 卸载 LLM 模块
      */
     uninstallLlmModule: (): Promise<{ success: boolean; error?: string }> =>

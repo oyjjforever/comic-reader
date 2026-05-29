@@ -9,3 +9,5 @@ data
 package-lock.json
 src/renderer/auto-imports.d.ts
 src/renderer/components.d.ts
+# LLM 模块 ZIP 包（从 GitHub Releases 远程下载，不提交到仓库）
+resources/llm-module/*.zip

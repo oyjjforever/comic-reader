@@ -77,9 +77,7 @@ extraResources:
   - from: resources/ffmpeg
     to: ffmpeg
     filter: ['**/*']
-  - from: resources/llm-module
-    to: llm-module
-    filter: ['**/*.zip']
+  # llm-module 已改为从 GitHub Releases 远程下载，不再内置到安装包
   # sharp: 仅包含运行时必需文件（排除 C++ 头文件和安装脚本）
   - from: node_modules/sharp
     to: node_modules/sharp

@@ -1,10 +1,9 @@
 /**
  * LLM 模块管理器
- * 从内置的 ZIP 包自动解压安装 @electron/llm 模块
- * ZIP 包位于 resources/llm-module/ 目录，打包时包含在安装包中
- * 运行时解压到 userData/modules/llm 目录
+ * 支持从 GitHub Releases 远程下载 @electron/llm 模块
+ * 下载后解压到 userData/modules/llm 目录
  */
-import { app } from 'electron'
+import { app, BrowserWindow, net } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { spawn } from 'child_process'
@@ -12,6 +11,9 @@ import log from '../../utils/log'
 
 /** LLM 模块版本（与 @electron/llm 版本对应，更新此版本号会触发重新安装） */
 const LLM_MODULE_VERSION = '1.1.4'
+
+/** GitHub Releases 远程下载地址 */
+const LLM_MODULE_REMOTE_URL = `https://github.com/oyjjforever/comic-reader/releases/download/llm-module-v${LLM_MODULE_VERSION}/llm-module-${process.platform}-${process.arch}.zip`
 
 /** 模块存放根目录 */
 function getModulesRoot(): string {
@@ -190,34 +192,96 @@ function cleanupPath(targetPath: string): void {
 }
 
 /**
- * 从内置 ZIP 包自动安装 LLM 模块
- * 首次运行时调用，无需用户交互
+ * 从远程 URL 下载文件到指定路径（支持重定向和进度回调）
  */
-export async function autoInstallLlmModule(): Promise<{ success: boolean; error?: string }> {
-    // 如果已安装且版本匹配，检查依赖完整性
-    if (isLlmModuleInstalled()) {
-        const info = getLlmModuleInfo()
-        if (info.version === LLM_MODULE_VERSION) {
-            const validation = validateLlmModuleDependencies()
-            if (validation.valid) {
-                log.info('[LLM Module] 模块已安装且依赖完整，跳过安装')
-                return { success: true }
-            } else {
-                log.warn(`[LLM Module] 模块已安装但依赖不完整，缺失: ${validation.missing.join(', ')}，重新安装`)
-                // 继续执行重新安装
-            }
-        }
-    }
+function downloadFile(
+    url: string,
+    destPath: string,
+    onProgress: (percent: number) => void
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const request = net.request(url)
+        let totalBytes = 0
+        let receivedBytes = 0
 
-    const zipPath = getBundledZipPath()
+        request.on('response', (response) => {
+            // 处理重定向（GitHub Releases 会有 302 重定向）
+            const statusCode = response.statusCode
+            if (statusCode >= 300 && statusCode < 400) {
+                const location = response.headers['location']
+                if (location) {
+                    const redirectUrl = Array.isArray(location) ? location[0] : location
+                    log.info(`[LLM Module] 重定向到: ${redirectUrl}`)
+                    downloadFile(redirectUrl, destPath, onProgress)
+                        .then(resolve)
+                        .catch(reject)
+                    return
+                }
+            }
+
+            if (statusCode !== 200) {
+                reject(new Error(`下载失败，HTTP 状态码: ${statusCode}`))
+                return
+            }
+
+            const contentLength = response.headers['content-length']
+            if (contentLength) {
+                totalBytes = parseInt(
+                    Array.isArray(contentLength) ? contentLength[0] : contentLength,
+                    10
+                )
+            }
+
+            const fileStream = fs.createWriteStream(destPath)
+
+            fileStream.on('error', (err) => {
+                fileStream.destroy()
+                if (fs.existsSync(destPath)) {
+                    fs.unlinkSync(destPath)
+                }
+                reject(new Error(`文件写入失败: ${err.message}`))
+            })
+
+            response.on('data', (chunk: Buffer) => {
+                receivedBytes += chunk.length
+                fileStream.write(chunk)
+                if (totalBytes > 0) {
+                    onProgress(Math.round((receivedBytes / totalBytes) * 100))
+                }
+            })
+
+            response.on('end', () => {
+                fileStream.end()
+                resolve()
+            })
+
+            response.on('error', (err: any) => {
+                fileStream.destroy()
+                if (fs.existsSync(destPath)) {
+                    fs.unlinkSync(destPath)
+                }
+                reject(new Error(`下载响应错误: ${err.message}`))
+            })
+        })
+
+        request.on('error', (err) => {
+            if (fs.existsSync(destPath)) {
+                fs.unlinkSync(destPath)
+            }
+            reject(new Error(`下载请求失败: ${err.message}`))
+        })
+
+        request.end()
+    })
+}
+
+/**
+ * 安装模块的核心逻辑（从 ZIP 文件解压安装）
+ */
+async function installFromZip(zipPath: string): Promise<{ success: boolean; error?: string }> {
     const moduleDir = getLlmModuleDir()
 
-    if (!fs.existsSync(zipPath)) {
-        log.warn(`[LLM Module] 内置 ZIP 包不存在: ${zipPath}`)
-        return { success: false, error: '内置 ZIP 包不存在' }
-    }
-
-    log.info(`[LLM Module] 开始从内置 ZIP 安装: ${zipPath}`)
+    log.info(`[LLM Module] 开始从 ZIP 安装: ${zipPath}`)
 
     try {
         // 如果旧模块存在，先删除
@@ -246,6 +310,97 @@ export async function autoInstallLlmModule(): Promise<{ success: boolean; error?
         return { success: true }
     } catch (err: any) {
         log.error(`[LLM Module] 安装失败: ${err.message}`)
+        return { success: false, error: err.message }
+    }
+}
+
+/**
+ * 从内置 ZIP 包自动安装 LLM 模块
+ * 首次运行时调用，无需用户交互
+ */
+export async function autoInstallLlmModule(): Promise<{ success: boolean; error?: string }> {
+    // 如果已安装且版本匹配，检查依赖完整性
+    if (isLlmModuleInstalled()) {
+        const info = getLlmModuleInfo()
+        if (info.version === LLM_MODULE_VERSION) {
+            const validation = validateLlmModuleDependencies()
+            if (validation.valid) {
+                log.info('[LLM Module] 模块已安装且依赖完整，跳过安装')
+                return { success: true }
+            } else {
+                log.warn(`[LLM Module] 模块已安装但依赖不完整，缺失: ${validation.missing.join(', ')}，重新安装`)
+                // 继续执行重新安装
+            }
+        }
+    }
+
+    const zipPath = getBundledZipPath()
+
+    if (!fs.existsSync(zipPath)) {
+        log.warn(`[LLM Module] 内置 ZIP 包不存在: ${zipPath}，需要从远程下载`)
+        return { success: false, error: '内置 ZIP 包不存在，请从设置页面手动下载安装' }
+    }
+
+    return installFromZip(zipPath)
+}
+
+/**
+ * 从 GitHub Releases 远程下载并安装 LLM 模块
+ * 带进度回调，通过 BrowserWindow 发送到渲染进程
+ */
+export async function downloadLlmModuleFromRemote(
+    mainWindow: BrowserWindow
+): Promise<{ success: boolean; error?: string }> {
+    const modulesRoot = getModulesRoot()
+    const tempZip = path.join(modulesRoot, `llm-module-download-${Date.now()}.zip`)
+
+    log.info(`[LLM Module] 开始从远程下载: ${LLM_MODULE_REMOTE_URL}`)
+
+    try {
+        // 确保目录存在
+        if (!fs.existsSync(modulesRoot)) {
+            fs.mkdirSync(modulesRoot, { recursive: true })
+        }
+
+        // 下载 ZIP 文件，带进度
+        await downloadFile(LLM_MODULE_REMOTE_URL, tempZip, (percent) => {
+            mainWindow.webContents.send('llm:download-progress', {
+                status: 'downloading',
+                percent
+            })
+        })
+
+        // 通知前端开始解压
+        mainWindow.webContents.send('llm:download-progress', {
+            status: 'extracting',
+            percent: 100
+        })
+
+        // 从下载的 ZIP 安装
+        const result = await installFromZip(tempZip)
+
+        // 清理临时 ZIP 文件
+        cleanupPath(tempZip)
+
+        if (result.success) {
+            mainWindow.webContents.send('llm:download-progress', {
+                status: 'done',
+                percent: 100
+            })
+        }
+
+        return result
+    } catch (err: any) {
+        log.error(`[LLM Module] 远程下载失败: ${err.message}`)
+        // 清理临时文件
+        cleanupPath(tempZip)
+
+        mainWindow.webContents.send('llm:download-progress', {
+            status: 'error',
+            percent: 0,
+            error: err.message
+        })
+
         return { success: false, error: err.message }
     }
 }

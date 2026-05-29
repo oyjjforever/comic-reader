@@ -173,7 +173,7 @@ const searchType = ref('all')
 const keyword = ref('')
 const loading = ref(false)
 const hasSearched = ref(false)
-const autoExtract = ref(true) // 是否自动提取数字关键字
+const autoExtract = ref(false) // 是否自动提取数字关键字
 
 // 分页状态
 const currentPage = ref(1)

@@ -212,11 +212,13 @@
             </span>
             <span v-if="llmDownloadStatus" style="color: #999; font-size: 12px">
               {{
-                llmDownloadStatus === 'extracting'
-                  ? '解压中...'
-                  : llmDownloadStatus === 'error'
-                    ? '安装失败'
-                    : '完成'
+                llmDownloadStatus === 'downloading'
+                  ? `下载中 ${llmDownloadProgress}%`
+                  : llmDownloadStatus === 'extracting'
+                    ? '解压中...'
+                    : llmDownloadStatus === 'error'
+                      ? '安装失败'
+                      : '完成'
               }}
             </span>
           </div>
@@ -228,8 +230,16 @@
               :loading="downloadingLlm"
               @click="onDownloadLlmModule"
             >
-              安装
+              下载安装
             </n-button>
+            <n-progress
+              v-if="downloadingLlm && llmDownloadStatus === 'downloading'"
+              type="line"
+              :percentage="llmDownloadProgress"
+              :show-indicator="false"
+              status="info"
+              style="width: 120px"
+            />
             <n-button
               v-if="llmModuleStatus.installed"
               size="small"
@@ -242,7 +252,8 @@
           </div>
         </div>
         <n-alert v-if="!llmModuleStatus.installed" type="info" :show-icon="true">
-          翻译引擎会在首次启动时自动从安装包内置资源解压安装。如未自动安装，可点击上方按钮手动安装。
+          翻译引擎需从 GitHub 下载（约 37MB），点击上方按钮手动下载安装。安装后即可使用本地 AI
+          翻译功能。
         </n-alert>
       </n-space>
     </n-card>
@@ -421,7 +432,8 @@ const llmModuleStatus = ref<{
   bundledZipAvailable: false
 })
 const downloadingLlm = ref(false)
-const llmDownloadStatus = ref<'extracting' | 'done' | 'error' | ''>('')
+const llmDownloadStatus = ref<'downloading' | 'extracting' | 'done' | 'error' | ''>('')
+const llmDownloadProgress = ref(0)
 
 // 设置
 const settings = ref<SubtitleSettings>({ ...DEFAULT_SUBTITLE_SETTINGS })
@@ -505,16 +517,25 @@ const loadLlmModuleStatus = async () => {
   }
 }
 
-// 安装 LLM 模块（从内置 ZIP 解压或远程下载）
+// 安装 LLM 模块（从 GitHub Releases 远程下载）
 const onDownloadLlmModule = async () => {
   try {
     downloadingLlm.value = true
-    llmDownloadStatus.value = 'extracting'
+    llmDownloadStatus.value = 'downloading'
+    llmDownloadProgress.value = 0
 
-    const result = await window.subtitle.autoInstallLlmModule()
+    const removeListener = window.subtitle.onLlmDownloadProgress((progress) => {
+      llmDownloadProgress.value = progress.percent
+      llmDownloadStatus.value = progress.status
+    })
+
+    const result = await window.subtitle.downloadLlmModuleFromRemote()
+
+    removeListener()
 
     if (result.success) {
       llmDownloadStatus.value = 'done'
+      llmDownloadProgress.value = 100
       message.success('翻译引擎安装成功')
       await loadLlmModuleStatus()
     } else {
@@ -528,6 +549,7 @@ const onDownloadLlmModule = async () => {
     downloadingLlm.value = false
     setTimeout(() => {
       llmDownloadStatus.value = ''
+      llmDownloadProgress.value = 0
     }, 2000)
   }
 }

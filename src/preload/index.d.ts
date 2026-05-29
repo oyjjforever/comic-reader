@@ -217,6 +217,12 @@ declare global {
         bundledZipAvailable: boolean
       }>
       autoInstallLlmModule: () => Promise<{ success: boolean; error?: string }>
+      downloadLlmModuleFromRemote: () => Promise<{ success: boolean; error?: string }>
+      onLlmDownloadProgress: (callback: (progress: {
+        status: 'downloading' | 'extracting' | 'done' | 'error'
+        percent: number
+        error?: string
+      }) => void) => () => void
       uninstallLlmModule: () => Promise<{ success: boolean; error?: string }>
     }
     /** @electron/llm 提供的本地 LLM API */

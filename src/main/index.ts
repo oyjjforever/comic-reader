@@ -53,6 +53,7 @@ import {
   isLlmModuleInstalled,
   getLlmModuleInfo,
   autoInstallLlmModule,
+  downloadLlmModuleFromRemote,
   loadLlmModule,
   uninstallLlmModule,
   getLlmModuleSize
@@ -225,10 +226,10 @@ app.whenReady().then(async () => {
 
   // ========== 初始化 @electron/llm（本地 LLM 翻译，自动安装） ==========
   try {
-    // 首次运行时自动从内置 ZIP 解压安装
+    // 首次运行时尝试从内置 ZIP 解压安装（生产环境可能无内置 ZIP，需用户手动下载）
     const installResult = await autoInstallLlmModule()
     if (!installResult.success) {
-      log.warn('[Main] @electron/llm 自动安装失败:', installResult.error)
+      log.warn('[Main] @electron/llm 自动安装失败:', installResult.error, '（用户可从设置页面手动下载）')
     }
 
     // 加载模块
@@ -680,6 +681,22 @@ app.whenReady().then(async () => {
   ipcMain.handle('llm:auto-install', async () => {
     try {
       const result = await autoInstallLlmModule()
+      if (result.success) {
+        // 安装成功后自动加载模块
+        await loadLlmModule((modelAlias: string) => {
+          return getTranslateModelPath(modelAlias)
+        })
+      }
+      return result
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // IPC: 从 GitHub Releases 远程下载并安装 LLM 模块
+  ipcMain.handle('llm:download-from-remote', async () => {
+    try {
+      const result = await downloadLlmModuleFromRemote(mainWindow)
       if (result.success) {
         // 安装成功后自动加载模块
         await loadLlmModule((modelAlias: string) => {
