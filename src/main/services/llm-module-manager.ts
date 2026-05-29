@@ -13,7 +13,7 @@ import log from '../../utils/log'
 const LLM_MODULE_VERSION = '1.1.4'
 
 /** GitHub Releases 远程下载地址 */
-const LLM_MODULE_REMOTE_URL = `https://github.com/oyjjforever/comic-reader/releases/download/llm-module-v${LLM_MODULE_VERSION}/llm-module-${process.platform}-${process.arch}.zip`
+const LLM_MODULE_REMOTE_URL = `https://github.com/oyjjforever/comic-reader/releases/tag/v1.1.0/llm-module-${process.platform}-${process.arch}.zip`
 
 /** 模块存放根目录 */
 function getModulesRoot(): string {
