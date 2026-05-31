@@ -72,10 +72,19 @@ const page = reactive({
 let currentFile = ref<any>({})
 onMounted(() => {
   fetchData()
+  window.addEventListener('mousedown', handleMouseDown)
 })
 onUnmounted(() => {
   stopAutoPlay()
+  window.removeEventListener('mousedown', handleMouseDown)
 })
+const handleMouseDown = (e: MouseEvent) => {
+  if (e.button === 3) {
+    e.preventDefault()
+    emit('close')
+  }
+}
+
 const fetchData = async () => {
   try {
     // 优先使用 props，其次使用 route query（兼容路由模式）
