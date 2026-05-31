@@ -12,9 +12,10 @@
         <n-input
           v-model:value="keyword"
           type="textarea"
-          placeholder="输入搜索关键字（每行一条记录）"
+          placeholder="输入搜索关键字（每行一条记录，Shift+Enter换行）"
           :autosize="{ minRows: 1, maxRows: 4 }"
           clearable
+          @keydown="handleKeydown"
         />
         <n-tooltip trigger="hover">
           <template #trigger>
@@ -261,6 +262,12 @@ const getTypesToSearch = () => {
 const onSearch = () => {
   currentPage.value = 1
   fetchData()
+}
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    onSearch()
+  }
 }
 // 统一搜索函数，根据 currentPage 判断是首次搜索还是加载更多
 const fetchData = async () => {
