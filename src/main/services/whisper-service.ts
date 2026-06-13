@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Whisper 服务
  * 封装 whisper.cpp CLI 调用，支持渐进式生成和实时转录
  */
@@ -355,14 +355,21 @@ function parseProgress(
     }
 
     // 解析文本段落（用于预览）
-    const segmentMatch = text.match(/\[(\d+:\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+)\]\s*(.+)/)
+    // 正则有 6 个时间捕获组 + 1 个文本捕获组，文本是第 7 个组
+    const segmentMatch = text.match(/\[(\d+):(\d+):(\d+\.\d+)\s*-->\s*(\d+):(\d+):(\d+\.\d+)\]\s*(.+)/)
     if (segmentMatch) {
-        const currentText = segmentMatch[3]?.trim()
+        const currentText = segmentMatch[7]?.trim()
         if (currentText) {
+            // 从段落的结束时间计算进度，避免覆盖上面已发送的正确进度
+            const endTime = parseInt(segmentMatch[4], 10) * 3600 +
+                parseInt(segmentMatch[5], 10) * 60 +
+                parseFloat(segmentMatch[6])
+            const percent = totalDuration > 0 ? Math.min(Math.round((endTime / totalDuration) * 100), 100) : 0
+
             mainWindow.webContents.send('subtitle:generate-progress', {
-                processedDuration: 0,
+                processedDuration: endTime,
                 totalDuration,
-                percent: 0,
+                percent,
                 currentText
             } as GenerateProgress)
         }
