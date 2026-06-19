@@ -28,6 +28,15 @@ export default [
                 component: () => import('@renderer/views/video/index.vue'),
             },
             {
+                path: '/actor-video',
+                name: "actor-video",
+                component: () => import('@renderer/views/actor-video/index.vue'),
+                meta: {
+                    title: "演员作品",
+                    keepAlive: true
+                }
+            },
+            {
                 path: '/special-attention',
                 name: "special-attention",
                 component: () => import('@renderer/views/special-attention/index.vue'),

@@ -442,8 +442,11 @@ defineExpose({
 .virtual-grid-container {
   width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
+  /* 预留滚动条空间，避免内容增减导致滚动条出现/消失引起列数重算与卡片闪动 */
+  scrollbar-gutter: stable;
 }
 
 .virtual-scroll-area {

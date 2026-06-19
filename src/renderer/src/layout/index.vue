@@ -152,7 +152,7 @@
         </n-modal>
         <!-- 非 site 路由使用 router-view + keep-alive -->
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,reader,search,specialAttention">
+          <keep-alive include="book,video,reader,search,specialAttention,actorVideo">
             <component
               v-if="!isSiteRoute"
               ref="nonSiteComponentRef"
@@ -186,6 +186,7 @@ import {
   VideoClipMultiple24Regular,
   Book24Regular,
   AirplaneTakeOff16Regular,
+  PersonTag24Regular,
   ArrowMaximize16Filled,
   ArrowMinimize16Filled,
   CaretLeft16Filled,
@@ -269,6 +270,7 @@ const newArtworkCount = computed(() => {
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
+  { icon: PersonTag24Regular, name: 'actor-video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
   { icon: Search24Regular, name: 'search' },
   { image: jmttImg, name: 'site-view', site: 'jmtt' },

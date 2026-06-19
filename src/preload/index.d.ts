@@ -225,6 +225,25 @@ declare global {
       }) => void) => () => void
       uninstallLlmModule: () => Promise<{ success: boolean; error?: string }>
     }
+    missav: {
+      getActresses: () => Promise<Array<{ name: string; slug: string; cover: string }>>
+      getVideos: (
+        slug: string,
+        page?: number,
+        sort?: string
+      ) => Promise<{
+        list: Array<{ title: string; href: string; url: string; cover: string }>
+        page: number
+        hasMore: boolean
+      }>
+      getVideoBTLinks: (dvdId: string) => Promise<Array<{
+        magnet: string
+        name: string
+        size: string
+        date: string
+        isHd: boolean
+      }>>
+    }
     /** @electron/llm 提供的本地 LLM API */
     electronAi: {
       create: (options: {
