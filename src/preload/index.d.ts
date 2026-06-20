@@ -225,6 +225,15 @@ declare global {
       }) => void) => () => void
       uninstallLlmModule: () => Promise<{ success: boolean; error?: string }>
     }
+    videoCover: {
+      get: (videoPath: string) => Promise<string | null>
+      saveFromDataUrl: (videoPath: string, dataUrl: string) => Promise<string | null>
+      saveFromBase64: (videoPath: string, base64: string) => Promise<string | null>
+      generate: (videoPath: string, timeOffset?: number) => Promise<string | null>
+      delete: (videoPath: string) => Promise<boolean>
+      clearAll: () => Promise<number>
+      getInfo: () => Promise<{ coverDir: string; size: number }>
+    }
     missav: {
       getActresses: () => Promise<Array<{ name: string; slug: string; cover: string }>>
       getVideos: (

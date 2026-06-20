@@ -219,10 +219,25 @@ const loadCoverInfo = async () => {
       return
     }
 
+    // 视频封面缓存路径：优先 coverPath，其次 fullPath
+    const videoFilePath = props.folder.coverPath || props.folder.fullPath
+
     if (props.folder.coverPath) {
       if (mediaType.value === 'video') {
-        // 视频类型：生成缩略图
-        coverImageSrc.value = await getVideoThumbnail(props.folder.coverPath)
+        // 视频类型：优先使用缓存封面
+        const cachedCover = await window.videoCover.get(videoFilePath)
+        if (cachedCover) {
+          coverImageSrc.value = `file://${cachedCover}`
+          hasCoverLoaded.value = true
+          return
+        }
+        // 无缓存：生成缩略图并缓存
+        const thumbnailDataUrl = await getVideoThumbnail(props.folder.coverPath)
+        coverImageSrc.value = thumbnailDataUrl
+        // 异步写入缓存，不阻塞渲染
+        window.videoCover
+          .saveFromDataUrl(videoFilePath, thumbnailDataUrl)
+          .catch((err) => console.warn('缓存视频封面失败:', err))
       } else {
         // 漫画类型：使用封面路径
         coverImageSrc.value = `file://${props.folder.coverPath}`
@@ -230,8 +245,20 @@ const loadCoverInfo = async () => {
     } else {
       // 封面路径为空，检查是否有文件
       if (props.folder.fileCount && props.folder.fileCount > 0) {
+        // 优先使用缓存封面
+        const cachedCover = await window.videoCover.get(videoFilePath)
+        if (cachedCover) {
+          coverImageSrc.value = `file://${cachedCover}`
+          hasCoverLoaded.value = true
+          return
+        }
         // 有文件但没有封面路径，尝试使用文件夹路径作为视频封面
-        coverImageSrc.value = await getVideoThumbnail(props.folder.fullPath)
+        const thumbnailDataUrl = await getVideoThumbnail(props.folder.fullPath)
+        coverImageSrc.value = thumbnailDataUrl
+        // 异步写入缓存
+        window.videoCover
+          .saveFromDataUrl(videoFilePath, thumbnailDataUrl)
+          .catch((err) => console.warn('缓存视频封面失败:', err))
       } else {
         // 没有文件，使用默认封面
         imageError.value = true

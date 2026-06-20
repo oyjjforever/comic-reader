@@ -19,6 +19,7 @@ import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
 import databaseBackup from './plugins/databaseBackup'
 import subtitle from './plugins/subtitle'
+import videoCover from './plugins/video-cover'
 import missav from './plugins/missav'
 
 // 剪切板 IPC 桥接
@@ -85,6 +86,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('clipboard', clipboard)
     contextBridge.exposeInMainWorld('windowManager', windowManager)
     contextBridge.exposeInMainWorld('subtitle', subtitle)
+    contextBridge.exposeInMainWorld('videoCover', videoCover)
     contextBridge.exposeInMainWorld('missav', missav)
   } catch (error) {
     console.error(error)

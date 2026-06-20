@@ -146,6 +146,12 @@
           收藏当前时间点
         </n-button>
         <n-button type="info" @click="openCast"> 投屏 </n-button>
+        <n-button type="warning" @click="setCoverFromCurrentFrame" :loading="isSavingCover">
+          <template #icon>
+            <n-icon :component="ImageIcon" />
+          </template>
+          设为封面
+        </n-button>
       </n-space>
     </div>
 
@@ -251,7 +257,8 @@ import {
   Trash as TrashIcon,
   Text as SubtitleIcon,
   Settings as SettingsIcon,
-  Language as TranslateIcon
+  Language as TranslateIcon,
+  Image as ImageIcon
 } from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
 import type {
@@ -652,6 +659,41 @@ const addBookmark = () => {
   }
   editingBookmark.value = null
   showBookmarkModal.value = true
+}
+
+// 设为封面：捕获当前视频帧并保存到封面缓存
+const isSavingCover = ref(false)
+const setCoverFromCurrentFrame = async () => {
+  const videoEl = videoRef.value
+  if (!videoEl || !video.value.fullPath) return
+
+  try {
+    isSavingCover.value = true
+    videoEl.pause()
+
+    // 截取当前帧到 canvas
+    const canvas = document.createElement('canvas')
+    canvas.width = videoEl.videoWidth
+    canvas.height = videoEl.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      throw new Error('无法获取 canvas 上下文')
+    }
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+
+    // 保存到封面缓存
+    const savedPath = await window.videoCover.saveFromDataUrl(video.value.fullPath, dataUrl)
+    if (savedPath) {
+      message.success('已设为封面')
+    } else {
+      message.error('封面保存失败')
+    }
+  } catch (error: any) {
+    message.error(`设为封面失败: ${error.message}`)
+  } finally {
+    isSavingCover.value = false
+  }
 }
 
 // 编辑收藏

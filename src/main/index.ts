@@ -58,6 +58,16 @@ import {
   uninstallLlmModule,
   getLlmModuleSize
 } from './services/llm-module-manager'
+import {
+  getCoverPathIfExists,
+  saveCoverFromDataUrl,
+  saveCoverFromBuffer,
+  generateCover,
+  deleteCover,
+  clearAllCovers,
+  getCoverDir,
+  getCoverDirSize
+} from './services/video-cover'
 import type { WhisperModelName, SubtitleLanguage, SubtitleSettings, TranslateTarget } from '../typings/subtitle'
 import { DEFAULT_SUBTITLE_SETTINGS } from '../typings/subtitle'
 /**
@@ -713,6 +723,63 @@ app.whenReady().then(async () => {
   ipcMain.handle('llm:uninstall', () => {
     return uninstallLlmModule()
   })
+
+  // ========== 视频封面缓存 IPC ==========
+
+  // IPC: 检查封面缓存是否存在
+  ipcMain.handle('videoCover:get', (_event, videoPath: string) => {
+    return getCoverPathIfExists(videoPath)
+  })
+
+  // IPC: 从 data URL 保存封面
+  ipcMain.handle('videoCover:saveFromDataUrl', (_event, videoPath: string, dataUrl: string) => {
+    try {
+      return saveCoverFromDataUrl(videoPath, dataUrl)
+    } catch (err: any) {
+      log.error('[Main] 保存封面失败:', err?.message)
+      return null
+    }
+  })
+
+  // IPC: 从 base64 保存封面（无 data: 前缀）
+  ipcMain.handle('videoCover:saveFromBase64', (_event, videoPath: string, base64: string) => {
+    try {
+      const buffer = Buffer.from(base64, 'base64')
+      return saveCoverFromBuffer(videoPath, buffer)
+    } catch (err: any) {
+      log.error('[Main] 保存封面失败:', err?.message)
+      return null
+    }
+  })
+
+  // IPC: 使用 FFmpeg 生成封面
+  ipcMain.handle('videoCover:generate', async (_event, videoPath: string, timeOffset?: number) => {
+    try {
+      return await generateCover(videoPath, timeOffset ?? 5)
+    } catch (err: any) {
+      log.error('[Main] 生成封面失败:', err?.message)
+      return null
+    }
+  })
+
+  // IPC: 删除单个封面
+  ipcMain.handle('videoCover:delete', (_event, videoPath: string) => {
+    return deleteCover(videoPath)
+  })
+
+  // IPC: 清空所有封面
+  ipcMain.handle('videoCover:clearAll', () => {
+    return clearAllCovers()
+  })
+
+  // IPC: 获取封面缓存目录信息
+  ipcMain.handle('videoCover:getInfo', () => {
+    return {
+      coverDir: getCoverDir(),
+      size: getCoverDirSize()
+    }
+  })
+
 
   // 解压文件函数
   async function extractFile(filePath: string, extractDir: string): Promise<void> {
