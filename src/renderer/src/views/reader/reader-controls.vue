@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-controls" @click="onClickShowControls" @wheel.prevent="onWheel">
+  <div class="reader-controls" @mousemove="onControlsMouseMove" @wheel.prevent="onWheel">
     <!-- 顶部控制栏 -->
     <div
       class="top-controls"
@@ -14,11 +14,19 @@
         </svg>
       </button>
 
-      <!-- 页码显示 -->
+      <!-- 左侧额外按钮投送目标（在返回按钮与页码之间的剩余宽度居中） -->
+      <div :id="`${uid}-left`" class="teleport-slot teleport-left"></div>
+
+      <!-- 页码显示（绝对居中） -->
       <div class="page-indicator">{{ currentPage }} / {{ totalPages }}</div>
+
+      <!-- 右侧额外按钮投送目标（在页码与功能按钮之间的剩余宽度居中） -->
+      <div :id="`${uid}-right`" class="teleport-slot teleport-right"></div>
 
       <!-- 功能按钮组 -->
       <div class="function-buttons">
+        <!-- 右侧额外内容插槽（如 PDF 选择器） -->
+        <slot name="right-extra"></slot>
         <!-- 全屏 -->
         <button class="control-button" @click="$emit('toggleFullscreen')" title="全屏">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -68,9 +76,6 @@
             </svg>
           </button>
         </template>
-
-        <!-- 右侧额外内容插槽（如 PDF 选择器） -->
-        <slot name="right-extra"></slot>
       </div>
     </div>
 
@@ -132,9 +137,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref, onUnmounted } from 'vue'
+import { defineComponent, computed, ref, provide, onUnmounted } from 'vue'
 
 const THROTTLE_INTERVAL = 100
+let _uidSeq = 0
 
 export default defineComponent({
   name: 'ReaderControls',
@@ -167,6 +173,8 @@ export default defineComponent({
     'progress-mouseleave'
   ],
   setup(props, { emit }) {
+    // 唯一标识，供子组件通过 Teleport 投送按钮到顶部栏
+    const uid = `reader-ctrl-${++_uidSeq}`
     // 内部控制显示/隐藏（当父组件未传 showControls 时启用）
     const showControlsInternal = ref(false)
     const AUTO_HIDE_DELAY = 3000
@@ -199,21 +207,17 @@ export default defineComponent({
       resetAutoHideTimer()
     }
 
-    const onClickShowControls = () => {
-      // 仅在未传入 props.showControls 时，使用内部状态进行切换
-      if (typeof props.showControls !== 'boolean') {
-        if (showControlsInternal.value) {
-          // 当前可见：点击后隐藏，并清除自动隐藏定时器
-          showControlsInternal.value = false
-          if (autoHideTimer.value) {
-            clearTimeout(autoHideTimer.value)
-            autoHideTimer.value = null
-          }
-        } else {
-          // 当前隐藏：点击后显示，并启动/重置自动隐藏
-          showControlsInternal.value = true
-          resetAutoHideTimer()
-        }
+    // 触发显示/隐藏的上下边距范围（像素）
+    const HOVER_EDGE_RANGE = 50
+    const onControlsMouseMove = (ev: MouseEvent) => {
+      // 仅在未传入 props.showControls 时，使用内部状态
+      if (typeof props.showControls === 'boolean') return
+      const target = ev.currentTarget as HTMLElement
+      const rect = target.getBoundingClientRect()
+      const y = ev.clientY - rect.top
+      const h = rect.height
+      if (y <= HOVER_EDGE_RANGE || y >= h - HOVER_EDGE_RANGE) {
+        showControlsTemporarily()
       }
     }
     const onWheel = (ev: WheelEvent) => {
@@ -247,6 +251,15 @@ export default defineComponent({
       isHoveringControls.value = false
       resetAutoHideTimer()
     }
+
+    // 向嵌套子组件共享控制栏显示状态与悬停处理，供其顶部按钮并入本组件统一管理
+    provide('reader-controls-ctx', {
+      uid,
+      showControls: effectiveShowControls,
+      onControlsEnter,
+      onControlsLeave
+    })
+
     onUnmounted(() => {
       if (autoHideTimer.value) {
         clearTimeout(autoHideTimer.value)
@@ -288,8 +301,9 @@ export default defineComponent({
     }
 
     return {
+      uid,
       effectiveShowControls,
-      onClickShowControls,
+      onControlsMouseMove,
       onWheel,
       onNaiveSliderUpdate,
       disabledPrevComputed,
@@ -345,12 +359,30 @@ export default defineComponent({
 
     .page-indicator {
       @apply text-white text-xl font-medium px-4 py-2 rounded-lg;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
       background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(10px);
     }
 
     .function-buttons {
       @apply flex items-center space-x-3;
+    }
+
+    /* 投送目标容器（子组件按钮并入顶部栏） */
+    .teleport-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .teleport-left {
+      margin-left: 12px;
     }
 
     /* 缩放显示（已存在，保留） */

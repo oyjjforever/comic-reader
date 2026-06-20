@@ -77,9 +77,9 @@
               :items="videos"
               key-field="url"
               :overscan="3"
-              :min-item-width="200"
+              :min-item-width="280"
               :max-item-width="280"
-              :aspect-ratio="0.8"
+              :aspect-ratio="1"
               :gap="12"
               class="video-virtual-grid"
               @scroll="onVideoScroll"
@@ -522,7 +522,9 @@ onMounted(() => {
     flex-shrink: 0;
     color: #c0c4cc;
     cursor: pointer;
-    transition: color 0.2s, transform 0.15s;
+    transition:
+      color 0.2s,
+      transform 0.15s;
 
     &:hover {
       color: #f7ba2a;

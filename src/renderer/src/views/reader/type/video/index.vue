@@ -1,5 +1,5 @@
 <template>
-  <div class="video-player" @click="onPlayerClick">
+  <div class="video-player">
     <!-- 视频播放器 -->
     <video
       ref="videoRef"
@@ -27,140 +27,134 @@
       :translated-map="translatedMap"
     />
 
-    <!-- 字幕控制按钮 -->
-    <div
-      class="subtitle-controls"
-      :class="{ 'controls-hidden': !showControls }"
-      @mouseenter="onControlsEnter"
-      @mouseleave="onControlsLeave"
-    >
-      <n-space align="center">
-        <!-- 字幕开关（合并生成功能） -->
-        <n-button
-          :type="subtitleButtonType"
-          size="small"
-          :disabled="isSubtitleGenerating"
-          @click="onSubtitleClick"
-        >
-          <template #icon>
-            <n-icon :component="SubtitleIcon" />
-          </template>
-          <template v-if="isSubtitleGenerating">
-            <span class="btn-progress">{{ generatePercent }}%</span>
-          </template>
-          <template v-else>
-            {{ subtitleEnabled ? '字幕开' : '字幕关' }}
-          </template>
-        </n-button>
+    <!-- 字幕控制按钮（并入 reader-controls 顶部栏） -->
+    <Teleport :to="`#${readerCtx?.uid}-right`" :disabled="!readerCtx">
+      <div class="subtitle-controls" :class="{ 'controls-hidden': !showControls }">
+        <n-space align="center">
+          <!-- 字幕开关（合并生成功能） -->
+          <n-button
+            :type="subtitleButtonType"
+            size="small"
+            :disabled="isSubtitleGenerating"
+            @click="onSubtitleClick"
+          >
+            <template #icon>
+              <n-icon :component="SubtitleIcon" />
+            </template>
+            <template v-if="isSubtitleGenerating">
+              <span class="btn-progress">{{ generatePercent }}%</span>
+            </template>
+            <template v-else>
+              {{ subtitleEnabled ? '字幕开' : '字幕关' }}
+            </template>
+          </n-button>
 
-        <!-- 翻译开关 -->
-        <n-button
-          v-if="subtitleEnabled && hasSubtitleCache"
-          :type="translateEnabled ? 'success' : 'error'"
-          size="small"
-          @click="toggleTranslate"
-        >
-          <template #icon>
-            <n-icon :component="TranslateIcon" />
-          </template>
-          {{ translateEnabled ? '翻译开' : '翻译关' }}
-        </n-button>
+          <!-- 翻译开关 -->
+          <n-button
+            v-if="subtitleEnabled && hasSubtitleCache"
+            :type="translateEnabled ? 'success' : 'error'"
+            size="small"
+            @click="toggleTranslate"
+          >
+            <template #icon>
+              <n-icon :component="TranslateIcon" />
+            </template>
+            {{ translateEnabled ? '翻译开' : '翻译关' }}
+          </n-button>
 
-        <!-- 设置按钮 -->
-        <n-popover trigger="hover" placement="top">
-          <template #trigger>
-            <n-button size="small" type="info" quaternary>
-              <template #icon>
-                <n-icon :component="SettingsIcon" />
-              </template>
-            </n-button>
-          </template>
+          <!-- 设置按钮 -->
+          <n-popover trigger="hover" placement="top">
+            <template #trigger>
+              <n-button size="small" type="info" quaternary>
+                <template #icon>
+                  <n-icon :component="SettingsIcon" />
+                </template>
+              </n-button>
+            </template>
 
-          <div class="subtitle-settings">
-            <div class="setting-item">
-              <label>语言</label>
-              <n-select
-                v-model:value="subtitleSettings.language"
-                :options="languageOptions"
-                size="small"
-                style="width: 120px"
-              />
+            <div class="subtitle-settings">
+              <div class="setting-item">
+                <label>语言</label>
+                <n-select
+                  v-model:value="subtitleSettings.language"
+                  :options="languageOptions"
+                  size="small"
+                  style="width: 120px"
+                />
+              </div>
+
+              <div class="setting-item">
+                <label>字体大小</label>
+                <n-slider
+                  v-model:value="subtitleSettings.fontSize"
+                  :min="14"
+                  :max="48"
+                  :step="2"
+                  style="width: 120px"
+                />
+              </div>
+
+              <div class="setting-item">
+                <label>位置</label>
+                <n-radio-group v-model:value="subtitleSettings.position" size="small">
+                  <n-radio-button value="bottom">底部</n-radio-button>
+                  <n-radio-button value="top">顶部</n-radio-button>
+                </n-radio-group>
+              </div>
+
+              <div class="setting-item">
+                <label>透明度</label>
+                <n-slider
+                  v-model:value="subtitleSettings.opacity"
+                  :min="0.3"
+                  :max="1"
+                  :step="0.1"
+                  style="width: 120px"
+                />
+              </div>
+
+              <div class="setting-item">
+                <label>翻译目标</label>
+                <n-select
+                  v-model:value="subtitleSettings.translateTarget"
+                  :options="translateTargetOptions"
+                  size="small"
+                  style="width: 120px"
+                />
+              </div>
             </div>
+          </n-popover>
+        </n-space>
+      </div>
+    </Teleport>
 
-            <div class="setting-item">
-              <label>字体大小</label>
-              <n-slider
-                v-model:value="subtitleSettings.fontSize"
-                :min="14"
-                :max="48"
-                :step="2"
-                style="width: 120px"
-              />
-            </div>
-
-            <div class="setting-item">
-              <label>位置</label>
-              <n-radio-group v-model:value="subtitleSettings.position" size="small">
-                <n-radio-button value="bottom">底部</n-radio-button>
-                <n-radio-button value="top">顶部</n-radio-button>
-              </n-radio-group>
-            </div>
-
-            <div class="setting-item">
-              <label>透明度</label>
-              <n-slider
-                v-model:value="subtitleSettings.opacity"
-                :min="0.3"
-                :max="1"
-                :step="0.1"
-                style="width: 120px"
-              />
-            </div>
-
-            <div class="setting-item">
-              <label>翻译目标</label>
-              <n-select
-                v-model:value="subtitleSettings.translateTarget"
-                :options="translateTargetOptions"
-                size="small"
-                style="width: 120px"
-              />
-            </div>
-          </div>
-        </n-popover>
-      </n-space>
-    </div>
-
-    <!-- 时间点收藏按钮 -->
-    <div
-      class="bookmark-controls"
-      :class="{ 'controls-hidden': !showControls }"
-      @mouseenter="onControlsEnter"
-      @mouseleave="onControlsLeave"
-    >
-      <n-space>
-        <n-button type="success" @click="addBookmark" :disabled="!currentTime">
-          <template #icon>
-            <n-icon :component="BookmarkIcon" />
-          </template>
-          收藏当前时间点
-        </n-button>
-        <n-button type="info" @click="openCast"> 投屏 </n-button>
-        <n-button type="warning" @click="setCoverFromCurrentFrame" :loading="isSavingCover">
-          <template #icon>
-            <n-icon :component="ImageIcon" />
-          </template>
-          设为封面
-        </n-button>
-      </n-space>
-    </div>
+    <!-- 时间点收藏按钮（并入 reader-controls 顶部栏） -->
+    <Teleport :to="`#${readerCtx?.uid}-left`" :disabled="!readerCtx">
+      <div class="bookmark-controls" :class="{ 'controls-hidden': !showControls }">
+        <n-space>
+          <n-button type="success" @click="addBookmark" :disabled="!currentTime">
+            <template #icon>
+              <n-icon :component="BookmarkIcon" />
+            </template>
+            收藏当前时间点
+          </n-button>
+          <n-button type="info" @click="openCast"> 投屏 </n-button>
+          <n-button type="warning" @click="setCoverFromCurrentFrame" :loading="isSavingCover">
+            <template #icon>
+              <n-icon :component="ImageIcon" />
+            </template>
+            设为封面
+          </n-button>
+        </n-space>
+      </div>
+    </Teleport>
 
     <!-- 时间点收藏列表 -->
     <div
       class="bookmarks-panel"
       :class="{ 'controls-hidden': !showControls || bookmarks.length === 0 }"
-      @mouseenter="onControlsEnter"
-      @mouseleave="onControlsLeave"
+      @mouseenter="readerCtx?.onControlsEnter"
+      @mouseleave="readerCtx?.onControlsLeave"
     >
       <div class="bookmarks-header">
         <h3>时间点收藏</h3>
@@ -291,7 +285,14 @@ watch(
   { deep: true }
 )
 // UI 状态
-const showControls = ref(false)
+const readerCtx = inject<{
+  uid: string
+  showControls: { value: boolean }
+  onControlsEnter: () => void
+  onControlsLeave: () => void
+}>('reader-controls-ctx', undefined)
+// 控制栏显示状态由 reader-controls 统一管理
+const showControls = readerCtx?.showControls ?? ref(false)
 const showBookmarkModal = ref(false)
 const showCastModal = ref(false)
 const currentTime = ref(0)
@@ -359,10 +360,6 @@ function openCast() {
 function onCastPlayed() {
   message.success('投屏播放已启动')
 }
-// 鼠标控制相关
-const AUTO_HIDE_DELAY = 3000
-const autoHideTimer = ref<number | null>(null)
-const isHoveringControls = ref(false)
 
 // ========== 字幕功能方法 ==========
 
@@ -574,52 +571,6 @@ const autoStartTranslate = async () => {
   }
 }
 
-// 播放器点击事件
-const onPlayerClick = () => {
-  // 切换控制栏显示状态
-  showControls.value = !showControls.value
-
-  // 如果显示控制栏，设置定时器自动隐藏
-  if (showControls.value) {
-    resetAutoHideTimer()
-  } else {
-    // 如果隐藏控制栏，清除定时器
-    if (autoHideTimer.value) {
-      clearTimeout(autoHideTimer.value)
-      autoHideTimer.value = null
-    }
-  }
-}
-
-// 重置自动隐藏定时器
-const resetAutoHideTimer = () => {
-  if (isHoveringControls.value) return
-  if (autoHideTimer.value) {
-    clearTimeout(autoHideTimer.value)
-  }
-  autoHideTimer.value = setTimeout(() => {
-    if (!isHoveringControls.value) {
-      showControls.value = false
-    }
-  }, AUTO_HIDE_DELAY) as unknown as number
-}
-
-// 控制栏鼠标进入事件
-const onControlsEnter = () => {
-  isHoveringControls.value = true
-  if (autoHideTimer.value) {
-    clearTimeout(autoHideTimer.value)
-    autoHideTimer.value = null
-  }
-  showControls.value = true
-}
-
-// 控制栏鼠标离开事件
-const onControlsLeave = () => {
-  isHoveringControls.value = false
-  resetAutoHideTimer()
-}
-
 // 视频时间更新
 const onTimeUpdate = () => {
   if (videoRef.value) {
@@ -669,7 +620,6 @@ const setCoverFromCurrentFrame = async () => {
 
   try {
     isSavingCover.value = true
-    videoEl.pause()
 
     // 截取当前帧到 canvas
     const canvas = document.createElement('canvas')
@@ -802,11 +752,8 @@ onMounted(() => {
   fetchData()
 })
 
-// 组件卸载时清理定时器和翻译模型
+// 组件卸载时卸载翻译模型
 onUnmounted(async () => {
-  if (autoHideTimer.value) {
-    clearTimeout(autoHideTimer.value)
-  }
   // 卸载翻译模型
   await unloadTranslateModel()
 })
@@ -829,15 +776,11 @@ onUnmounted(async () => {
     background-color: #000;
   }
 
-  // 字幕控制按钮
+  // 字幕控制按钮（已并入 reader-controls 顶部栏）
   .subtitle-controls {
-    position: absolute;
-    top: 16px;
-    right: 200px;
-    z-index: 110;
     backdrop-filter: blur(10px);
     background: rgba(0, 0, 0, 0.5);
-    padding: 8px 12px;
+    padding: 4px 8px;
     border-radius: 6px;
     transition:
       opacity 0.3s ease,
@@ -855,12 +798,8 @@ onUnmounted(async () => {
     }
   }
 
-  // 收藏控制按钮
+  // 收藏控制按钮（已并入 reader-controls 顶部栏）
   .bookmark-controls {
-    position: absolute;
-    top: 20px;
-    left: 80px;
-    z-index: 110;
     backdrop-filter: blur(10px);
     transition:
       opacity 0.3s ease,
