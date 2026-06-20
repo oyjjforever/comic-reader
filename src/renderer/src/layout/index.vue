@@ -17,12 +17,10 @@
           class="menu-item"
           :class="{ active: isMenuActive(item) }"
           @click="handleMenuClick(index, item)"
+          @mouseenter="onSitesHover(item, true)"
+          @mouseleave="onSitesHover(item, false)"
         >
-          <n-icon
-            v-if="item.icon"
-            size="25"
-            :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'"
-          >
+          <n-icon v-if="item.icon" size="25" :color="isMenuActive(item) ? '#ffffff' : '#9ca3af'">
             <component :is="item.icon" />
           </n-icon>
           <img v-if="item.image" :src="item.image" width="30" height="30" />
@@ -35,6 +33,27 @@
           </div>
         </div>
       </div>
+
+      <!-- 站点二级菜单（悬浮） -->
+      <transition name="sites-flyout">
+        <div
+          v-if="sitesMenuVisible"
+          class="sites-submenu"
+          @mouseenter="onSitesSubmenuHover(true)"
+          @mouseleave="onSitesSubmenuHover(false)"
+        >
+          <div
+            v-for="(site, idx) in sitesConfig"
+            :key="site.site"
+            class="sites-submenu__item"
+            :class="{ active: isSiteActive(site.site) }"
+            @click="onSelectSite(site)"
+          >
+            <img :src="site.image" width="24" height="24" />
+            <span>{{ site.label }}</span>
+          </div>
+        </div>
+      </transition>
 
       <!-- 底部菜单 -->
       <div class="bottom-menu">
@@ -198,6 +217,7 @@ import {
   Star24Regular,
   PeopleTeam24Regular,
   Search24Regular,
+  Globe24Regular,
   Add16Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
@@ -273,32 +293,79 @@ const menuItems = [
   { icon: PersonTag24Regular, name: 'actor-video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
   { icon: Search24Regular, name: 'search' },
-  { image: jmttImg, name: 'site-view', site: 'jmtt' },
-  { image: pixivImg, name: 'site-view', site: 'pixiv' },
-  { image: twitterImg, name: 'site-view', site: 'twitter' },
-  { image: weiboImg, name: 'site-view', site: 'weibo' },
-  { image: picamanImg, name: 'site-view', site: 'picaman' }
-  // { image: pornhubImg, name: 'site-view', site: 'pornhub' }
+  { icon: Globe24Regular, name: 'sites' }
 ]
 
-const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
+// 站点列表配置（二级菜单）
+const sitesConfig = [
+  { image: jmttImg, site: 'jmtt', label: 'JMTT' },
+  { image: pixivImg, site: 'pixiv', label: 'Pixiv' },
+  { image: twitterImg, site: 'twitter', label: 'Twitter' },
+  { image: weiboImg, site: 'weibo', label: '微博' },
+  { image: picamanImg, site: 'picaman', label: 'Picaman' }
+  // { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
+]
+
+const sitesMenuVisible = ref(false)
+const sitesHovering = ref({ trigger: false, submenu: false })
+
+let sitesHoverTimer: ReturnType<typeof setTimeout> | null = null
+
+function updateSitesVisible() {
+  const show = sitesHovering.value.trigger || sitesHovering.value.submenu
+  if (sitesHoverTimer) {
+    clearTimeout(sitesHoverTimer)
+    sitesHoverTimer = null
+  }
+  if (show) {
+    sitesMenuVisible.value = true
+  } else {
+    // 延迟关闭，避免在 trigger 与 submenu 间隙时误关
+    sitesHoverTimer = setTimeout(() => {
+      if (!sitesHovering.value.trigger && !sitesHovering.value.submenu) {
+        sitesMenuVisible.value = false
+      }
+    }, 120)
+  }
+}
+
+function onSitesHover(item: any, entering: boolean) {
+  if (item.name !== 'sites') return
+  sitesHovering.value.trigger = entering
+  updateSitesVisible()
+}
+
+function onSitesSubmenuHover(entering: boolean) {
+  sitesHovering.value.submenu = entering
+  updateSitesVisible()
+}
 
 // 事件处理
 function handleMenuClick(index: number, item: any) {
-  if (item.site) {
-    // 创建站点实例（如果不存在）
-    if (!siteInstances[item.site]) {
-      siteInstances[item.site] = true
-    }
-    activeSite.value = item.site
-    router.push({ name: item.name, params: { site: item.site } })
-  } else {
-    router.push({ name: item.name })
+  // 'sites' 仅悬浮展开，无路由
+  if (item.name === 'sites') return
+  // 选择其他菜单时关闭站点二级菜单
+  sitesMenuVisible.value = false
+  router.push({ name: item.name })
+}
+
+const bottomMenuItems = [{ icon: SettingsSharp, name: 'setting' }]
+
+function onSelectSite(site: any) {
+  if (!siteInstances[site.site]) {
+    siteInstances[site.site] = true
   }
+  activeSite.value = site.site
+  router.push({ name: 'site-view', params: { site: site.site } })
+  sitesMenuVisible.value = false
+}
+
+function isSiteActive(siteName: string) {
+  return route.name === 'site-view' && route.params.site === siteName
 }
 function isMenuActive(item: any) {
-  if (item.site) {
-    return route.name === item.name && route.params.site === item.site
+  if (item.name === 'sites') {
+    return isSiteRoute.value
   }
   return route.name === item.name
 }
@@ -429,6 +496,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (sitesHoverTimer) {
+    clearTimeout(sitesHoverTimer)
+    sitesHoverTimer = null
+  }
   if (removeCloseDialogListener) {
     removeCloseDialogListener()
     removeCloseDialogListener = null
@@ -498,6 +569,50 @@ $background-color: #322f3b;
     flex-direction: column;
     gap: 16px;
     margin-top: auto;
+  }
+
+  .sites-submenu {
+    position: absolute;
+    left: 85px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #322f3b;
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 1000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    min-width: 130px;
+
+    &__item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #d1d5db;
+      font-size: 13px;
+      transition: all 0.2s ease;
+
+      img {
+        border-radius: 4px;
+        object-fit: cover;
+      }
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+      }
+
+      &.active {
+        background: rgba(96, 165, 250, 0.25);
+        color: #ffffff;
+      }
+    }
   }
 
   .menu-item {
@@ -879,6 +994,18 @@ $background-color: #322f3b;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.sites-flyout-enter-active,
+.sites-flyout-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.sites-flyout-enter-from,
+.sites-flyout-leave-to {
+  opacity: 0;
+  transform: translate(-10px, -50%);
 }
 </style>
 <style lang="scss">
