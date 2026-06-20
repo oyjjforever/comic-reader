@@ -101,14 +101,13 @@ function extractWorksFromHTML(htmlString) {
     const document = parser.parseFromString(htmlString, 'text/html')
 
     const works = Array.from(document.querySelectorAll('.thumbnail')).map((thumb) => {
-      const link = thumb.querySelector('a[href*="/dm"]')
+      const link = thumb.querySelector('a[href]')
       const img = thumb.querySelector('img')
       const duration = thumb.querySelector('.absolute.bottom-1.right-1')
       const uncensored = thumb.querySelector('.absolute.bottom-1.left-1')
 
       return {
-        dvdId:
-          link?.getAttribute('href')?.split('/').pop().replaceAll('-uncensored-leak', '') || '',
+        dvdId: link?.getAttribute('alt')?.replaceAll('-uncensored-leak', '') || '',
         title: img?.getAttribute('alt') || '',
         coverUrl: img?.getAttribute('data-src') || img?.getAttribute('src') || '',
         duration: duration?.textContent?.trim() || '',

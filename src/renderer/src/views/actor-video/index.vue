@@ -8,6 +8,19 @@
             <n-icon :component="Search24Regular" />
           </template>
         </n-input>
+        <div class="actor-sidebar__add">
+          <n-input
+            v-model:value="newActressName"
+            placeholder="添加演员名称..."
+            size="small"
+            @keyup.enter="addActress"
+          />
+          <n-button size="small" :disabled="!newActressName.trim()" @click="addActress">
+            <template #icon>
+              <n-icon :component="Add24Regular" />
+            </template>
+          </n-button>
+        </div>
       </div>
       <div class="actor-sidebar__body">
         <div class="actor-list">
@@ -18,6 +31,13 @@
             :class="{ 'actor-item--active': currentSlug === item.slug }"
             @click="onSelectActress(item)"
           >
+            <n-icon
+              class="actor-item__fav"
+              :class="{ 'actor-item__fav--active': isFavorited(item.slug) }"
+              :component="isFavorited(item.slug) ? Star24Filled : Star24Regular"
+              size="14"
+              @click.stop="toggleFavorite(item)"
+            />
             <span class="actor-item__name" :title="item.name">{{ item.name }}</span>
           </div>
           <n-empty
@@ -134,7 +154,10 @@ import {
   Search24Regular,
   Person24Regular,
   Open24Regular,
-  VideoClipMultiple24Regular
+  VideoClipMultiple24Regular,
+  Star24Regular,
+  Star24Filled,
+  Add24Regular
 } from '@vicons/fluent'
 import { CloudDownload } from '@vicons/ionicons5'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
@@ -162,12 +185,109 @@ const actresses = ref<Actress[]>([])
 const actressLoading = ref(false)
 const keyword = ref('')
 
+const FAV_STORAGE_KEY = 'actor-video:favorites'
+const CUSTOM_STORAGE_KEY = 'actor-video:custom-actresses'
+const favoriteSlugs = ref<string[]>(loadFavorites())
+const customActresses = ref<Actress[]>(loadCustomActresses())
+
+function loadFavorites(): string[] {
+  try {
+    const raw = localStorage.getItem(FAV_STORAGE_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+
+function loadCustomActresses(): Actress[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_STORAGE_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+
+function saveFavorites() {
+  try {
+    localStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(favoriteSlugs.value))
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function saveCustomActresses() {
+  try {
+    localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customActresses.value))
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function isCustom(slug: string) {
+  return customActresses.value.some((a) => a.slug === slug)
+}
+
+function isFavorited(slug: string) {
+  return favoriteSlugs.value.includes(slug)
+}
+
+function toggleFavorite(item: Actress) {
+  const idx = favoriteSlugs.value.indexOf(item.slug)
+  if (idx >= 0) {
+    favoriteSlugs.value.splice(idx, 1)
+    // 自定义添加的演员取消收藏后移除
+    const cIdx = customActresses.value.findIndex((a) => a.slug === item.slug)
+    if (cIdx >= 0) {
+      customActresses.value.splice(cIdx, 1)
+      saveCustomActresses()
+    }
+  } else {
+    favoriteSlugs.value.push(item.slug)
+  }
+  saveFavorites()
+}
+
+const newActressName = ref('')
+
+function addActress() {
+  const name = newActressName.value.trim()
+  if (!name) return
+  const slug = name
+  // 已存在则仅置顶（加入收藏）
+  if (!customActresses.value.some((a) => a.slug === slug)) {
+    customActresses.value.unshift({ name, slug, coverUrl: '' })
+    saveCustomActresses()
+  }
+  if (!favoriteSlugs.value.includes(slug)) {
+    favoriteSlugs.value.push(slug)
+    saveFavorites()
+  }
+  // 合并进当前列表
+  if (!actresses.value.some((a) => a.slug === slug)) {
+    actresses.value.unshift({ name, slug, coverUrl: '' })
+  }
+  newActressName.value = ''
+  message.success(`已添加 ${name}`)
+}
+
 const filteredActresses = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
-  if (!kw) return actresses.value
-  return actresses.value.filter(
-    (a) => a.name.toLowerCase().includes(kw) || a.slug.toLowerCase().includes(kw)
-  )
+  const list = kw
+    ? actresses.value.filter(
+        (a) => a.name.toLowerCase().includes(kw) || a.slug.toLowerCase().includes(kw)
+      )
+    : actresses.value
+  return [...list].sort((a, b) => {
+    const fa = isFavorited(a.slug)
+    const fb = isFavorited(b.slug)
+    if (fa === fb) return 0
+    return fa ? -1 : 1
+  })
 })
 
 const currentSlug = ref('')
@@ -195,7 +315,10 @@ const sortOptions = [
 async function loadActresses() {
   actressLoading.value = true
   try {
-    actresses.value = await window.missav.getActresses()
+    const list = await window.missav.getActresses()
+    // 合并自定义演员（去重，自定义置前）
+    const customs = customActresses.value.filter((c) => !list.some((a) => a.slug === c.slug))
+    actresses.value = [...customs, ...list]
   } catch (e) {
     console.error(e)
     message.error('演员列表获取失败')
@@ -317,6 +440,14 @@ onMounted(() => {
   &__header {
     padding: 10px;
     border-bottom: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__add {
+    display: flex;
+    gap: 6px;
   }
 
   &__body {
@@ -384,6 +515,22 @@ onMounted(() => {
       width: 100%;
       height: 100%;
       object-fit: cover;
+    }
+  }
+
+  &__fav {
+    flex-shrink: 0;
+    color: #c0c4cc;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.15s;
+
+    &:hover {
+      color: #f7ba2a;
+      transform: scale(1.15);
+    }
+
+    &--active {
+      color: #f7ba2a;
     }
   }
 
