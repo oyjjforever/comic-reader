@@ -16,11 +16,7 @@ const api = new Api({
  */
 function extractItemsFromJson(jsonData) {
   try {
-    // 如果传入的是字符串，先解析为JSON对象
     const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
-
-    // 查找items数组的路径
-    // 根据JSON结构，items位于: data.user.result.timeline.timeline.instructions[2].entries[0].content.items
     const instructions = data?.data?.user?.result?.timeline?.timeline?.instructions
 
     if (!instructions || !Array.isArray(instructions)) {
@@ -28,46 +24,65 @@ function extractItemsFromJson(jsonData) {
       return []
     }
 
-    // 查找包含TimelineAddEntries的指令
     const addEntriesInstruction = instructions.find(
       (instruction) => instruction.type === 'TimelineAddEntries'
     )
 
     if (!addEntriesInstruction || !addEntriesInstruction.entries) {
       console.warn('未找到TimelineAddEntries指令或entries数组')
+      return []
     }
 
-    // 查找包含items的entry
     const entryWithItems = addEntriesInstruction.entries.find(
       (entry) => entry.content && entry.content.items && Array.isArray(entry.content.items)
     )
 
-    // if (!entryWithItems) {
-    //   console.warn('未找到包含items的entry')
-    // }
-    // 查找包含TimelineAddToModule的指令
     const addModulesInstruction = instructions.find(
       (instruction) => instruction.type === 'TimelineAddToModule'
     )
     const items = entryWithItems?.content?.items || addModulesInstruction?.moduleItems || []
 
-    // 提取每个item的指定字段
-    const extractedData = items.map((item) => {
-      const url =
-        item.item?.itemContent?.tweet_results?.result?.legacy?.entities?.media?.[0]
-          ?.media_url_https ||
-        item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.entities?.media?.[0]
-          ?.media_url_https
-      const title = url?.split('/')?.pop()
-      return {
-        id: item.entryId || null,
-        createTime:
-          item.item?.itemContent?.tweet_results?.result?.legacy?.created_at ||
-          item.item?.itemContent?.tweet_results?.result?.tweet?.legacy?.created_at,
-        url,
-        title
-      }
-    })
+    const extractedData = items
+      .map((item) => {
+        // 获取tweet结果
+        const tweetResult =
+          item.item?.itemContent?.tweet_results?.result ||
+          item.item?.itemContent?.tweet_results?.result?.tweet
+
+        // 获取legacy数据
+        const legacy = tweetResult?.legacy || tweetResult?.tweet?.legacy
+
+        if (!legacy || !legacy.entities?.media) return null
+
+        const media = legacy.extended_entities?.media?.[0] || legacy.entities?.media?.[0]
+        if (!media) return null
+
+        // 判断媒体类型
+        const isVideo = media.type === 'video'
+
+        // 获取媒体URL
+        let mediaUrl = media.media_url_https // 默认使用封面图（图片或视频封面）
+
+        // 如果是视频，获取最高画质视频URL
+        if (isVideo && media.video_info) {
+          const mp4Variants = media.video_info.variants
+            ?.filter((v) => v.content_type === 'video/mp4')
+            .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
+
+          if (mp4Variants && mp4Variants.length > 0) {
+            mediaUrl = mp4Variants[0].url // 最高画质视频URL
+          }
+        }
+
+        return {
+          id: item.entryId || null,
+          createTime: legacy.created_at,
+          url: mediaUrl,
+          title: mediaUrl?.split('/')?.pop()?.split('?')[0]
+        }
+      })
+      .filter(Boolean)
+
     return extractedData
   } catch (error) {
     console.error('解析JSON时出错:', error)
