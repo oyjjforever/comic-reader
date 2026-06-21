@@ -109,6 +109,15 @@
                     >
                       无码
                     </div>
+                    <div
+                      v-if="isDownloaded(item)"
+                      class="video-card__badge video-card__badge--downloaded"
+                      title="已下载到本地，点击打开"
+                      @click.stop="openLocal(item)"
+                    >
+                      <n-icon :component="CheckmarkCircle24Filled" size="12" />
+                      已下载
+                    </div>
                   </div>
                   <div class="video-card__info">
                     <div class="video-card__title" :title="item.title">{{ item.title }}</div>
@@ -146,6 +155,19 @@
     </div>
 
     <bt-links-dialog v-model:show="btDialog.show" :dvdId="btDialog.dvdId" :title="btDialog.title" />
+
+    <!-- 全屏播放器覆盖层 -->
+    <div v-if="isReading" class="reader-overlay">
+      <reader-view
+        :key="currentFilePath"
+        :file-path="encodeURIComponent(currentFilePath)"
+        :has-next="hasNext"
+        :has-prev="hasPrev"
+        @close="closeReader"
+        @next="loadNext"
+        @prev="loadPrev"
+      />
+    </div>
   </div>
 </template>
 
@@ -157,11 +179,14 @@ import {
   VideoClipMultiple24Regular,
   Star24Regular,
   Star24Filled,
-  Add24Regular
+  Add24Regular,
+  CheckmarkCircle24Filled
 } from '@vicons/fluent'
 import { CloudDownload } from '@vicons/ionicons5'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import BtLinksDialog from '@renderer/components/bt-links-dialog.vue'
+import ReaderView from '@renderer/views/reader/index.vue'
+import { useSettingStore } from '@renderer/plugins/store'
 
 interface Actress {
   name: string
@@ -180,6 +205,7 @@ interface VideoItem {
 }
 
 const message = useMessage()
+const settingStore = useSettingStore()
 
 const actresses = ref<Actress[]>([])
 const actressLoading = ref(false)
@@ -327,9 +353,127 @@ async function loadActresses() {
   }
 }
 
+// 本地下载检测：缓存当前演员本地已有的作品文件夹名 -> 完整路径
+const downloadedMap = ref<Map<string, string>>(new Map())
+
+function normalizeCode(s: string): string {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function folderMatchesDvdId(folderName: string, dvdId: string): boolean {
+  const nd = normalizeCode(dvdId)
+  if (!nd) return false
+  const nf = normalizeCode(folderName)
+  const idx = nf.indexOf(nd)
+  if (idx === -1) return false
+  const after = nf[idx + nd.length]
+  return !after || !/\d/.test(after)
+}
+
+async function refreshDownloadedMap(actressName: string) {
+  const map = new Map<string, string>()
+  if (!actressName) {
+    downloadedMap.value = map
+    return
+  }
+  const paths = settingStore.setting.videoResourcePaths || []
+  const lowerTarget = actressName.trim().toLowerCase()
+  for (const root of paths) {
+    if (!root) continue
+    let actressDirs: { name: string; fullPath: string }[] = []
+    try {
+      actressDirs = await window.media.getFolderTree(root, false)
+    } catch {
+      continue
+    }
+    const actressDir = actressDirs.find((d) => d.name.trim().toLowerCase() === lowerTarget)
+    if (!actressDir) continue
+    // 作品目录（文件夹形式）
+    let workDirs: { name: string; fullPath: string }[] = []
+    try {
+      workDirs = await window.media.getFolderTree(actressDir.fullPath, false)
+    } catch {
+      continue
+    }
+    for (const w of workDirs) {
+      if (!map.has(w.name)) map.set(w.name, w.fullPath)
+    }
+    // 作品目录（单个视频文件形式）
+    try {
+      const files = await window.media.getFiles(actressDir.fullPath, undefined, undefined, 'video')
+      for (const f of files) {
+        if (!map.has(f.name)) map.set(f.name, f.fullPath)
+      }
+    } catch {
+      // 忽略文件读取失败
+    }
+  }
+  downloadedMap.value = map
+}
+
+function getLocalPath(item: VideoItem): string | null {
+  if (!item.dvdId) return null
+  for (const [folderName, fullPath] of downloadedMap.value) {
+    if (folderMatchesDvdId(folderName, item.dvdId)) return fullPath
+  }
+  return null
+}
+
+function isDownloaded(item: VideoItem): boolean {
+  return !!getLocalPath(item)
+}
+
+// 本地播放器覆盖层状态（导航范围为当前演员本地所有作品）
+const isReading = ref(false)
+const currentFilePath = ref('')
+const currentFileIndex = ref(-1)
+
+const localRows = computed(() => Array.from(downloadedMap.value.values()))
+
+const hasNext = computed(() => {
+  if (currentFileIndex.value < 0) return false
+  return currentFileIndex.value < localRows.value.length - 1
+})
+const hasPrev = computed(() => {
+  if (currentFileIndex.value < 0) return false
+  return currentFileIndex.value > 0
+})
+
+function openLocal(item: VideoItem) {
+  const p = getLocalPath(item)
+  if (!p) return
+  currentFilePath.value = p
+  currentFileIndex.value = localRows.value.findIndex((f) => f === p)
+  isReading.value = true
+}
+
+function closeReader() {
+  isReading.value = false
+  currentFilePath.value = ''
+  currentFileIndex.value = -1
+}
+
+function loadNext() {
+  const nextIndex = currentFileIndex.value + 1
+  if (nextIndex < localRows.value.length) {
+    currentFilePath.value = localRows.value[nextIndex]
+    currentFileIndex.value = nextIndex
+  }
+}
+
+function loadPrev() {
+  const prevIndex = currentFileIndex.value - 1
+  if (prevIndex >= 0) {
+    currentFilePath.value = localRows.value[prevIndex]
+    currentFileIndex.value = prevIndex
+  }
+}
+
 async function onSelectActress(item: Actress) {
   if (currentSlug.value === item.slug) return
   currentSlug.value = item.slug
+  downloadedMap.value = new Map()
+  refreshDownloadedMap(item.name)
   await reloadVideos()
 }
 
@@ -337,6 +481,9 @@ function reloadVideos() {
   videos.value = []
   page.value = 1
   hasMore.value = false
+  if (currentActress.value?.name) {
+    refreshDownloadedMap(currentActress.value.name)
+  }
   loadVideos()
 }
 
@@ -425,6 +572,17 @@ onMounted(() => {
   width: 100%;
   background: #fff;
   overflow: hidden;
+  position: relative;
+}
+
+.reader-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: #000;
 }
 
 /* 左侧演员列表 */
@@ -661,6 +819,21 @@ onMounted(() => {
     &--right {
       right: 6px;
       background: rgba(220, 38, 38, 0.85);
+    }
+
+    &--downloaded {
+      bottom: 6px;
+      right: 6px;
+      top: auto;
+      background: rgba(22, 163, 74, 0.9);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+
+      &:hover {
+        background: rgba(22, 163, 74, 1);
+      }
     }
   }
 
