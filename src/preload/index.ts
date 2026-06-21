@@ -21,6 +21,7 @@ import databaseBackup from './plugins/databaseBackup'
 import subtitle from './plugins/subtitle'
 import videoCover from './plugins/video-cover'
 import missav from './plugins/missav'
+import rating from './plugins/rating'
 
 // 剪切板 IPC 桥接
 const clipboard = {
@@ -88,6 +89,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('subtitle', subtitle)
     contextBridge.exposeInMainWorld('videoCover', videoCover)
     contextBridge.exposeInMainWorld('missav', missav)
+    contextBridge.exposeInMainWorld('rating', rating)
   } catch (error) {
     console.error(error)
   }

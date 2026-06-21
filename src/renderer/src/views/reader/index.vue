@@ -7,6 +7,8 @@
       :is-auto-playing="isAutoPlaying"
       :show-zoom-controls="false"
       :zoom-percent="zoomLevel * 100"
+      :show-rating="showRating"
+      :rating="currentRating"
       :disabled-prev="page.index <= 0 && !props.hasPrev"
       :disabled-next="page.index >= page.total - 1 && !props.hasNext"
       :has-next="props.hasNext"
@@ -16,6 +18,7 @@
       @toggleAutoPlay="toggleAutoPlay"
       @prev="prevPage"
       @next="nextPage"
+      @rate="onRate"
       @progress-input="handleProgressChange"
     >
       <div class="reader-container">
@@ -39,11 +42,13 @@ interface ReaderProps {
   filePath?: string
   hasNext?: boolean
   hasPrev?: boolean
+  module?: string
 }
 
 const props = withDefaults(defineProps<ReaderProps>(), {
   hasNext: false,
-  hasPrev: false
+  hasPrev: false,
+  module: ''
 })
 const emit = defineEmits<{
   (e: 'close'): void
@@ -70,8 +75,49 @@ const page = reactive({
   total: 0
 })
 let currentFile = ref<any>({})
+
+// 评分相关
+const workPath = computed(() => {
+  const raw = props.folderPath || props.filePath || ''
+  try {
+    return raw ? decodeURIComponent(raw) : ''
+  } catch {
+    return raw
+  }
+})
+const showRating = computed(() => !!props.module && !!workPath.value)
+const currentRating = ref(0)
+
+async function loadRating() {
+  if (!showRating.value) {
+    currentRating.value = 0
+    return
+  }
+  try {
+    currentRating.value = await window.rating.getRating(workPath.value, props.module)
+  } catch (e) {
+    console.error('加载评分失败:', e)
+    currentRating.value = 0
+  }
+}
+
+async function onRate(value: number) {
+  if (!showRating.value) return
+  currentRating.value = value
+  try {
+    await window.rating.setRating(workPath.value, props.module, value)
+  } catch (e) {
+    console.error('保存评分失败:', e)
+  }
+}
+
+watch(workPath, () => {
+  loadRating()
+})
+
 onMounted(() => {
   fetchData()
+  loadRating()
   window.addEventListener('mousedown', handleMouseDown)
 })
 onUnmounted(() => {

@@ -119,6 +119,19 @@ const createTable = async () => {
             created_at TEXT NOT NULL
         )
     `)
+
+    // 创建评分表
+    db?.exec(`
+        CREATE TABLE IF NOT EXISTS ratings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fullPath TEXT NOT NULL,
+            module TEXT NOT NULL,
+            rating REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(fullPath, module)
+        )
+    `)
 }
 
 export default {

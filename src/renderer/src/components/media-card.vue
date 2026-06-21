@@ -54,6 +54,11 @@
       <div v-if="showFileCount && folder.fileCount" class="info__pages">
         <n-icon :component="SlideMultiple24Regular" size="12" />{{ folder.fileCount }}
       </div>
+
+      <!-- 评分（封面左上角） -->
+      <div v-if="rating > 0" class="cover-rating" :title="`评分 ${rating} 星`">
+        <n-rate :value="rating" allow-half readonly size="small" />
+      </div>
     </div>
 
     <!-- 信息展示区 -->
@@ -134,6 +139,7 @@ const imageError = ref(false)
 const coverImageSrc = ref<string>('')
 const isLoadingCover = ref(false)
 const isBookmarked = ref(props.folder.isBookmarked || false)
+const rating = ref(0)
 const cardRef = ref<HTMLElement>()
 const observer = ref<IntersectionObserver>()
 const hasCoverLoaded = ref(false)
@@ -335,6 +341,16 @@ onMounted(async () => {
     isBookmarked.value = isFavorited
   } catch (error) {
     console.error('检查收藏状态失败:', error)
+  }
+
+  // 加载评分
+  try {
+    rating.value = await window.rating.getRating(
+      props.folder.fullPath,
+      props.namespace || mediaType.value
+    )
+  } catch (error) {
+    console.error('加载评分失败:', error)
   }
 })
 
@@ -555,6 +571,20 @@ onUnmounted(() => {
   font-size: 12px;
   padding: 0px 4px;
   z-index: 2;
+}
+
+/* 封面左上角评分 */
+.cover-rating {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 2;
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: #00000071;
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
 }
 
 /* 信息展示区 */

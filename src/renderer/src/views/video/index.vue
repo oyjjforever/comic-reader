@@ -24,6 +24,7 @@
       <reader-view
         :key="currentFilePath"
         :file-path="encodeURIComponent(currentFilePath)"
+        module="video"
         :has-next="hasNext"
         :has-prev="hasPrev"
         @close="closeReader"

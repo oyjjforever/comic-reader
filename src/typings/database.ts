@@ -48,3 +48,12 @@ export type downloadHistory = {
     module: string, // 模块类型，例如'jmtt'、'pixiv'或'twitter'
     created_at?: Date, // 创建时间
 }
+
+export type ratings = {
+    id?: number, // ID
+    fullPath: string, // 文件/文件夹完整路径
+    module: string, // 模块类型，例如'book'或'video'
+    rating: number, // 评分，0-5，支持半星（0.5步长）
+    created_at?: Date, // 创建时间
+    updated_at?: Date, // 更新时间
+}

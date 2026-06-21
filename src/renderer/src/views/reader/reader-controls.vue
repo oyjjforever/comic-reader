@@ -27,6 +27,15 @@
       <div class="function-buttons">
         <!-- 右侧额外内容插槽（如 PDF 选择器） -->
         <slot name="right-extra"></slot>
+
+        <!-- 评分 -->
+        <n-rate
+          v-if="showRating"
+          :value="rating"
+          allow-half
+          size="small"
+          @update:value="(v) => $emit('rate', v)"
+        />
         <!-- 全屏 -->
         <button class="control-button" @click="$emit('toggleFullscreen')" title="全屏">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -152,6 +161,8 @@ export default defineComponent({
     isAutoPlaying: { type: Boolean, default: false },
     showZoomControls: { type: Boolean, default: false },
     zoomPercent: { type: Number, default: 100 },
+    showRating: { type: Boolean, default: false },
+    rating: { type: Number, default: 0 },
     disabledPrev: { type: Boolean, default: undefined },
     disabledNext: { type: Boolean, default: undefined },
     hasNext: { type: Boolean, default: false },
@@ -166,6 +177,7 @@ export default defineComponent({
     'zoomOut',
     'prev',
     'next',
+    'rate',
     'progress-input',
     'progress-mousedown',
     'progress-mousemove',

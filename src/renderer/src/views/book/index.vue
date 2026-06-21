@@ -23,6 +23,7 @@
       <reader-view
         :key="currentBookPath"
         :folder-path="encodeURIComponent(currentBookPath)"
+        module="book"
         :has-next="hasNext"
         :has-prev="hasPrev"
         @close="closeReader"

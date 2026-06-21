@@ -265,7 +265,9 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
     { label: '名称升序', key: 'name_asc' },
     { label: '名称降序', key: 'name_desc' },
     { label: '创建时间升序', key: 'createTime_asc' },
-    { label: '创建时间降序', key: 'createTime_desc' }
+    { label: '创建时间降序', key: 'createTime_desc' },
+    { label: '评分从高到低', key: 'rating_desc' },
+    { label: '评分从低到高', key: 'rating_asc' }
   ],
   minItemWidth: 160,
   maxItemWidth: 250,
@@ -307,7 +309,22 @@ const grid = reactive<{ rows: FolderInfo[]; filterRows: FolderInfo[] }>({
   rows: [],
   filterRows: []
 })
-const search = reactive<{ keyword: string; sort: string }>({ keyword: '', sort: 'name_asc' })
+const search = reactive<{ keyword: string; sort: string }>({ keyword: '', sort: 'rating_desc' })
+
+// 评分映射：fullPath -> rating（用于按评分排序）
+const ratingsMap = ref<Record<string, number>>({})
+const loadRatings = async () => {
+  if (!props.namespace) {
+    ratingsMap.value = {}
+    return
+  }
+  try {
+    ratingsMap.value = await window.rating.getAllRatings(props.namespace)
+  } catch (error) {
+    console.error('加载评分失败:', error)
+    ratingsMap.value = {}
+  }
+}
 
 const tags = ref<any[]>([])
 const selectedTagIds = ref<number[]>([])
@@ -378,7 +395,11 @@ const query = async (keyword?: string) => {
       name_desc: (a, b) =>
         b.name.localeCompare(a.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
       createTime_asc: (a, b) => a.createdTime.getTime() - b.createdTime.getTime(),
-      createTime_desc: (a, b) => b.createdTime.getTime() - a.createdTime.getTime()
+      createTime_desc: (a, b) => b.createdTime.getTime() - a.createdTime.getTime(),
+      rating_desc: (a, b) =>
+        (ratingsMap.value[b.fullPath] || 0) - (ratingsMap.value[a.fullPath] || 0),
+      rating_asc: (a, b) =>
+        (ratingsMap.value[a.fullPath] || 0) - (ratingsMap.value[b.fullPath] || 0)
     }
     const sortFn = sortFunctions[search.sort]
     if (sortFn) list.sort(sortFn)
@@ -395,6 +416,8 @@ const refresh = async () => {
   isLoading.value = true
   // 重置网格准备状态
   isGridReady.value = false
+  // 预加载评分映射（用于按评分排序）
+  loadRatings()
   try {
     switch (currentViewMode.value) {
       case 'folders':
@@ -853,17 +876,19 @@ const fetchGridData = async (folderPath: string) => {
   }
   isLoading.value = true
   tree.currentKey = folderPath
+  await loadRatings()
 
   try {
     if (props.provideList) {
-      grid.filterRows = grid.rows = await props.provideList(folderPath)
+      grid.rows = await props.provideList(folderPath)
     } else {
       // 第一阶段：快速加载基本信息
       const basicFolders = await window.media.getFolderListBasic(folderPath)
-      grid.filterRows = grid.rows = basicFolders
+      grid.rows = basicFolders
       // 第二阶段：渐进式加载详细信息
       loadDetailsProgressively(grid.rows, basicFolders)
     }
+    await query()
   } catch (error: any) {
     message.error(`获取子文件夹失败: ${error.message}`)
   } finally {

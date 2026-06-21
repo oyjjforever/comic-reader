@@ -60,6 +60,12 @@ declare global {
       getFavoritesByTags: (tagIdstr: string, order?: string, module?: string) => Promise<any[]>
       clearFavorites: (module?: string) => Promise<boolean>
     }
+    rating: {
+      getRating: (fullPath: string, module: string) => Promise<number>
+      getAllRatings: (module: string) => Promise<Record<string, number>>
+      setRating: (fullPath: string, module: string, rating: number) => Promise<void>
+      deleteRating: (fullPath: string, module: string) => Promise<void>
+    }
     tag: {
       getTags: (order?: string, namespace?: string) => Promise<any[]>
       getTag: (id: number) => Promise<any>
