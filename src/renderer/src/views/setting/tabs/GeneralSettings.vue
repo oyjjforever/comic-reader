@@ -17,6 +17,7 @@
         :options="[
           { label: '本地目录', value: 'folders' },
           { label: '我的收藏', value: 'favorites' },
+          { label: '精彩片段', value: 'highlights' },
           { label: '浏览历史', value: 'history' },
           { label: '最近下载', value: 'downloads' }
         ]"

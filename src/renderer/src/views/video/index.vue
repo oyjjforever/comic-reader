@@ -7,6 +7,7 @@
       :provide-list="provideVideoList"
       :provide-favorites="provideVideoFavorites"
       namespace="video"
+      :enable-highlights="true"
     >
       <template #card="{ item }">
         <media-card

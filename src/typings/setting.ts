@@ -29,7 +29,7 @@ export type setting = {
     // 是否自动填入剪切板内容
     autoFillClipboard?: boolean
     // 默认展示标签页
-    defaultViewMode?: 'folders' | 'favorites' | 'history'
+    defaultViewMode?: 'folders' | 'favorites' | 'history' | 'highlights'
     // 数据库备份设置
     // 是否启用定时备份
     enableScheduledBackup?: boolean

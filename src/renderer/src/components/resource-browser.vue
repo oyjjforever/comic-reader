@@ -5,12 +5,12 @@
         <div class="sidebar-title-section">
           <div class="view-mode-toggle">
             <n-button-group size="small">
-              <n-button
-                size="small"
-                @click="toggleSidebar"
-                class="sidebar-toggle"
-                :disabled="['history', 'downloads'].includes(currentViewMode)"
-              >
+                <n-button
+                  size="small"
+                  @click="toggleSidebar"
+                  class="sidebar-toggle"
+                  :disabled="['history', 'downloads', 'highlights'].includes(currentViewMode)"
+                >
                 <template #icon>
                   <n-icon
                     :component="isSidebarHidden ? ArrowNext24Regular : ArrowPrevious24Regular"
@@ -28,6 +28,13 @@
                 @click="currentViewMode = 'favorites'"
               >
                 我的收藏
+              </n-button>
+              <n-button
+                v-if="enableHighlights"
+                :type="currentViewMode === 'highlights' ? 'primary' : 'default'"
+                @click="currentViewMode = 'highlights'"
+              >
+                精彩片段
               </n-button>
               <n-button
                 :type="currentViewMode === 'history' ? 'primary' : 'default'"
@@ -63,7 +70,7 @@
       <div class="navbar-right">
         <n-button size="small" type="success" @click="refresh">刷新</n-button>
         <n-button
-          v-if="currentViewMode !== 'folders'"
+          v-if="['favorites', 'history', 'downloads'].includes(currentViewMode)"
           size="small"
           type="error"
           @click="handleClearData"
@@ -80,6 +87,14 @@
     </header>
 
     <main class="main-content" v-if="resourcePaths && resourcePaths.length > 0">
+      <!-- 精彩片段：左右分栏布局 -->
+      <highlights-view
+        v-if="enableHighlights && currentViewMode === 'highlights'"
+        ref="highlightsRef"
+        :search-keyword="search.keyword"
+      />
+
+      <template v-else>
       <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
         <div class="sidebar-content">
           <!-- 文件夹树视图 -->
@@ -185,6 +200,7 @@
           </responsive-virtual-grid>
         </div>
       </section>
+      </template>
     </main>
 
     <div v-else class="empty-state">
@@ -212,6 +228,7 @@
 import type { FolderInfo } from '@/typings/file'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import TagDialog from '@renderer/components/tag-dialog.vue'
+import HighlightsView from '@renderer/components/highlights-view.vue'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import {
   Bookmark as BookmarkIcon,
@@ -257,6 +274,8 @@ interface ResourceBrowserProps {
   gridGap?: number
   // 命名空间，用于区分不同模块的标签集合
   namespace?: string
+  // 是否启用「精彩片段」视图（视频模块专用）
+  enableHighlights?: boolean
 }
 
 const props = withDefaults(defineProps<ResourceBrowserProps>(), {
@@ -272,7 +291,8 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
   maxItemWidth: 250,
   aspectRatio: 0.75,
   gridGap: 10,
-  namespace: 'default'
+  namespace: 'default',
+  enableHighlights: false
 })
 
 const message = useMessage()
@@ -280,9 +300,12 @@ const dialog = useDialog()
 const router = useRouter()
 const settingStore = useSettingStore()
 const _isSidebarHidden = ref(false)
-const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads'>(
-  settingStore.setting.defaultViewMode || 'favorites'
+const initialViewMode = settingStore.setting.defaultViewMode || 'favorites'
+const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads' | 'highlights'>(
+  initialViewMode === 'highlights' && !props.enableHighlights ? 'favorites' : initialViewMode
 )
+// 精彩片段视图引用（用于刷新）
+const highlightsRef = ref()
 watch(currentViewMode, () => {
   toggleMultiSelectMode(false)
   grid.filterRows = grid.rows = []
@@ -426,6 +449,10 @@ const refresh = async () => {
         break
       case 'downloads':
         await getDownloadHistory()
+        break
+      case 'highlights':
+        // 精彩片段视图自管理数据；已挂载时刷新，首次切换由组件 onMounted 自动加载
+        highlightsRef.value?.reload?.()
         break
       case 'favorites':
       default:

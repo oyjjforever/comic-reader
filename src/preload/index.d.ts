@@ -85,6 +85,7 @@ declare global {
     }
     videoBookmarks: {
       getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>;
+      getAllVideoBookmarks: (order?: string) => Promise<VideoBookmark[]>;
       addVideoBookmark: (videoPath: string, timePoint: number, title?: string, description?: string) => Promise<number>;
       deleteVideoBookmark: (id: number) => Promise<void>;
       updateVideoBookmark: (id: number, title?: string, description?: string) => Promise<void>;

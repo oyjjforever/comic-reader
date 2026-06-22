@@ -15,6 +15,26 @@ export interface VideoBookmark {
 let db: Database | null = null;
 
 /**
+ * @description: 获取所有视频的时间点收藏（跨视频汇总）
+ * @param {string} order 排序方式，例如`created_at DESC`
+ * @return {Promise<VideoBookmark[]>} 返回所有时间点收藏列表
+ */
+const getAllVideoBookmarks = async (order?: string): Promise<VideoBookmark[]> => {
+    if (!db) {
+        db = await database.openDatabase()
+    }
+
+    if (!order) {
+        order = 'created_at DESC'
+    }
+
+    return await db.all<VideoBookmark[]>(`
+        SELECT * FROM video_bookmarks
+        ORDER BY ${order}
+    `)
+}
+
+/**
  * @description: 获取指定视频的所有时间点收藏
  * @param {string} videoPath 视频文件路径
  * @param {string} order 排序方式，例如`time_point ASC, time_point DESC`
@@ -174,6 +194,7 @@ const isTimePointBookmarked = async (videoPath: string, timePoint: number): Prom
 }
 
 export default {
+    getAllVideoBookmarks,
     getVideoBookmarks,
     addVideoBookmark,
     deleteVideoBookmark,
