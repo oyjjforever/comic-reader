@@ -7,84 +7,91 @@
       @mouseenter="onControlsEnter"
       @mouseleave="onControlsLeave"
     >
-      <!-- 返回按钮 -->
-      <button class="control-button back-button" @click="$emit('back')">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-        </svg>
-      </button>
+      <!-- 左半区：返回按钮 + 左侧额外按钮投送目标 -->
+      <div class="control-section control-left">
+        <!-- 返回按钮 -->
+        <button class="control-button back-button" @click="$emit('back')">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+          </svg>
+        </button>
 
-      <!-- 左侧额外按钮投送目标（在返回按钮与页码之间的剩余宽度居中） -->
-      <div :id="`${uid}-left`" class="teleport-slot teleport-left"></div>
+        <!-- 左侧额外按钮投送目标（在返回按钮与页码之间居中） -->
+        <div :id="`${uid}-left`" class="teleport-slot teleport-left"></div>
+      </div>
 
       <!-- 页码显示（绝对居中） -->
       <div class="page-indicator">{{ currentPage }} / {{ totalPages }}</div>
 
-      <!-- 右侧额外按钮投送目标（在页码与功能按钮之间的剩余宽度居中） -->
-      <div :id="`${uid}-right`" class="teleport-slot teleport-right"></div>
+      <!-- 右半区：右侧额外按钮投送目标 + 功能按钮组 -->
+      <div class="control-section control-right">
+        <!-- 右侧额外按钮投送目标（在页码与功能按钮之间居中） -->
+        <div :id="`${uid}-right`" class="teleport-slot teleport-right"></div>
 
-      <!-- 功能按钮组 -->
-      <div class="function-buttons">
-        <!-- 右侧额外内容插槽（如 PDF 选择器） -->
-        <slot name="right-extra"></slot>
+        <!-- 功能按钮组 -->
+        <div class="function-buttons">
+          <!-- 右侧额外内容插槽（如 PDF 选择器） -->
+          <slot name="right-extra"></slot>
 
-        <!-- 评分 -->
-        <n-rate
-          v-if="showRating"
-          :value="rating"
-          allow-half
-          size="small"
-          @update:value="(v) => $emit('rate', v)"
-        />
-        <!-- 全屏 -->
-        <button class="control-button" @click="$emit('toggleFullscreen')" title="全屏">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+          <!-- 评分 -->
+          <div v-if="showRating" class="rate-button">
+            <n-rate
+              :value="rating"
+              allow-half
+              size="small"
+              @update:value="(v) => $emit('rate', v)"
             />
-          </svg>
-        </button>
-
-        <!-- 缩放重置 -->
-        <button class="control-button" @click="$emit('resetZoom')" title="适应屏幕">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"
-            />
-          </svg>
-        </button>
-
-        <!-- 自动播放（可选） -->
-        <button
-          v-if="showAutoPlay"
-          class="control-button"
-          @click="$emit('toggleAutoPlay')"
-          :title="isAutoPlaying ? '暂停 (空格)' : '播放 (空格)'"
-        >
-          <svg v-if="!isAutoPlaying" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-          </svg>
-        </button>
-
-        <!-- 缩放控制（可选） -->
-        <template v-if="showZoomControls">
-          <button class="control-button" @click="$emit('zoomOut')" title="缩小">
+          </div>
+          <!-- 全屏 -->
+          <button class="control-button" @click="$emit('toggleFullscreen')" title="全屏">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 13H5v-2h14v2z" />
+              <path
+                d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+              />
             </svg>
           </button>
 
-          <span class="zoom-display">{{ Math.round(zoomPercent) }}%</span>
-
-          <button class="control-button" @click="$emit('zoomIn')" title="放大">
+          <!-- 缩放重置 -->
+          <button class="control-button" @click="$emit('resetZoom')" title="适应屏幕">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+              <path
+                d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"
+              />
             </svg>
           </button>
-        </template>
+
+          <!-- 自动播放（可选） -->
+          <button
+            v-if="showAutoPlay"
+            class="control-button"
+            @click="$emit('toggleAutoPlay')"
+            :title="isAutoPlaying ? '暂停 (空格)' : '播放 (空格)'"
+          >
+            <svg v-if="!isAutoPlaying" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            </svg>
+          </button>
+
+          <!-- 缩放控制（可选） -->
+          <template v-if="showZoomControls">
+            <button class="control-button" @click="$emit('zoomOut')" title="缩小">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13H5v-2h14v2z" />
+              </svg>
+            </button>
+
+            <span class="zoom-display">{{ Math.round(zoomPercent) }}%</span>
+
+            <button class="control-button" @click="$emit('zoomIn')" title="放大">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+              </svg>
+            </button>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -369,6 +376,19 @@ export default defineComponent({
       @apply w-12 h-12;
     }
 
+    /* 评分：容器与 control-button 保持一致（暗色半透明、圆角、模糊、hover），
+       仅宽度随星星自适应 */
+    .rate-button {
+      @apply flex items-center justify-center h-10 px-2 rounded-lg transition-all duration-200;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(10px);
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.6);
+        transform: scale(1.05);
+      }
+    }
+
     .page-indicator {
       @apply text-white text-xl font-medium px-4 py-2 rounded-lg;
       position: absolute;
@@ -381,6 +401,12 @@ export default defineComponent({
 
     .function-buttons {
       @apply flex items-center space-x-3;
+    }
+
+    /* 左右半区各占 50%，使页码始终绝对居中，
+       且左右额外按钮在各自锚点（返回按钮/页码 与 页码/功能按钮）之间真正居中 */
+    .control-section {
+      @apply flex items-center flex-1 min-w-0;
     }
 
     /* 投送目标容器（子组件按钮并入顶部栏） */

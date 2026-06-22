@@ -57,7 +57,7 @@
 
       <!-- 评分（封面左上角） -->
       <div v-if="rating > 0" class="cover-rating" :title="`评分 ${rating} 星`">
-        <n-rate :value="rating" allow-half readonly size="small" />
+        {{ rating }}<n-icon :component="Star24Filled" size="12" />
       </div>
     </div>
 
@@ -76,7 +76,7 @@ import {
   Bookmark as BookmarkIcon,
   BookmarkOutline as BookmarkOutlineIcon
 } from '@vicons/ionicons5'
-import { SlideMultiple24Regular } from '@vicons/fluent'
+import { SlideMultiple24Regular, Star24Filled } from '@vicons/fluent'
 import type { FolderInfo } from '@/typings/file'
 
 // 扩展 FolderInfo 接口以包含封面路径和收藏状态
@@ -579,12 +579,17 @@ onUnmounted(() => {
   top: 5px;
   left: 5px;
   z-index: 2;
-  padding: 1px 4px;
+  padding: 1px 6px;
   border-radius: 5px;
   background: #00000071;
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
+  gap: 2px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 /* 信息展示区 */

@@ -216,8 +216,7 @@ import ContextMenu from '@imengyu/vue3-context-menu'
 import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
-  Folder as FolderIcon,
-  Settings as SettingsIcon
+  Folder as FolderIcon
 } from '@vicons/ionicons5'
 import {
   ArrowSortDownLines24Regular,
@@ -235,9 +234,9 @@ import {
   FolderOpen24Regular,
   Delete24Filled
 } from '@vicons/fluent'
-import { NButton, NIcon, NCheckbox, NButtonGroup, NSpin, useMessage, useDialog } from 'naive-ui'
+import { NButton, NIcon, NButtonGroup, NSpin, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
-import { ref, reactive, onMounted, onActivated, onDeactivated, h } from 'vue'
+import { ref, reactive, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@renderer/plugins/store'
 
@@ -326,8 +325,9 @@ const loadRatings = async () => {
   }
 }
 
+// 虚拟标签 id：已评分（点击后按评分倒序展示所有已评分的收藏）
 const tags = ref<any[]>([])
-const selectedTagIds = ref<number[]>([])
+const selectedTagIds = ref<(number | string)[]>([])
 const allTagsSelected = ref(false)
 const tagDialogObject = reactive({ show: false, data: {} as FolderInfo | null })
 
@@ -379,6 +379,16 @@ function onSort(key: string | number) {
 }
 
 // 搜索/排序
+const SORT_FNS: Record<string, (a: FolderInfo, b: FolderInfo) => number> = {
+  name_asc: (a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
+  name_desc: (a, b) =>
+    b.name.localeCompare(a.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
+  createTime_asc: (a, b) => a.createdTime.getTime() - b.createdTime.getTime(),
+  createTime_desc: (a, b) => b.createdTime.getTime() - a.createdTime.getTime(),
+  rating_desc: (a, b) => (ratingsMap.value[b.fullPath] || 0) - (ratingsMap.value[a.fullPath] || 0),
+  rating_asc: (a, b) => (ratingsMap.value[a.fullPath] || 0) - (ratingsMap.value[b.fullPath] || 0)
+}
+
 const query = async (keyword?: string) => {
   isLoading.value = true
   try {
@@ -389,19 +399,7 @@ const query = async (keyword?: string) => {
       list = list.filter((folder) => folder.name?.toLowerCase().includes(_kw))
     }
 
-    const sortFunctions: Record<string, (a: FolderInfo, b: FolderInfo) => number> = {
-      name_asc: (a, b) =>
-        a.name.localeCompare(b.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
-      name_desc: (a, b) =>
-        b.name.localeCompare(a.name, 'zh-CN', { numeric: true, sensitivity: 'base' }),
-      createTime_asc: (a, b) => a.createdTime.getTime() - b.createdTime.getTime(),
-      createTime_desc: (a, b) => b.createdTime.getTime() - a.createdTime.getTime(),
-      rating_desc: (a, b) =>
-        (ratingsMap.value[b.fullPath] || 0) - (ratingsMap.value[a.fullPath] || 0),
-      rating_asc: (a, b) =>
-        (ratingsMap.value[a.fullPath] || 0) - (ratingsMap.value[b.fullPath] || 0)
-    }
-    const sortFn = sortFunctions[search.sort]
+    const sortFn = SORT_FNS[search.sort]
     if (sortFn) list.sort(sortFn)
     grid.filterRows = list
   } catch (e) {
@@ -532,13 +530,13 @@ const renderTreeNode = ({ option }: { option: any }) => {
   )
 }
 // 懒加载处理
-const handleTreeLoad = (node: any) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const res = await props.provideTree(node.fullPath)
+const handleTreeLoad = async (node: any) => {
+  try {
+    const res = await props.provideTree(node.fullPath)
 
-      // 检查每个子节点是否已被收藏
-      for (const childNode of res) {
+    // 并行检查每个子节点是否已被收藏
+    await Promise.all(
+      res.map(async (childNode) => {
         try {
           childNode.isBookmarked = await window.tag.isFolderTagged(
             childNode.fullPath,
@@ -548,15 +546,13 @@ const handleTreeLoad = (node: any) => {
           console.warn(`Failed to check bookmark status for ${childNode.fullPath}:`, error)
           childNode.isBookmarked = false
         }
-      }
+      })
+    )
 
-      node.children = res
-      resolve()
-    } catch (error: any) {
-      message.error(`加载子节点失败: ${error.message}`)
-      resolve()
-    }
-  })
+    node.children = res
+  } catch (error: any) {
+    message.error(`加载子节点失败: ${error.message}`)
+  }
 }
 
 // 收藏
@@ -564,60 +560,59 @@ const getFavorites = async () => {
   try {
     // 加载标签列表
     await loadTags()
-    // 如果没有标签被选中，则默认全选
-    // if (tags.value.length && !selectedTagIds.value.length) {
-    //   selectedTagIds.value = tags.value.map((tag) => tag.id)
-    //   allTagsSelected.value = true
-    // }
     applyTagFilter()
   } catch (error: any) {
     message.error(`获取收藏失败: ${error.message}`)
   }
 }
 
+// 将历史记录转换为 FolderInfo 格式（浏览历史 / 下载历史共用）
+const buildHistoryFolders = async (
+  records: any[],
+  options: { useCoverAsPath?: boolean } = {}
+): Promise<FolderInfo[]> => {
+  const { useCoverAsPath } = options
+  const folders: FolderInfo[] = []
+  for (const record of records) {
+    try {
+      let folderInfo
+      // TODO 不够优雅的区分方式，后续考虑改进
+      if (props.provideList) {
+        folderInfo = await window.media.getFileInfo(record.fullPath)
+        if (useCoverAsPath) folderInfo.coverPath = folderInfo.fullPath
+      } else {
+        folderInfo = await window.media.getFolderInfo(record.fullPath)
+      }
+      if (folderInfo) {
+        folders.push({
+          ...folderInfo,
+          id: record.id,
+          fullPath: record.fullPath,
+          isBookmarked: false
+        })
+      }
+    } catch (error) {
+      console.warn(`Failed to load folder info for ${record.fullPath}:`, error)
+      // 即使获取详细信息失败，也添加基本信息
+      const name = record.fullPath.split(/[/\\]/).pop() || record.fullPath
+      folders.push({
+        name,
+        fullPath: record.fullPath,
+        fileCount: 0,
+        createdTime: new Date(record.created_at || Date.now()),
+        isBookmarked: false,
+        contentType: 'empty'
+      })
+    }
+  }
+  return folders
+}
+
 // 获取浏览历史
 const getBrowseHistory = async () => {
   try {
-    isLoading.value = true
-
-    // 获取浏览历史记录
-    const historyRecords = await window.browseHistory.getBrowseHistory(100, props.namespace)
-    // 转换为FolderInfo格式
-    const historyFolders: FolderInfo[] = []
-    for (const record of historyRecords) {
-      try {
-        let folderInfo
-        // TODO 不够优雅的区分方式，后续考虑改进
-        if (props.provideList) {
-          folderInfo = await window.media.getFileInfo(record.fullPath)
-        } else {
-          folderInfo = await window.media.getFolderInfo(record.fullPath)
-        }
-        if (folderInfo) {
-          historyFolders.push({
-            ...folderInfo,
-            id: record.id,
-            fullPath: record.fullPath,
-            isBookmarked: false
-          })
-        }
-      } catch (error) {
-        console.warn(`Failed to load folder info for ${record.fullPath}:`, error)
-        // 即使获取详细信息失败，也添加基本信息
-        const pathParts = record.fullPath.split(/[/\\]/)
-        const name = pathParts[pathParts.length - 1] || record.fullPath
-        historyFolders.push({
-          name,
-          fullPath: record.fullPath,
-          fileCount: 0,
-          createdTime: new Date(record.created_at || Date.now()),
-          isBookmarked: false,
-          contentType: 'empty'
-        })
-      }
-    }
-
-    grid.filterRows = grid.rows = historyFolders
+    const records = await window.browseHistory.getBrowseHistory(100, props.namespace)
+    grid.filterRows = grid.rows = await buildHistoryFolders(records)
   } catch (error: any) {
     message.error(`获取浏览历史失败: ${error.message}`)
   }
@@ -626,45 +621,8 @@ const getBrowseHistory = async () => {
 // 获取下载历史
 const getDownloadHistory = async () => {
   try {
-    // 获取下载历史记录
-    const downloadRecords = await window.downloadHistory.getDownloadHistory(100, props.namespace)
-    // 转换为FolderInfo格式
-    const downloadFolders: FolderInfo[] = []
-    for (const record of downloadRecords) {
-      try {
-        let folderInfo
-        // TODO 不够优雅的区分方式，后续考虑改进
-        if (props.provideList) {
-          folderInfo = await window.media.getFileInfo(record.fullPath)
-          folderInfo.coverPath = folderInfo.fullPath
-        } else {
-          folderInfo = await window.media.getFolderInfo(record.fullPath)
-        }
-        if (folderInfo) {
-          downloadFolders.push({
-            ...folderInfo,
-            id: record.id,
-            fullPath: record.fullPath,
-            isBookmarked: false
-          })
-        }
-      } catch (error) {
-        console.warn(`Failed to load folder info for ${record.fullPath}:`, error)
-        // 即使获取详细信息失败，也添加基本信息
-        const pathParts = record.fullPath.split(/[/\\]/)
-        const name = pathParts[pathParts.length - 1] || record.fullPath
-        downloadFolders.push({
-          name,
-          fullPath: record.fullPath,
-          fileCount: 0,
-          createdTime: new Date(record.created_at || Date.now()),
-          isBookmarked: false,
-          contentType: 'empty'
-        })
-      }
-    }
-
-    grid.filterRows = grid.rows = downloadFolders
+    const records = await window.downloadHistory.getDownloadHistory(100, props.namespace)
+    grid.filterRows = grid.rows = await buildHistoryFolders(records, { useCoverAsPath: true })
   } catch (error: any) {
     message.error(`获取下载历史失败: ${error.message}`)
   }
@@ -689,6 +647,11 @@ const loadTags = async () => {
       id: '',
       type: 'normal'
     })
+    tags.value.unshift({
+      label: '已评分',
+      id: 'rated',
+      type: 'normal'
+    })
     selectedTagIds.value = selectedTagIds.value.filter((tagId) =>
       tags.value.some((tag) => tag.id === tagId)
     )
@@ -711,13 +674,8 @@ const handleTagLeftClick = async (tag: any) => {
   // 如果正在加载中，提示用户并忽略操作
   if (checkTagFilterLoading()) return
 
-  // 如果当前已选中该标签，则取消选中
-  // if (selectedTagIds.value.includes(tag.id)) {
-  //   selectedTagIds.value = []
-  // } else {
-  // 否则只选中当前点击的标签
+  // 只选中当前点击的标签
   selectedTagIds.value = [tag.id]
-  // }
 
   // 更新全选状态
   allTagsSelected.value = selectedTagIds.value.length === tags.value.length
@@ -784,12 +742,16 @@ const applyTagFilter = debounce(async () => {
       return
     }
 
-    // 获取所有选中的标签信息
-    let selectedTagsInfo = await window.tag.getTagsByIds(
-      selectedTagIds.value.join(','),
-      props.namespace
-    )
-    if (selectedTagIds.value.some((_) => _ === '')) {
+    // 是否选中了虚拟标签「已评分」
+    const hasRatedTag = selectedTagIds.value.some((id) => id === 'rated')
+    if (hasRatedTag) await loadRatings()
+
+    // 仅查询真实存在的标签（排除虚拟标签 id：'' 与 'rated'）
+    const realTagIds = selectedTagIds.value.filter((id) => id !== '' && id !== 'rated')
+    let selectedTagsInfo = realTagIds.length
+      ? await window.tag.getTagsByIds(realTagIds.join(','), props.namespace)
+      : []
+    if (selectedTagIds.value.some((id) => id === '')) {
       selectedTagsInfo.push({
         id: '',
         label: '默认分组',
@@ -809,6 +771,33 @@ const applyTagFilter = debounce(async () => {
         allItems = allItems.concat(folderItems)
         await loadDetailsProgressively(allItems, folderItems)
       }
+    }
+
+    // 「已评分」：以评分映射为数据源，展示该模块下所有已评分作品（不限于收藏）
+    if (hasRatedTag) {
+      const isFileModule = !!props.provideList
+      const ratedPaths = Object.keys(ratingsMap.value).filter((p) => (ratingsMap.value[p] || 0) > 0)
+      const ratedItems = ratedPaths.map((fullPath) => {
+        const base: any = {
+          fullPath,
+          name: fullPath.split(/[/\\]/).pop() || fullPath,
+          isBookmarked: false
+        }
+        if (isFileModule) {
+          // 文件模块（如视频）：封面即文件本身，立即设置以便卡片即时生成缩略图
+          base.coverPath = fullPath
+        } else {
+          // 文件夹模块：标记为加载中，等待渐进式详情补全封面与内容类型
+          base.contentType = 'loading'
+        }
+        return base
+      })
+      allItems = allItems.concat(ratedItems)
+      // 渐进式补全封面等详情（文件模块用 getFileInfo，文件夹模块用 loadFolderDetails）
+      const getDetail = isFileModule
+        ? (p: string) => window.media.getFileInfo(p)
+        : (p: string) => window.media.loadFolderDetails(p)
+      loadDetailsProgressively(ratedItems, ratedItems, getDetail)
     }
 
     // 处理普通标签：获取收藏列表并筛选
@@ -844,9 +833,19 @@ const applyTagFilter = debounce(async () => {
     }
 
     // 去重（基于fullPath）
-    const uniqueItems = allItems.filter(
-      (item, index, self) => index === self.findIndex((t) => t.fullPath === item.fullPath)
-    )
+    const seen = new Set<string>()
+    const uniqueItems = allItems.filter((item) => {
+      if (seen.has(item.fullPath)) return false
+      seen.add(item.fullPath)
+      return true
+    })
+
+    // 选中「已评分」时，按评分倒序排列
+    if (hasRatedTag) {
+      uniqueItems.sort(
+        (a, b) => (ratingsMap.value[b.fullPath] || 0) - (ratingsMap.value[a.fullPath] || 0)
+      )
+    }
 
     // 更新显示内容
     grid.filterRows = grid.rows = uniqueItems
@@ -897,18 +896,27 @@ const fetchGridData = async (folderPath: string) => {
 }
 
 // 渐进式加载详细信息
-const loadDetailsProgressively = async (rows: any[], folders: any[]) => {
+const loadDetailsProgressively = async (
+  rows: any[],
+  folders: any[],
+  getDetail: (fullPath: string) => Promise<any> = (p) => window.media.loadFolderDetails(p)
+) => {
+  if (folders.length === 0) return
+  const indexByPath = new Map<string, number>()
+  for (let i = 0; i < rows.length; i++) indexByPath.set(rows[i].fullPath, i)
+
   const batchSize = Math.min(10, folders.length) // 每批处理10个文件夹
   for (let i = 0; i < folders.length; i += batchSize) {
     const batch = folders.slice(i, i + batchSize)
     await Promise.all(
       batch.map(async (folder) => {
         try {
-          const details = await window.media.loadFolderDetails(folder.fullPath)
-          // 更新对应的文件夹信息
-          const index = rows.findIndex((f) => f.fullPath === folder.fullPath)
-          if (index !== -1) {
-            rows[index] = { ...rows[index], ...details }
+          const details = await getDetail(folder.fullPath)
+          const index = indexByPath.get(folder.fullPath)
+          if (index !== undefined) {
+            // 使用 Object.assign 原地更新对象，保留 rows 与 filterRows 之间的共享引用，
+            // 否则展开运算符会创建新对象，导致 filterRows 仍引用旧的 loading 状态
+            Object.assign(rows[index], details)
           }
         } catch (error) {
           console.warn(`Failed to load details for ${folder.fullPath}:`, error)
@@ -942,7 +950,7 @@ const preloadNextPage = async () => {
 
 // 滚动事件处理
 const handleScroll = (event: Event) => {
-  if (currentViewMode !== 'folders') return
+  if (currentViewMode.value !== 'folders') return
   const target = event.target as HTMLElement
   const { scrollTop, scrollHeight, clientHeight } = target
 
@@ -956,39 +964,42 @@ const handleScroll = (event: Event) => {
 const fetchTreeData = async () => {
   if (!props.resourcePaths || props.resourcePaths.length === 0) return
   try {
-    const rootNodes = []
-    for (const path of props.resourcePaths) {
-      if (!path) continue
-      try {
-        const treeData = await props.provideTree(path)
+    // 并行加载各根路径，保持输入顺序
+    const rootNodes = await Promise.all(
+      (props.resourcePaths.filter(Boolean) as string[]).map(async (path) => {
+        try {
+          const treeData = await props.provideTree(path)
 
-        // 检查每个顶层节点是否已被收藏
-        for (const node of treeData) {
-          try {
-            node.isBookmarked = await window.tag.isFolderTagged(node.fullPath, props.namespace)
-          } catch (error) {
-            console.warn(`Failed to check bookmark status for ${node.fullPath}:`, error)
-            node.isBookmarked = false
+          // 并行检查每个顶层节点是否已被收藏
+          await Promise.all(
+            treeData.map(async (node) => {
+              try {
+                node.isBookmarked = await window.tag.isFolderTagged(node.fullPath, props.namespace)
+              } catch (error) {
+                console.warn(`Failed to check bookmark status for ${node.fullPath}:`, error)
+                node.isBookmarked = false
+              }
+            })
+          )
+
+          return {
+            name: path,
+            fullPath: path,
+            isRoot: true,
+            children: treeData
+          }
+        } catch (error: any) {
+          console.warn(`Failed to load tree for path ${path}:`, error)
+          // 即使某个路径加载失败，仍然添加根节点（无子节点）
+          return {
+            name: path,
+            fullPath: path,
+            isRoot: true,
+            children: []
           }
         }
-
-        rootNodes.push({
-          name: path,
-          fullPath: path,
-          isRoot: true,
-          children: treeData
-        })
-      } catch (error: any) {
-        console.warn(`Failed to load tree for path ${path}:`, error)
-        // 即使某个路径加载失败，仍然添加根节点（无子节点）
-        rootNodes.push({
-          name: path,
-          fullPath: path,
-          isRoot: true,
-          children: []
-        })
-      }
-    }
+      })
+    )
 
     tree.data = rootNodes
   } catch (error: any) {
