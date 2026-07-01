@@ -262,7 +262,6 @@ async function runTwitter(task) {
     // 媒体库下载
     else {
       workDir = `${baseDir}\\${file.simpleSanitize(author)}`
-      await isPathExists(workDir, task)
       let images = [],
         cursor = null
       while (true) {
@@ -280,6 +279,7 @@ async function runTwitter(task) {
         async (image, _i) => {
           const fileName = file.simpleSanitize(image.title || `unknow_${_i}.jpg`)
           const savePath = `${workDir}\\${fileName}`
+          if (await file.pathExists(savePath)) return
           await twitter.downloadImage(image.url, savePath)
         },
         (success, fail, total) => {
