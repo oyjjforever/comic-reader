@@ -21,7 +21,21 @@
       </div>
 
       <!-- 页码显示（绝对居中） -->
-      <div class="page-indicator">{{ currentPage }} / {{ totalPages }}</div>
+      <div class="page-indicator" @click="enablePageEdit">
+        <template v-if="!isEditingPage">{{ currentPage }} / {{ totalPages }}</template>
+        <input
+          v-else
+          ref="pageInputRef"
+          v-model.number="pageEditValue"
+          class="page-input"
+          type="number"
+          :min="1"
+          :max="totalPages"
+          @blur="commitPageEdit"
+          @keyup.enter="onPageInputEnter"
+          @keyup.esc="cancelPageEdit"
+        />
+      </div>
 
       <!-- 右半区：右侧额外按钮投送目标 + 功能按钮组 -->
       <div class="control-section control-right">
@@ -67,7 +81,13 @@
             @click="$emit('toggleAutoPlay')"
             :title="isAutoPlaying ? '暂停 (空格)' : '播放 (空格)'"
           >
-            <svg v-if="!isAutoPlaying" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <svg
+              v-if="!isAutoPlaying"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
               <path d="M8 5v14l11-7z" />
             </svg>
             <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -129,7 +149,7 @@
       </svg>
     </button> -->
     <!-- 底部进度条 -->
-    <div
+    <!-- <div
       v-if="totalPages > 1"
       class="bottom-progress"
       :class="{ 'controls-hidden': !effectiveShowControls }"
@@ -148,12 +168,12 @@
           @update:value="onNaiveSliderUpdate"
         />
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref, provide, onUnmounted } from 'vue'
+import { defineComponent, computed, ref, provide, onUnmounted, nextTick } from 'vue'
 
 const THROTTLE_INTERVAL = 100
 let _uidSeq = 0
@@ -185,6 +205,7 @@ export default defineComponent({
     'prev',
     'next',
     'rate',
+    'page-jump',
     'progress-input',
     'progress-mousedown',
     'progress-mousemove',
@@ -235,7 +256,7 @@ export default defineComponent({
       const rect = target.getBoundingClientRect()
       const y = ev.clientY - rect.top
       const h = rect.height
-      if (y <= HOVER_EDGE_RANGE || y >= h - HOVER_EDGE_RANGE) {
+      if (y <= HOVER_EDGE_RANGE) {
         showControlsTemporarily()
       }
     }
@@ -319,6 +340,42 @@ export default defineComponent({
       emit('progress-input', { target: { value: val } } as unknown as Event)
     }
 
+    // 页码直接跳转编辑
+    const isEditingPage = ref(false)
+    const pageEditValue = ref(props.currentPage)
+    const pageInputRef = ref<HTMLInputElement | null>(null)
+    const enablePageEdit = () => {
+      if (props.totalPages <= 1) return
+      pageEditValue.value = props.currentPage
+      isEditingPage.value = true
+      nextTick(() => {
+        const el = pageInputRef.value
+        if (el) {
+          el.focus()
+          el.select()
+        }
+      })
+    }
+    const commitPageEdit = () => {
+      if (!isEditingPage.value) return
+      isEditingPage.value = false
+      const target = Number(pageEditValue.value)
+      if (
+        Number.isFinite(target) &&
+        target >= 1 &&
+        target <= props.totalPages &&
+        target !== props.currentPage
+      ) {
+        emit('page-jump', target)
+      }
+    }
+    const cancelPageEdit = () => {
+      isEditingPage.value = false
+    }
+    const onPageInputEnter = (ev: KeyboardEvent) => {
+      ;(ev.target as HTMLInputElement).blur()
+    }
+
     return {
       uid,
       effectiveShowControls,
@@ -333,6 +390,14 @@ export default defineComponent({
       isDraggingProgress,
       progressTooltip,
       onProgressInput,
+
+      isEditingPage,
+      pageEditValue,
+      pageInputRef,
+      enablePageEdit,
+      commitPageEdit,
+      cancelPageEdit,
+      onPageInputEnter,
 
       onControlsEnter,
       onControlsLeave
@@ -390,13 +455,27 @@ export default defineComponent({
     }
 
     .page-indicator {
-      @apply text-white text-xl font-medium px-4 py-2 rounded-lg;
+      @apply text-white text-xl font-medium px-4 py-2 rounded-lg cursor-pointer;
       position: absolute;
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
       background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(10px);
+
+      .page-input {
+        @apply text-white text-xl font-medium text-center;
+        width: 56px;
+        background: transparent;
+        border: none;
+        outline: none;
+        -moz-appearance: textfield;
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+      }
     }
 
     .function-buttons {

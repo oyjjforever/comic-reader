@@ -19,6 +19,7 @@
       @prev="prevPage"
       @next="nextPage"
       @rate="onRate"
+      @page-jump="handlePageJump"
       @progress-input="handleProgressChange"
     >
       <div class="reader-container">
@@ -221,6 +222,10 @@ const handleProgressChange = (event: Event) => {
   const target = event.target
   const newIndex = parseInt(target.value) - 1
   jumpToPage(newIndex)
+}
+// 页码直接跳转
+const handlePageJump = (page: number) => {
+  jumpToPage(page - 1)
 }
 // 自动播放功能
 const toggleAutoPlay = () => {
