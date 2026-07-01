@@ -5,12 +5,12 @@
         <div class="sidebar-title-section">
           <div class="view-mode-toggle">
             <n-button-group size="small">
-                <n-button
-                  size="small"
-                  @click="toggleSidebar"
-                  class="sidebar-toggle"
-                  :disabled="['history', 'downloads', 'highlights'].includes(currentViewMode)"
-                >
+              <n-button
+                size="small"
+                @click="toggleSidebar"
+                class="sidebar-toggle"
+                :disabled="['history', 'downloads', 'highlights'].includes(currentViewMode)"
+              >
                 <template #icon>
                   <n-icon
                     :component="isSidebarHidden ? ArrowNext24Regular : ArrowPrevious24Regular"
@@ -95,111 +95,111 @@
       />
 
       <template v-else>
-      <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
-        <div class="sidebar-content">
-          <!-- 文件夹树视图 -->
-          <n-tree
-            v-if="currentViewMode === 'folders'"
-            :data="tree.data"
-            :node-props="nodeProps"
-            :on-load="handleTreeLoad"
-            key-field="fullPath"
-            label-field="name"
-            block-line
-            class="folder-tree"
-            :default-expanded-keys="resourcePaths"
-            :render-label="renderTreeNode"
-            :indent="20"
-          />
+        <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
+          <div class="sidebar-content">
+            <!-- 文件夹树视图 -->
+            <n-tree
+              v-if="currentViewMode === 'folders'"
+              :data="tree.data"
+              :node-props="nodeProps"
+              :on-load="handleTreeLoad"
+              key-field="fullPath"
+              label-field="name"
+              block-line
+              class="folder-tree"
+              :default-expanded-keys="resourcePaths"
+              :render-label="renderTreeNode"
+              :indent="20"
+            />
 
-          <!-- 标签树视图 -->
-          <div v-else-if="currentViewMode === 'favorites'" class="tag-tree-view">
-            <div class="tag-filter-header">
-              <h4 class="tag-filter-title">
-                标签筛选
-                <n-tooltip trigger="hover">
-                  左键单选，右键多选
-                  <template #trigger>
-                    <n-icon :component="QuestionCircle24Regular" size="12" />
-                  </template>
-                </n-tooltip>
-              </h4>
+            <!-- 标签树视图 -->
+            <div v-else-if="currentViewMode === 'favorites'" class="tag-tree-view">
+              <div class="tag-filter-header">
+                <h4 class="tag-filter-title">
+                  标签筛选
+                  <n-tooltip trigger="hover">
+                    左键单选，右键多选
+                    <template #trigger>
+                      <n-icon :component="QuestionCircle24Regular" size="12" />
+                    </template>
+                  </n-tooltip>
+                </h4>
 
-              <div class="tag-filter-controls">
-                <n-button size="tiny" @click="openTagManager"> 管理 </n-button>
-                <n-button size="tiny" @click="toggleAllTags">
-                  {{ allTagsSelected ? '取消全选' : '全选' }}
-                </n-button>
+                <div class="tag-filter-controls">
+                  <n-button size="tiny" @click="openTagManager"> 管理 </n-button>
+                  <n-button size="tiny" @click="toggleAllTags">
+                    {{ allTagsSelected ? '取消全选' : '全选' }}
+                  </n-button>
+                </div>
               </div>
-            </div>
-            <div class="tag-filter-list">
-              <div v-if="tags.length === 0" class="empty-tags">暂无标签</div>
-              <div v-else>
-                <!-- 统一标签列表 -->
-                <div class="tag-items">
-                  <div
-                    v-for="tag in tags"
-                    :key="tag.id"
-                    class="tag-item"
-                    :class="{ 'tag-selected': selectedTagIds.includes(tag.id) }"
-                    @click="handleTagLeftClick(tag)"
-                    @contextmenu.prevent="handleTagRightClick(tag, $event)"
-                  >
-                    <div class="tag-item-content">
-                      <n-icon
-                        :component="tag.type === 'folder' ? Folder24Regular : Tag20Regular"
-                        class="folder-icon"
-                        :size="16"
-                      />
+              <div class="tag-filter-list">
+                <div v-if="tags.length === 0" class="empty-tags">暂无标签</div>
+                <div v-else>
+                  <!-- 统一标签列表 -->
+                  <div class="tag-items">
+                    <div
+                      v-for="tag in tags"
+                      :key="tag.id"
+                      class="tag-item"
+                      :class="{ 'tag-selected': selectedTagIds.includes(tag.id) }"
+                      @click="handleTagLeftClick(tag)"
+                      @contextmenu.prevent="handleTagRightClick(tag, $event)"
+                    >
+                      <div class="tag-item-content">
+                        <n-icon
+                          :component="tag.type === 'folder' ? Folder24Regular : Tag20Regular"
+                          class="folder-icon"
+                          :size="16"
+                        />
 
-                      <span class="tag-label">{{ tag.label }}</span>
+                        <span class="tag-label">{{ tag.label }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      <section class="content-area">
-        <div v-if="isLoading" class="loading-overlay">
-          <n-spin size="large">
-            <template #description> 正在加载... </template>
-          </n-spin>
-        </div>
-        <div v-else class="grid-view">
-          <div v-if="grid.filterRows.length === 0" class="empty-data-state">
-            <n-empty description="没有找到匹配的内容"> </n-empty>
+        <section class="content-area">
+          <div v-if="isLoading" class="loading-overlay">
+            <n-spin size="large">
+              <template #description> 正在加载... </template>
+            </n-spin>
           </div>
-          <responsive-virtual-grid
-            ref="virtualGridRef"
-            :items="grid.filterRows"
-            key-field="fullPath"
-            :overscan="3"
-            :min-item-width="minItemWidth"
-            :max-item-width="maxItemWidth"
-            :aspect-ratio="aspectRatio"
-            :gap="gridGap"
-            @scroll="handleScroll"
-          >
-            <template #default="{ item }">
-              <div
-                style="width: 100%; height: 100%"
-                @contextmenu="(e) => handleContextMenu(e, item)"
-                @click="handleCardClick(item, $event)"
-                :class="{
-                  'selected-card': isMultiSelectMode && isCardSelected(item),
-                  'multi-selecting': isMultiSelectMode,
-                  'bookmarked-card': isMultiSelectMode && item.isBookmarked
-                }"
-              >
-                <slot name="card" :item="item" />
-              </div>
-            </template>
-          </responsive-virtual-grid>
-        </div>
-      </section>
+          <div v-else class="grid-view">
+            <div v-if="grid.filterRows.length === 0" class="empty-data-state">
+              <n-empty description="没有找到匹配的内容"> </n-empty>
+            </div>
+            <responsive-virtual-grid
+              ref="virtualGridRef"
+              :items="grid.filterRows"
+              key-field="fullPath"
+              :overscan="3"
+              :min-item-width="minItemWidth"
+              :max-item-width="maxItemWidth"
+              :aspect-ratio="aspectRatio"
+              :gap="gridGap"
+              @scroll="handleScroll"
+            >
+              <template #default="{ item }">
+                <div
+                  style="width: 100%; height: 100%"
+                  @contextmenu="(e) => handleContextMenu(e, item)"
+                  @click="handleCardClick(item, $event)"
+                  :class="{
+                    'selected-card': isMultiSelectMode && isCardSelected(item),
+                    'multi-selecting': isMultiSelectMode,
+                    'bookmarked-card': isMultiSelectMode && item.isBookmarked
+                  }"
+                >
+                  <slot name="card" :item="item" />
+                </div>
+              </template>
+            </responsive-virtual-grid>
+          </div>
+        </section>
       </template>
     </main>
 
@@ -576,7 +576,11 @@ const handleTreeLoad = async (node: any) => {
       })
     )
 
-    node.children = res
+    // 已收藏的节点排在最前面
+    const sortByBookmarked = (nodes: any[]) =>
+      nodes.sort((a, b) => Number(!!b.isBookmarked) - Number(!!a.isBookmarked))
+
+    node.children = sortByBookmarked(res)
   } catch (error: any) {
     message.error(`加载子节点失败: ${error.message}`)
   }
@@ -1013,7 +1017,9 @@ const fetchTreeData = async () => {
             name: path,
             fullPath: path,
             isRoot: true,
-            children: treeData
+            children: [...treeData].sort(
+              (a, b) => Number(!!b.isBookmarked) - Number(!!a.isBookmarked)
+            )
           }
         } catch (error: any) {
           console.warn(`Failed to load tree for path ${path}:`, error)
