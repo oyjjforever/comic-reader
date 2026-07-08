@@ -35,6 +35,29 @@ async function downloadAllMedia(authorName, authorId) {
   const artworkIds = profile.illusts.concat(profile.manga)
   addToQueue(artworkIds)
 }
+// 追更：从新到旧遍历，连续5个已下载则结束
+async function downloadNewMedia(authorName, authorId, onProgress) {
+  const profile = await pixiv.getArtworksByUserId(authorId)
+  const artworkIds = profile.illusts.concat(profile.manga).sort((a, b) => b - a)
+  const newIds = []
+  let consecutiveDownloaded = 0
+  for (const id of artworkIds) {
+    try {
+      const info = await pixiv.getArtworkInfo(id)
+      if (isLocalDownloaded(authorName, info.title)) {
+        if (++consecutiveDownloaded >= 5) break
+      } else {
+        consecutiveDownloaded = 0
+        newIds.push(id)
+        if (onProgress) onProgress(newIds.length, id)
+      }
+    } catch (e) {
+      console.error(`检查作品 ${id} 失败:`, e)
+    }
+  }
+  addToQueue(newIds)
+  return newIds.length
+}
 async function downloadManga(mangaId) {
   const mangaInfo = await pixiv.getMangaInfo(mangaId)
   const artworkIds = mangaInfo.series
@@ -154,6 +177,7 @@ export default {
   downloadArtwork,
   downloadIllusts,
   downloadAllMedia,
+  downloadNewMedia,
   downloadManga,
   getArtworkInfo,
   fetchArtworks,

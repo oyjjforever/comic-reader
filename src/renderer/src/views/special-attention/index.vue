@@ -4,6 +4,7 @@
       <!-- 页面标题与搜索区域 -->
       <div class="header-section">
         <h1 class="page-title">特别关注({{ filteredItems.length }})</h1>
+
         <!-- 新作品提示 -->
         <div v-if="newArtworkCount > 0" class="new-artwork-notification">
           <n-icon :component="Alert24Regular" size="18" />
@@ -12,6 +13,7 @@
             <n-button size="tiny" @click="toggleOnlyNewArtworks">{{
               showOnlyNew ? '显示全部' : '只显示更新'
             }}</n-button>
+
             <n-button size="tiny" @click="clearAllNewArtworkMarks">清除标记</n-button>
           </div>
         </div>
@@ -32,6 +34,14 @@
               style="width: 120px"
             />
             <n-button type="primary" size="small" @click="refresh">刷新</n-button>
+            <n-button
+              type="success"
+              size="small"
+              :loading="incrementalLoading"
+              @click="incrementalUpdateAll"
+            >
+              全部追更
+            </n-button>
           </div>
         </div>
 
@@ -129,6 +139,7 @@ import {
   Tag20Regular
 } from '@vicons/fluent'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
+import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { debounce } from 'lodash'
 const message = useMessage()
@@ -158,6 +169,7 @@ const items = ref([])
 const searchQuery = ref('')
 const sourceFilter = ref(null)
 const showOnlyNew = ref(false)
+const incrementalLoading = ref(false)
 
 // 标签相关变量
 const tags = ref<any[]>([])
@@ -274,6 +286,44 @@ function clearAllNewArtworkMarks() {
   newArtworkDetector.clearAllNewArtworkMarks()
   showOnlyNew.value = false
   message.success('已清除所有新作品标记')
+}
+
+// 批量追更所有有新作品的作者
+async function incrementalUpdateAll() {
+  const targets = items.value.filter((u) => newArtworkDetector.hasNewArtwork(u.source, u.authorId))
+  if (targets.length === 0) {
+    message.info('暂无需要追更的作者')
+    return
+  }
+  incrementalLoading.value = true
+  let total = 0
+  const msg = message.create(`正在追更 (0/${targets.length})...`, {
+    type: 'loading',
+    duration: 0
+  })
+  for (let i = 0; i < targets.length; i++) {
+    const item = targets[i]
+    msg.content = `正在追更 ${item.authorName || item.authorId} (${i + 1}/${
+      targets.length
+    })，已找到 0 个...`
+    try {
+      const count = await siteUtils.downloadNew(item.source, item, (n) => {
+        msg.content = `正在追更 ${item.authorName || item.authorId} (${i + 1}/${
+          targets.length
+        })，已找到 ${n} 个...`
+      })
+      total += count
+      if (count > 0) {
+        newArtworkDetector.clearNewArtworkMark(item.source, item.authorId)
+      }
+    } catch (error) {
+      console.error(`追更失败: ${item.source}:${item.authorId}`, error)
+    }
+  }
+  msg.type = 'success'
+  msg.content = `追更完成，共新增 ${total} 个作品`
+  setTimeout(() => msg.destroy(), 2500)
+  incrementalLoading.value = false
 }
 
 // 只显示有新作品的作者

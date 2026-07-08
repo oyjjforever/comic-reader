@@ -229,6 +229,26 @@ async function downloadAll(site, item) {
 }
 
 /**
+ * 追更：只下载未下载过的最新作品
+ * @param {string} site - 站点名称
+ * @param {Object} item - 作者对象
+ * @param {Function} [onProgress] - 进度回调，参数为(已新增数量, 当前作品ID)
+ * @returns {Promise<number>} 新增下载的数量
+ */
+async function downloadNew(site, item, onProgress) {
+  try {
+    const util = getSiteUtil(site)
+    if (util && util.downloadNewMedia) {
+      return await util.downloadNewMedia(item.authorName, item.authorId, onProgress)
+    }
+    return 0
+  } catch (error) {
+    console.error('追更失败:', error)
+    return 0
+  }
+}
+
+/**
  * 直接获取站点工具对象
  * @param {string} site - 站点名称
  * @returns {Object} 站点工具对象
@@ -278,6 +298,7 @@ export default {
   isLocalDownloaded,
   downloadArtwork,
   downloadAll,
+  downloadNew,
   searchArtworks,
   getSiteViewConfig
 }

@@ -68,7 +68,8 @@
         <button @click="$emit('remove', item.id)" class="action-button unfollow-button">
           取消关注
         </button>
-        <button @click="onDownloadAll" class="action-button download-all-button">全部下载</button>
+        <!-- <button @click="onDownloadAll" class="action-button download-all-button">全部下载</button> -->
+        <button @click="onDownloadNew" class="action-button download-new-button">追更下载</button>
         <button @click="$emit('set-tag', item)" class="action-button tag-button">设置标签</button>
       </div>
       <div class="pagination-buttons">
@@ -109,6 +110,9 @@ import {
 } from '@vicons/fluent'
 import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
 import { reactive, computed, onMounted, ref } from 'vue'
+import { useMessage } from 'naive-ui'
+
+const message = useMessage()
 const props = defineProps<{
   item: { type: Object; required: true }
 }>()
@@ -172,6 +176,29 @@ async function onDownload(row) {
 }
 async function onDownloadAll() {
   await siteUtils.downloadAll(props.item.source, props.item)
+}
+async function onDownloadNew() {
+  const msg = message.create('正在追更，请稍候...', { type: 'loading', duration: 0 })
+  try {
+    const count = await siteUtils.downloadNew(props.item.source, props.item, (n, artworkId) => {
+      msg.content = `正在追更，已找到 ${n} 个新作品...`
+      const row = grid.rows.find((r) => r.artworkId === artworkId)
+      if (row) row.downloaded = true
+    })
+    if (count > 0) {
+      msg.type = 'success'
+      msg.content = `已加入 ${count} 个新作品下载队列`
+      newArtworkDetector.clearNewArtworkMark(props.item.source, props.item.authorId)
+    } else {
+      msg.type = 'info'
+      msg.content = '没有新作品需要下载'
+    }
+    setTimeout(() => msg.destroy(), 2500)
+  } catch (error) {
+    msg.type = 'error'
+    msg.content = '追更失败'
+    setTimeout(() => msg.destroy(), 2500)
+  }
 }
 function prevPage() {
   if (page.index > 0) page.index -= 1
@@ -437,6 +464,19 @@ function onPreview(row) {
 }
 
 .download-all-button {
+  color: #10b981;
+
+  &:hover {
+    color: #059669;
+  }
+}
+
+.download-new-button {
+  // color: #3b82f6;
+
+  // &:hover {
+  //   color: #2563eb;
+  // }
   color: #10b981;
 
   &:hover {

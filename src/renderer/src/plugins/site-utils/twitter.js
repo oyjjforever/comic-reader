@@ -34,6 +34,35 @@ async function downloadAllMedia(authorName, authorId) {
     }
   })
 }
+// 追更：从新到旧遍历，连续5个已下载则结束
+async function downloadNewMedia(authorName, authorId, onProgress) {
+  let cursor = null
+  let consecutiveDownloaded = 0
+  let count = 0
+  let stop = false
+  while (!stop) {
+    const res = await twitter.getMediaPerPage(authorId, cursor, 50)
+    const images = twitter.extractItemsFromJson(res) || []
+    for (const image of images) {
+      if (isLocalDownloaded(authorName, image.title)) {
+        if (++consecutiveDownloaded >= 5) {
+          stop = true
+          break
+        }
+      } else {
+        consecutiveDownloaded = 0
+        await downloadArtwork(authorName, authorId, image.title, image.url)
+        count++
+        if (onProgress) onProgress(count, image.id)
+      }
+    }
+    if (stop) break
+    const next = twitter.extractBottomCursorValues(res)
+    if (!next || images.length === 0) break
+    cursor = next
+  }
+  return count
+}
 async function downloadVideo(authorName, twitterId) {
   const downloadPath =
     settingStore.setting?.downloadPathTwitter || settingStore.setting?.defaultDownloadPath
@@ -219,6 +248,7 @@ export default {
   siteView,
   downloadArtwork,
   downloadAllMedia,
+  downloadNewMedia,
   downloadVideo,
   pagingImage,
   previewImage,

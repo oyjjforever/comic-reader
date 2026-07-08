@@ -34,6 +34,29 @@ async function downloadAllMedia(authorName, authorId) {
     downloadArtwork(authorName, comic.id)
   }
 }
+// 追更：从新到旧遍历，连续5个已下载则结束
+async function downloadNewMedia(authorName, authorId, onProgress) {
+  const res = await jmtt.getComicsByAuthor(authorId)
+  const comics = res?.data?.content || []
+  let consecutiveDownloaded = 0
+  let count = 0
+  for (const comic of comics) {
+    try {
+      const info = await jmtt.getComicInfo(comic.id)
+      if (isLocalDownloaded(authorName, info.name)) {
+        if (++consecutiveDownloaded >= 5) break
+      } else {
+        consecutiveDownloaded = 0
+        await downloadArtwork(authorName, comic.id)
+        count++
+        if (onProgress) onProgress(count, comic.id)
+      }
+    } catch (e) {
+      console.error(`检查作品 ${comic.id} 失败:`, e)
+    }
+  }
+  return count
+}
 async function searchArtworks(keyword, page = 1) {
   const res = await jmtt.search(keyword, page)
   if (res.type === 'ComicRespData') return [res.data]
@@ -171,6 +194,7 @@ export default {
   siteView,
   downloadArtwork,
   downloadAllMedia,
+  downloadNewMedia,
   getArtworkInfo,
   fetchArtworks,
   pagingImage,

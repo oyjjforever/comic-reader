@@ -35,6 +35,35 @@ async function downloadAllMedia(authorName, authorId) {
     }
   })
 }
+// 追更：从新到旧遍历，连续5个已下载则结束
+async function downloadNewMedia(authorName, authorId, onProgress) {
+  let cursor = null
+  let consecutiveDownloaded = 0
+  let count = 0
+  let stop = false
+  while (!stop) {
+    const res = await weibo.getMediaPerPage(authorId, cursor, 50)
+    const images = (res.data.list || []).filter((_) => _.pid)
+    for (const image of images) {
+      if (isLocalDownloaded(authorName, image.pid)) {
+        if (++consecutiveDownloaded >= 5) {
+          stop = true
+          break
+        }
+      } else {
+        consecutiveDownloaded = 0
+        await downloadArtwork(authorName, authorId, image.pid)
+        count++
+        if (onProgress) onProgress(count, image.pid)
+      }
+    }
+    if (stop) break
+    const next = res.data.since_id || null
+    if (!next || images.length === 0) break
+    cursor = next
+  }
+  return count
+}
 
 async function previewImage(pid) {
   const blobUrl = await weibo.getImage(pid)
@@ -228,6 +257,7 @@ export default {
   siteView,
   downloadArtwork,
   downloadAllMedia,
+  downloadNewMedia,
   pagingImage,
   previewImage,
   hasNewArtwork,
