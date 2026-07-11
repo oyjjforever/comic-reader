@@ -83,6 +83,11 @@ async function hasNewArtwork(authorName, authorId) {
     return false
   }
 }
+const typeMap = {
+  0: null, //'插画',
+  1: null, //'漫画',
+  2: 'GIF'
+}
 async function getArtworkInfo(artworkId) {
   const [info, images] = await Promise.all([
     pixiv.getArtworkInfo(artworkId),
@@ -97,6 +102,7 @@ async function getArtworkInfo(artworkId) {
     author: info.author,
     title: info.title || '',
     illustType: info.illustType,
+    artworkType: typeMap[info.illustType],
     cover: coverUrl,
     pages: images.length,
     imageUrls: images.map((image) => image.urls.original),

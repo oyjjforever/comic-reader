@@ -7,8 +7,12 @@
 
       <div class="modal-content">
         <div class="image-gallery">
+          <div v-if="dialog.data.artworkType === 'GIF'" class="ugoira-preview">
+            <UgoiraPlayer :frames="dialog.data.frames" />
+          </div>
           <div
             v-for="(url, index) in dialog.data.imageUrls || []"
+            v-else
             :key="index"
             class="image-item"
             :data-index="index"
@@ -60,6 +64,7 @@
 import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { CloseOutline } from '@vicons/ionicons5'
 import { SlideMultiple24Regular } from '@vicons/fluent'
+import UgoiraPlayer from './ugoira-player.vue'
 // Define props
 const props = defineProps({
   dialog: {
@@ -165,15 +170,25 @@ const observeImages = () => {
 }
 
 // Lifecycle hooks
-onMounted(() => {
+onMounted(async () => {
   // 设置交叉观察器
   setupIntersectionObserver()
   observeImages()
-  // 立即加载前几张图片
-  if (props.dialog.data.imageUrls && props.dialog.data.imageUrls.length > 0) {
-    // 预加载前3张图片
-    for (let i = 0; i < Math.min(3, props.dialog.data.imageUrls.length); i++) {
-      loadImage(i)
+  // pixiv 动图：按需加载帧用于播放
+  if (props.dialog.data.source === 'pixiv' && props.dialog.data.artworkType === 'GIF') {
+    try {
+      const frames = await window.pixiv.getUgoiraFrames(props.dialog.data.artworkId)
+      props.dialog.data.frames = frames
+    } catch (e) {
+      console.error('加载动图帧失败:', e)
+    }
+  } else {
+    // 立即加载前几张图片
+    if (props.dialog.data.imageUrls && props.dialog.data.imageUrls.length > 0) {
+      // 预加载前3张图片
+      for (let i = 0; i < Math.min(3, props.dialog.data.imageUrls.length); i++) {
+        loadImage(i)
+      }
     }
   }
 })
@@ -265,6 +280,14 @@ onBeforeUnmount(() => {
 .image-item {
   width: 100%;
   display: flex;
+  justify-content: center;
+}
+
+.ugoira-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 

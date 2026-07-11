@@ -39,14 +39,17 @@
             class="artwork-item"
             :class="{ 'artwork-item--downloaded': row.downloaded }"
           >
-            <!-- <img :src="row.cover" /> -->
             <n-image v-if="row.artworkId" :src="row.cover">
               <template #error>
                 <img :src="errorImg" />
               </template>
             </n-image>
             <n-image v-else :src="errorImg" />
+
             <div v-if="row.artworkId" class="hover-ops">
+              <div v-if="row.artworkType" class="artwork-item__artworkType">
+                {{ row.artworkType }}
+              </div>
               <div class="artwork-item__pages">
                 <n-icon :component="SlideMultiple24Regular" size="12" />{{ row.pages }}
               </div>
@@ -359,6 +362,19 @@ function onPreview(row) {
     border-radius: 5px;
     font-size: 12px;
     padding: 0px 4px;
+  }
+  &__artworkType {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    color: #fff;
+    background: #00000071;
+    backdrop-filter: blur(10px);
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 5px;
+    z-index: 2;
   }
   /* 悬浮操作栏 */
   .hover-ops {

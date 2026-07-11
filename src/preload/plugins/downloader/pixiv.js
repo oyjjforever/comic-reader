@@ -1,5 +1,7 @@
 import Api from './api.js'
 import fsp from 'fs/promises'
+import fs from 'fs'
+import os from 'os'
 import file from '../file.ts'
 import { spawnSync, spawn } from 'child_process'
 import path from 'path'
@@ -66,6 +68,43 @@ async function getImage(url) {
   const blob = new Blob([imageStream])
   const coverUrl = URL.createObjectURL(blob)
   return coverUrl
+}
+
+// 获取 ugoira 动图帧（用于预览）
+async function getUgoiraFrames(artworkId) {
+  const cookies = await api.getCookies('.pixiv.net')
+  const meta = await api.get({
+    url: `https://www.pixiv.net/ajax/illust/${artworkId}/ugoira_meta?lang=zh`,
+    headers: { Referer: 'https://www.pixiv.net/', Cookie: cookies }
+  })
+  const zipUrl = meta.body.originalSrc
+  const frames = meta.body.frames // [{ file, delay }]
+  const res = await api.get({
+    url: zipUrl,
+    responseType: 'arraybuffer',
+    headers: { Referer: 'https://www.pixiv.net/' }
+  })
+  const imageData = Buffer.from(res)
+  const tempDir = path.join(os.tmpdir(), `ugoira_${artworkId}_${Date.now()}`)
+  const tempZip = path.join(tempDir, 'frames.zip')
+  file.ensureDir(tempZip)
+  await fsp.writeFile(tempZip, imageData)
+  // extractFile 会解压并删除 zip
+  await file.extractFile(tempZip, tempDir)
+  const result = []
+  for (const frame of frames) {
+    const framePath = path.join(tempDir, frame.file)
+    const buf = await fsp.readFile(framePath)
+    const blob = new Blob([buf])
+    result.push({ url: URL.createObjectURL(blob), delay: frame.delay })
+  }
+  // 清理临时目录
+  try {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  } catch (e) {
+    console.error('清理 ugoira 临时目录失败:', e)
+  }
+  return result
 }
 
 async function downloadImage(url, savePath) {
@@ -227,6 +266,7 @@ export default {
   getArtworkInfo,
   getArtworkImages,
   getImage,
+  getUgoiraFrames,
   downloadImage,
   downloadGif,
   generateGif,
