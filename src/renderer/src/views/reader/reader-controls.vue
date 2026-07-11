@@ -65,11 +65,16 @@
             </svg>
           </button>
 
-          <!-- 缩放重置 -->
-          <button class="control-button" @click="$emit('resetZoom')" title="适应屏幕">
+          <!-- 显示阅读进度条 -->
+          <button
+            class="control-button"
+            :class="{ active: showProgress }"
+            @click="$emit('toggleProgress')"
+            :title="showProgress ? '隐藏阅读进度条' : '显示阅读进度条'"
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path
-                d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"
+                d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"
               />
             </svg>
           </button>
@@ -149,8 +154,8 @@
       </svg>
     </button> -->
     <!-- 底部进度条 -->
-    <!-- <div
-      v-if="totalPages > 1"
+    <div
+      v-if="totalPages > 1 && showProgress"
       class="bottom-progress"
       :class="{ 'controls-hidden': !effectiveShowControls }"
       @mouseenter="onControlsEnter"
@@ -168,7 +173,7 @@
           @update:value="onNaiveSliderUpdate"
         />
       </div>
-    </div> -->
+    </div>
   </div>
 </template>
 
@@ -188,6 +193,7 @@ export default defineComponent({
     isAutoPlaying: { type: Boolean, default: false },
     showZoomControls: { type: Boolean, default: false },
     zoomPercent: { type: Number, default: 100 },
+    showProgress: { type: Boolean, default: true },
     showRating: { type: Boolean, default: false },
     rating: { type: Number, default: 0 },
     disabledPrev: { type: Boolean, default: undefined },
@@ -199,6 +205,7 @@ export default defineComponent({
     'back',
     'toggleFullscreen',
     'resetZoom',
+    'toggleProgress',
     'toggleAutoPlay',
     'zoomIn',
     'zoomOut',
@@ -256,7 +263,13 @@ export default defineComponent({
       const rect = target.getBoundingClientRect()
       const y = ev.clientY - rect.top
       const h = rect.height
+      // 顶部边缘触发显示
       if (y <= HOVER_EDGE_RANGE) {
+        showControlsTemporarily()
+        return
+      }
+      // 开启进度条时，底部边缘也触发显示
+      if (props.showProgress && y >= h - HOVER_EDGE_RANGE) {
         showControlsTemporarily()
       }
     }
@@ -434,6 +447,10 @@ export default defineComponent({
       &:hover {
         background: rgba(0, 0, 0, 0.6);
         transform: scale(1.05);
+      }
+
+      &.active {
+        background: rgba(255, 255, 255, 0.25);
       }
     }
 

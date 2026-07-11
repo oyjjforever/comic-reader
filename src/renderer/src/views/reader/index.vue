@@ -9,6 +9,7 @@
       :zoom-percent="zoomLevel * 100"
       :show-rating="showRating"
       :rating="currentRating"
+      :show-progress="showProgressBar"
       :disabled-prev="page.index <= 0 && !props.hasPrev"
       :disabled-next="page.index >= page.total - 1 && !props.hasNext"
       :has-next="props.hasNext"
@@ -21,6 +22,7 @@
       @rate="onRate"
       @page-jump="handlePageJump"
       @progress-input="handleProgressChange"
+      @toggleProgress="toggleProgressBar"
     >
       <div class="reader-container">
         <component :is="readerComponent" :file="currentFile"></component>
@@ -35,6 +37,7 @@ import imageReader from './type/image.vue'
 import pdfReader from './type/pdf.vue'
 import videoReader from './type/video/index.vue'
 import readerControls from './reader-controls.vue'
+import { showProgressBar } from './reader-state'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
 
@@ -234,6 +237,9 @@ const toggleAutoPlay = () => {
   } else {
     startAutoPlay()
   }
+}
+const toggleProgressBar = () => {
+  showProgressBar.value = !showProgressBar.value
 }
 const startAutoPlay = () => {
   if (page.index >= page.total - 1) {
