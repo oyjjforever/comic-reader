@@ -10,6 +10,12 @@
           <div v-if="dialog.data.artworkType === 'GIF'" class="ugoira-preview">
             <UgoiraPlayer :frames="dialog.data.frames" />
           </div>
+          <div v-else-if="dialog.data.artworkType === '视频'" class="video-preview">
+            <div v-if="!videoSrc" class="image-placeholder">
+              <span>视频加载中...</span>
+            </div>
+            <video v-else :src="videoSrc" controls autoplay loop class="gallery-video"></video>
+          </div>
           <div
             v-for="(url, index) in dialog.data.imageUrls || []"
             v-else
@@ -45,7 +51,7 @@
           <div class="action-buttons-container">
             <div class="download-button-container">
               <button @click="handleDownload" class="download-button">
-                <span>下载作品</span>
+                <span>{{ dialog.data.downloaded ? '已下载' : '下载作品' }}</span>
               </button>
             </div>
             <div class="share-button-container">
@@ -81,6 +87,7 @@ const shareButtonText = ref('分享链接')
 const loadedImages = reactive({})
 const observer = ref(null)
 const imageItems = ref([])
+const videoSrc = ref('')
 
 // Methods
 const closeModal = () => {
@@ -175,12 +182,20 @@ onMounted(async () => {
   setupIntersectionObserver()
   observeImages()
   // pixiv 动图：按需加载帧用于播放
-  if (props.dialog.data.source === 'pixiv' && props.dialog.data.artworkType === 'GIF') {
+  if (props.dialog.data.artworkType === 'GIF') {
     try {
       const frames = await window.pixiv.getUgoiraFrames(props.dialog.data.artworkId)
       props.dialog.data.frames = frames
     } catch (e) {
       console.error('加载动图帧失败:', e)
+    }
+  } else if (props.dialog.data.artworkType === '视频') {
+    // 视频作品：加载视频流用于播放
+    try {
+      const url = props.dialog.data.imageUrls?.[0] || props.dialog.data.url
+      videoSrc.value = await siteUtils.previewImage(props.dialog.data.source, url)
+    } catch (e) {
+      console.error('加载视频失败:', e)
     }
   } else {
     // 立即加载前几张图片
@@ -198,6 +213,8 @@ onBeforeUnmount(() => {
   if (observer.value) {
     observer.value.disconnect()
   }
+  // 清理视频源
+  videoSrc.value = ''
 })
 </script>
 
@@ -289,6 +306,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.video-preview {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .gallery-video {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
 }
 
 .gallery-image {

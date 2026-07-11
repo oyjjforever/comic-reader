@@ -93,6 +93,9 @@ async function hasNewArtwork(authorName, authorId) {
     return false
   }
 }
+const typeMap = {
+  video: '视频'
+}
 async function pagingImage(authorName, authorId, grid, page) {
   const pageSize = page?.size || 20
   const pageIndex = page?.index || 0
@@ -129,12 +132,13 @@ async function pagingImage(authorName, authorId, grid, page) {
   const promises = currentPageImages.map(async (image) => {
     try {
       const downloaded = isLocalDownloaded(authorName, image.title)
-      const coverUrl = await previewImage(image.url)
+      const coverUrl = await previewImage(image.cover || image.url)
       return {
         artworkId: image.id,
         author: authorName,
         title: image.title || '',
         cover: coverUrl,
+        artworkType: typeMap[image.type],
         url: image.url,
         pages: 1,
         imageUrls: [image.url],
@@ -172,12 +176,13 @@ async function pagingImage(authorName, authorId, grid, page) {
           nextImages.map(async (image) => {
             try {
               const downloaded = isLocalDownloaded(authorName, image.title)
-              const coverUrl = await previewImage(image.url)
+              const coverUrl = await previewImage(image.cover || image.url)
               return {
                 artworkId: image.id,
                 author: authorName,
                 title: image.title || '',
                 cover: coverUrl,
+                artworkType: typeMap[image.type],
                 url: image.url,
                 pages: 1,
                 imageUrls: [image.url],

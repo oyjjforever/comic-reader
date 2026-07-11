@@ -77,7 +77,9 @@ function extractItemsFromJson(jsonData) {
         return {
           id: item.entryId || null,
           createTime: legacy.created_at,
-          url: mediaUrl,
+          type: isVideo ? 'video' : 'photo', // 媒体类型
+          url: mediaUrl, // 下载用（视频为mp4，图片为图片URL）
+          cover: media.media_url_https, // 封面缩略图（始终为图片）
           title: mediaUrl?.split('/')?.pop()?.split('?')[0]
         }
       })
