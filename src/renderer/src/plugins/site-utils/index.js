@@ -5,12 +5,15 @@ import WeiboUtil from './weibo.js'
 import JmttUtil from './jmtt.js'
 import PicamanUtil from './picaman.js'
 import PornhubUtil from './pornhub.js'
+import YfantasyUtil from './yfantasy.js'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
 import pornhubImg from '@renderer/assets/pornhub.ico'
+// yfantasy 图标待用户提供，暂用应用图标占位
+import yfantasyImg from '@renderer/assets/icon.png'
 const settingStore = useSettingStore(pinia)
 
 // 站点配置映射，以站点类型为键
@@ -43,6 +46,11 @@ const sites = {
   pornhub: {
     util: PornhubUtil,
     icon: pornhubImg,
+    downloadPathSetting: 'defaultDownloadPath'
+  },
+  yfantasy: {
+    util: YfantasyUtil,
+    icon: yfantasyImg,
     downloadPathSetting: 'defaultDownloadPath'
   }
 }

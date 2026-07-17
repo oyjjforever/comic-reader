@@ -43,6 +43,18 @@
           @mouseleave="onSitesSubmenuHover(false)"
         >
           <div
+            v-for="item in routeMenuConfig"
+            :key="item.name"
+            class="sites-submenu__item"
+            :class="{ active: isMenuActive(item) }"
+            @click="onSelectRouteItem(item)"
+          >
+            <n-icon v-if="item.icon" :component="item.icon" size="20" />
+            <img v-if="item.image" :src="item.image" width="24" height="24" />
+            <span>{{ item.label }}</span>
+          </div>
+          <div class="sites-submenu__divider"></div>
+          <div
             v-for="(site, idx) in sitesConfig"
             :key="site.site"
             class="sites-submenu__item"
@@ -171,7 +183,7 @@
         </n-modal>
         <!-- 非 site 路由使用 router-view + keep-alive -->
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,reader,search,specialAttention,actorVideo">
+          <keep-alive include="book,video,reader,search,specialAttention,actorVideo,yfantasy">
             <component
               v-if="!isSiteRoute"
               ref="nonSiteComponentRef"
@@ -218,6 +230,7 @@ import {
   PeopleTeam24Regular,
   Search24Regular,
   Globe24Regular,
+  MoviesAndTv24Regular,
   Add16Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
@@ -227,6 +240,8 @@ import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
+import yfantasyImg from '@renderer/assets/yfantasy.png'
+import missavImg from '@renderer/assets/missav.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import AboutDialog from '@renderer/components/about-dialog.vue'
@@ -290,10 +305,15 @@ const newArtworkCount = computed(() => {
 const menuItems = [
   { icon: Book24Regular, name: 'book' },
   { icon: VideoClipMultiple24Regular, name: 'video' },
-  { icon: PersonTag24Regular, name: 'actor-video' },
   { icon: PeopleTeam24Regular, name: 'special-attention' },
   { icon: Search24Regular, name: 'search' },
   { icon: Globe24Regular, name: 'sites' }
+]
+
+// 二级菜单中的路由项（与站点列表用分割线区分）
+const routeMenuConfig = [
+  { image: missavImg, name: 'missav', label: 'MISSAV' },
+  { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' }
 ]
 
 // 站点列表配置（二级菜单）
@@ -358,6 +378,11 @@ function onSelectSite(site: any) {
   activeSite.value = site.site
   router.push({ name: 'site-view', params: { site: site.site } })
   sitesMenuVisible.value = false
+}
+
+function onSelectRouteItem(item: any) {
+  sitesMenuVisible.value = false
+  router.push({ name: item.name })
 }
 
 function isSiteActive(siteName: string) {
@@ -612,6 +637,12 @@ $background-color: #322f3b;
         background: rgba(96, 165, 250, 0.25);
         color: #ffffff;
       }
+    }
+
+    &__divider {
+      height: 1px;
+      margin: 4px 6px;
+      background: rgba(255, 255, 255, 0.15);
     }
   }
 

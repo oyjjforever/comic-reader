@@ -425,6 +425,40 @@ async function runPicaman(task) {
   }
 }
 
+async function runYfantasy(task) {
+  const { segments, title, baseDir } = task.payload
+  try {
+    updateTask(task, { status: 'running', errorMessage: undefined })
+    const workDir = `${baseDir}\\${file.simpleSanitize(title)}`
+    if (!segments || !segments.length) throw new Error('无可下载的片段')
+    await runWithConcurrency(
+      segments,
+      task,
+      async (seg) => {
+        if (!seg.url) throw new Error('片段地址为空')
+        const fileName = `${file.simpleSanitize(title)}_seg_${seg.segmentIndex}.mp4`
+        await window.electron.ipcRenderer.invoke('download:start', {
+          url: seg.url,
+          fileName,
+          savePath: workDir,
+          autoExtract: false
+        })
+      },
+      (success, fail, total) => {
+        updateTask(task, { progress: { success, fail, total } })
+        task.onSuccess?.()
+      }
+    )
+    updateTask(task, { from: 'yfantasy', status: 'success', localFilePath: workDir })
+  } catch (e) {
+    console.log('🚀 ~ runYfantasy ~ e:', e)
+    if (task._cancel) {
+      updateTask(task, { status: 'canceled' })
+      return
+    }
+  }
+}
+
 async function executeTask(task) {
   switch (task.site) {
     case 'jmtt':
@@ -444,6 +478,9 @@ async function executeTask(task) {
       break
     case 'picaman':
       await runPicaman(task)
+      break
+    case 'yfantasy':
+      await runYfantasy(task)
       break
     default:
       updateTask(task, { status: 'error' })

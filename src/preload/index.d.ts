@@ -259,6 +259,7 @@ declare global {
         date: string
         isHd: boolean
       }>>
+      checkAccess: () => Promise<boolean>
     }
     /** @electron/llm 提供的本地 LLM API */
     electronAi: {

@@ -156,6 +156,29 @@
 
     <bt-links-dialog v-model:show="btDialog.show" :dvdId="btDialog.dvdId" :title="btDialog.title" />
 
+    <!-- Cloudflare 人机验证覆盖层 -->
+    <div v-if="needVerify" class="verify-overlay">
+      <div class="verify-overlay__bar">
+        <span class="verify-overlay__tip">
+          <template v-if="verifyPassed">已通过验证，点击下方按钮继续</template>
+          <template v-else>正在打开 missav.ws，请在页面中完成人机验证…</template>
+        </span>
+        <div class="verify-overlay__actions">
+          <n-button size="small" :disabled="!verifyPassed" type="primary" @click="onVerifyDone">
+            完成验证
+          </n-button>
+          <n-button size="small" @click="onVerifyCancel">取消</n-button>
+        </div>
+      </div>
+      <webview
+        ref="verifyWebviewRef"
+        class="verify-overlay__webview"
+        src="https://missav.ws"
+        partition="persist:thirdparty"
+        allowpopups
+      />
+    </div>
+
     <!-- 全屏播放器覆盖层 -->
     <div v-if="isReading" class="reader-overlay">
       <reader-view
@@ -211,6 +234,62 @@ const settingStore = useSettingStore()
 const actresses = ref<Actress[]>([])
 const actressLoading = ref(false)
 const keyword = ref('')
+
+// Cloudflare 人机验证状态
+const needVerify = ref(false)
+const verifyPassed = ref(false)
+const verifyWebviewRef = ref<any>(null)
+
+const CHALLENGE_TITLES = ['just a moment', '请注意', '请稍候', 'checking your browser']
+
+async function isChallengePage(wv: any): Promise<boolean> {
+  try {
+    const title: string = await wv.executeJavaScript('document.title')
+    const t = (title || '').trim().toLowerCase()
+    if (!t) return true
+    return CHALLENGE_TITLES.some((c) => t.includes(c))
+  } catch {
+    return true
+  }
+}
+
+async function setupVerifyWebview() {
+  await nextTick()
+  const wv = verifyWebviewRef.value
+  if (!wv) return
+  const check = async () => {
+    const blocked = await isChallengePage(wv)
+    verifyPassed.value = !blocked
+  }
+  wv.addEventListener('dom-ready', check)
+  wv.addEventListener('did-navigate', check)
+  wv.addEventListener('did-navigate-in-page', check)
+}
+
+function onVerifyDone() {
+  needVerify.value = false
+  verifyPassed.value = false
+  loadActresses()
+}
+
+function onVerifyCancel() {
+  needVerify.value = false
+  verifyPassed.value = false
+  message.warning('未通过验证，数据可能无法加载')
+}
+
+async function ensureAccess(): Promise<boolean> {
+  try {
+    const ok = await window.missav.checkAccess()
+    if (ok) return true
+  } catch {
+    // 检测失败时继续弹出验证窗口
+  }
+  needVerify.value = true
+  await setupVerifyWebview()
+  return false
+}
+
 
 const FAV_STORAGE_KEY = 'actor-video:favorites'
 const CUSTOM_STORAGE_KEY = 'actor-video:custom-actresses'
@@ -348,7 +427,9 @@ async function loadActresses() {
     actresses.value = [...customs, ...list]
   } catch (e) {
     console.error(e)
-    message.error('演员列表获取失败')
+    // 访问被拒（403）时引导用户进行人机验证
+    ensureAccess()
+    message.error('演员列表获取失败，可能需要完成人机验证')
   } finally {
     actressLoading.value = false
   }
@@ -561,8 +642,9 @@ async function copyText(text: string) {
   }
 }
 
-onMounted(() => {
-  loadActresses()
+onMounted(async () => {
+  const ok = await ensureAccess()
+  if (ok) loadActresses()
 })
 </script>
 
@@ -584,6 +666,46 @@ onMounted(() => {
   bottom: 0;
   z-index: 100;
   background: #000;
+}
+
+.verify-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+
+  &__bar {
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+  }
+
+  &__tip {
+    font-size: 13px;
+    color: #555;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  &__webview {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    background: #fff;
+  }
 }
 
 /* 左侧演员列表 */

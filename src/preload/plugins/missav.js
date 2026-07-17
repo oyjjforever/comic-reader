@@ -45,7 +45,15 @@ function toAbsolute(href) {
 }
 
 async function fetchHtml(url) {
-  const data = await api.get({ url, headers: COMMON_HEADERS })
+  // missav.ws 启用 Cloudflare 防护，必须带上 cf_clearance 等会话 cookie 才能通过验证
+  const cookies = await api.getCookies('.missav.ws')
+  const data = await api.get({
+    url,
+    headers: {
+      ...COMMON_HEADERS,
+      ...(cookies ? { Cookie: cookies } : {})
+    }
+  })
   return typeof data === 'string' ? data : String(data)
 }
 
@@ -184,10 +192,19 @@ async function getVideoBTLinks(dvdId) {
   return list
 }
 
+/**
+ * 检测是否已通过 Cloudflare 验证（存在 cf_clearance cookie）
+ */
+async function checkAccess() {
+  const cookies = await api.getCookies('.missav.ws')
+  return /(^|;\s*)cf_clearance=/.test(cookies)
+}
+
 const missav = {
   getActresses,
   getVideos,
-  getVideoBTLinks
+  getVideoBTLinks,
+  checkAccess
 }
 
 export default missav

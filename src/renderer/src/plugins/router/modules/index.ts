@@ -27,15 +27,7 @@ export default [
                 name: "video",
                 component: () => import('@renderer/views/video/index.vue'),
             },
-            {
-                path: '/actor-video',
-                name: "actor-video",
-                component: () => import('@renderer/views/actor-video/index.vue'),
-                meta: {
-                    title: "演员作品",
-                    keepAlive: true
-                }
-            },
+
             {
                 path: '/special-attention',
                 name: "special-attention",
@@ -65,7 +57,25 @@ export default [
                         meta: {
                             keepAlive: true
                         }
-                    }
+                    },
+                    {
+                        path: 'yfantasy',
+                        name: "yfantasy",
+                        component: () => import('@renderer/views/site/yfantasy.vue'),
+                        meta: {
+                            title: "yfantasy",
+                            keepAlive: true
+                        }
+                    },
+                    {
+                        path: 'missav',
+                        name: "missav",
+                        component: () => import('@renderer/views/site/missav.vue'),
+                        meta: {
+                            title: "missav",
+                            keepAlive: true
+                        }
+                    },
                 ]
             }
         ],
