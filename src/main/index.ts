@@ -895,7 +895,7 @@ app.whenReady().then(async () => {
     const baseDelayMs = 1000
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-    const { url, fileName, savePath, autoExtract = true, headers = {} } = payload || {}
+    const { url, fileName, savePath, autoExtract = true, headers = {}, sessionFetch = false } = payload || {}
     if (!url || !fileName || !savePath) {
       log.warn('download:invalid-params', { downloadId, url, fileName, savePath })
       throw new Error('缺少必要参数')
@@ -909,81 +909,131 @@ app.whenReady().then(async () => {
     ensureDir(savePath)
 
     // 单次尝试：返回 Promise
+    // 下载完成后：按需解压并 resolve（两种下载方式共用）
+    const finalize = async (): Promise<{ savePath: string; extractedPath?: string; extracted: boolean }> => {
+      const ext = path.extname(fullPath).toLowerCase()
+      const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
+      if (autoExtract && supportedExts.includes(ext)) {
+        log.info('download:extract:start', { downloadId, archive: fullPath, ext })
+        const extractDir = path.join(savePath, path.basename(fullPath, ext))
+        ensureDir(extractDir)
+        await extractFile(fullPath, extractDir)
+        log.info('download:extract:success', { downloadId, extractDir })
+        log.info('download:archive-removed', { downloadId, archive: fullPath })
+        return { savePath: extractDir, extractedPath: extractDir, extracted: true }
+      }
+      return { savePath: fullPath, extracted: false }
+    }
+
     const attemptOnce = () => {
       return new Promise((resolve, reject) => {
-        try {
-          const request = net.request(url)
-          if (headers && typeof headers === 'object') {
-            for (const [k, v] of Object.entries(headers)) {
-              if (typeof v === 'string') request.setHeader(k, v)
-            }
+        const fileStream = fs.createWriteStream(fullPath)
+        let received = 0
+        let total = 0
+        const cleanup = () => {
+          try {
+            fileStream.destroy()
+          } catch (_) {
+            /* noop */
           }
-          request.on('response', (response: any) => {
-            const fileStream = fs.createWriteStream(fullPath)
-            const lenHeader = response.headers?.['content-length']
-            const total = Array.isArray(lenHeader) ? parseInt(lenHeader[0] || '0', 10) : parseInt(lenHeader || '0', 10)
-            let received = 0
+        }
 
-            fileStream.on('error', (err) => {
-              log.error('download:file-error', { downloadId, error: err?.message })
-              reject(new Error(`文件写入失败: ${err.message}`))
+        fileStream.on('error', (err) => {
+          log.error('download:file-error', { downloadId, error: err?.message })
+          reject(new Error(`文件写入失败: ${err.message}`))
+        })
+
+        const onDone = () => {
+          finalize()
+            .then(resolve)
+            .catch((extractErr: any) => {
+              log.error('download:extract:error', {
+                downloadId,
+                error: extractErr?.message || String(extractErr)
+              })
+              reject(new Error(`下载完成但解压失败: ${extractErr?.message || String(extractErr)}`))
             })
+        }
 
-            fileStream.on('finish', async () => {
-              try {
-                const ext = path.extname(fullPath).toLowerCase()
-                const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
-
-                if (autoExtract && supportedExts.includes(ext)) {
-                  log.info('download:extract:start', { downloadId, archive: fullPath, ext })
-                  const extractDir = path.join(savePath, path.basename(fullPath, ext))
-                  ensureDir(extractDir)
-                  await extractFile(fullPath, extractDir)
-                  log.info('download:extract:success', { downloadId, extractDir })
-                  log.info('download:archive-removed', { downloadId, archive: fullPath })
-                  resolve({
-                    savePath: extractDir,
-                    extractedPath: extractDir,
-                    extracted: true
-                  })
-                } else {
-                  resolve({
-                    savePath: fullPath,
-                    extracted: false
-                  })
-                }
-              } catch (extractErr: any) {
-                log.error('download:extract:error', { downloadId, error: extractErr?.message || String(extractErr) })
-                reject(new Error(`下载完成但解压失败: ${extractErr?.message || String(extractErr)}`))
+        try {
+          if (sessionFetch) {
+            // 走 chromium 网络栈（与页面 <video>/fetch 行为一致），自带浏览器 UA/Referer，规避 CDN 防盗链 403
+            const fetchOpts: RequestInit = { redirect: 'follow' }
+            if (headers && typeof headers === 'object') {
+              const h: Record<string, string> = {}
+              for (const [k, v] of Object.entries(headers)) {
+                if (typeof v === 'string') h[k] = v
               }
+              if (Object.keys(h).length) fetchOpts.headers = h
+            }
+            net.fetch(url, fetchOpts)
+              .then(async (response: any) => {
+                if (!response.ok) {
+                  log.warn('download:fetch-bad-status', { downloadId, status: response.status })
+                  cleanup()
+                  reject(new Error(`HTTP ${response.status}`))
+                  return
+                }
+                const cl = response.headers.get('content-length')
+                total = cl ? parseInt(cl, 10) : 0
+                const reader = response.body.getReader()
+                while (true) {
+                  const { done, value } = await reader.read()
+                  if (done) break
+                  received += value.length
+                  fileStream.write(Buffer.from(value))
+                }
+                fileStream.on('finish', onDone)
+                fileStream.end()
+              })
+              .catch((err: any) => {
+                log.error('download:request-error', { downloadId, error: err?.message })
+                cleanup()
+                reject(new Error(`${url} 请求失败: ${err.message}`))
+              })
+            log.info('download:fetch-started', { downloadId })
+          } else {
+            const request = net.request(url)
+            if (headers && typeof headers === 'object') {
+              for (const [k, v] of Object.entries(headers)) {
+                if (typeof v === 'string') request.setHeader(k, v)
+              }
+            }
+            request.on('response', (response: any) => {
+              const lenHeader = response.headers?.['content-length']
+              total = Array.isArray(lenHeader)
+                ? parseInt(lenHeader[0] || '0', 10)
+                : parseInt(lenHeader || '0', 10)
+
+              response.on('data', (chunk: Buffer) => {
+                received += chunk.length
+                fileStream.write(chunk)
+              })
+
+              response.on('end', () => {
+                log.info('download:response-end', { downloadId, received, total })
+                fileStream.on('finish', onDone)
+                fileStream.end()
+              })
+
+              response.on('error', (err: any) => {
+                log.error('download:response-error', { downloadId, error: err?.message })
+                cleanup()
+                reject(new Error(`响应错误: ${err.message}`))
+              })
             })
 
-            response.on('data', (chunk: Buffer) => {
-              received += chunk.length
-              fileStream.write(chunk)
+            request.on('error', (err: any) => {
+              log.error('download:request-error', { downloadId, error: err?.message })
+              reject(new Error(`${url} 请求失败: ${err.message}`))
             })
 
-            response.on('end', () => {
-              log.info('download:response-end', { downloadId, received, total })
-              fileStream.end()
-            })
-
-            response.on('error', (err: any) => {
-              log.error('download:response-error', { downloadId, error: err?.message })
-              fileStream.destroy()
-              reject(new Error(`响应错误: ${err.message}`))
-            })
-          })
-
-          request.on('error', (err: any) => {
-            log.error('download:request-error', { downloadId, error: err?.message })
-            reject(new Error(`${url} 请求失败: ${err.message}`))
-          })
-
-          request.end()
-          log.info('download:request-ended', { downloadId })
+            request.end()
+            log.info('download:request-ended', { downloadId })
+          }
         } catch (err: any) {
           log.error('download:unhandled-error', { downloadId, error: err?.message || String(err) })
+          cleanup()
           reject(new Error(`未知错误: ${err?.message || String(err)}`))
         }
       })

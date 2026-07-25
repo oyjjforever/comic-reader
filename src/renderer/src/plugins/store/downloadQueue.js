@@ -1,6 +1,6 @@
 import { reactive, ref, nextTick } from 'vue'
 
-const { jmtt, pixiv, twitter, weibo, picaman, file } = window
+const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, file } = window
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -203,7 +203,11 @@ async function runPixiv(task) {
     }
     // 0：插画，1：漫画 下载
     else if ([0, 1].includes(artworkInfo.illustType)) {
-      await isPathExists(workDir, task)
+      // 同名作品共享同一文件夹，仅当该 artworkId 的图片已存在才跳过
+      if (await file.existsArtworkFiles(workDir, artworkId)) {
+        updateTask(task, { status: 'existed', progress: {}, localFilePath: workDir })
+        throw new Error(`${workDir} [${artworkId}] 已存在`)
+      }
       const images = await pixiv.getArtworkImages(artworkId)
       await runWithConcurrency(
         images.map((_) => _.urls.original),
@@ -437,12 +441,8 @@ async function runYfantasy(task) {
       async (seg) => {
         if (!seg.url) throw new Error('片段地址为空')
         const fileName = `${file.simpleSanitize(title)}_seg_${seg.segmentIndex}.mp4`
-        await window.electron.ipcRenderer.invoke('download:start', {
-          url: seg.url,
-          fileName,
-          savePath: workDir,
-          autoExtract: false
-        })
+        const savePath = `${workDir}\\${fileName}`
+        await yfantasy.downloadSegment(seg.url, savePath)
       },
       (success, fail, total) => {
         updateTask(task, { progress: { success, fail, total } })

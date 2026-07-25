@@ -38,7 +38,7 @@ async function fetchSession(videoId) {
  */
 function getVideoUrl(segment) {
   if (!segment) return ''
-  return segment.signedUrl || `${CDN}/${segment.assetKey}/play_720p.mp4`
+  return `${CDN}/${segment.assetKey}/play_720p.mp4`
 }
 
 /**

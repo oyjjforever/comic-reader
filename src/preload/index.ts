@@ -14,6 +14,7 @@ import pixiv from './plugins/downloader/pixiv'
 import twitter from './plugins/downloader/twitter'
 import weibo from './plugins/downloader/weibo'
 import picaman from './plugins/downloader/picaman/index'
+import yfantasy from './plugins/downloader/yfantasy'
 import specialAttention from './plugins/special-attention'
 import browseHistory from './plugins/browseHistory'
 import downloadHistory from './plugins/downloadHistory'
@@ -78,6 +79,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('pixiv', pixiv)
     contextBridge.exposeInMainWorld('twitter', twitter)
     contextBridge.exposeInMainWorld('picaman', picaman)
+    contextBridge.exposeInMainWorld('yfantasy', yfantasy)
     contextBridge.exposeInMainWorld('weibo', weibo)
     contextBridge.exposeInMainWorld('specialAttention', specialAttention)
     contextBridge.exposeInMainWorld('browseHistory', browseHistory)

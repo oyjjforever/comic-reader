@@ -48,6 +48,28 @@ function pathExists(targetPath: string): boolean {
 }
 
 /**
+ * 检测目录下是否存在指定 artworkId 的文件
+ * 匹配图片（`${id}-*`）或动图（`${id}.mp4`）
+ * 目录不存在时 fast-glob 返回空数组，等价于"未下载"
+ * @param dirPath 目录路径
+ * @param artworkId 作品 ID
+ * @returns 是否存在对应文件
+ */
+async function existsArtworkFiles(dirPath: string, artworkId: string | number): Promise<boolean> {
+  try {
+    const matches = await fg([`${artworkId}-*`, `${artworkId}.mp4`], {
+      cwd: dirPath,
+      onlyFiles: true,
+      absolute: false,
+      dot: false
+    })
+    return matches.length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
  * 获取单个文件夹的详细信息
  * @param folderPath 文件夹路径
  * @returns 文件夹信息
@@ -342,6 +364,7 @@ export default {
   simpleSanitize,
   formatFileSize,
   pathExists,
+  existsArtworkFiles,
   getFolderInfo,
   getFileInfo,
   getDirectFoldersFromPath,

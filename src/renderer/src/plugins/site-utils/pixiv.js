@@ -44,7 +44,7 @@ async function downloadNewMedia(authorName, authorId, onProgress) {
   for (const id of artworkIds) {
     try {
       const info = await pixiv.getArtworkInfo(id)
-      if (isLocalDownloaded(authorName, info.title)) {
+      if (await isLocalDownloaded(authorName, info.title, id)) {
         if (++consecutiveDownloaded >= 5) break
       } else {
         consecutiveDownloaded = 0
@@ -77,7 +77,7 @@ async function hasNewArtwork(authorName, authorId) {
     const ids = await fetchArtworks(authorId)
     const id = ids[0]
     const info = await pixiv.getArtworkInfo(id)
-    const downloaded = isLocalDownloaded(authorName, info.title)
+    const downloaded = await isLocalDownloaded(authorName, info.title, id)
     return !downloaded
   } catch (error) {
     return false
@@ -96,7 +96,7 @@ async function getArtworkInfo(artworkId) {
   // 获取图片流并转换为Blob URL
   const coverUrl = await previewImage(images[0].urls.small) //thumb_mini
   // 检测本地是否已下载
-  const downloaded = isLocalDownloaded(info.author, info.title)
+  const downloaded = await isLocalDownloaded(info.author, info.title, artworkId)
   return {
     artworkId,
     author: info.author,
@@ -125,11 +125,11 @@ async function pagingImage(authorName, authorId, grid, page) {
   return await Promise.all(promises)
 }
 
-function isLocalDownloaded(authorName, workName) {
+function isLocalDownloaded(authorName, workName, artworkId) {
   const downloadPath =
     settingStore.setting?.downloadPathPixiv || settingStore.setting?.defaultDownloadPath
-  const localPath = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
-  return file.pathExists(localPath)
+  const workDir = `${downloadPath}/${file.simpleSanitize(authorName)}/${file.simpleSanitize(workName)}`
+  return file.existsArtworkFiles(workDir, artworkId)
 }
 import { extractFromUrl } from '@renderer/plugins/site-utils/utils.js'
 
