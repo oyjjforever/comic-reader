@@ -20,6 +20,7 @@ import downloadHistory from './plugins/downloadHistory'
 import databaseBackup from './plugins/databaseBackup'
 import subtitle from './plugins/subtitle'
 import videoCover from './plugins/video-cover'
+import videoTranscoder from './plugins/video-transcoder'
 import missav from './plugins/missav'
 import rating from './plugins/rating'
 
@@ -88,6 +89,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('windowManager', windowManager)
     contextBridge.exposeInMainWorld('subtitle', subtitle)
     contextBridge.exposeInMainWorld('videoCover', videoCover)
+    contextBridge.exposeInMainWorld('videoTranscoder', videoTranscoder)
     contextBridge.exposeInMainWorld('missav', missav)
     contextBridge.exposeInMainWorld('rating', rating)
   } catch (error) {

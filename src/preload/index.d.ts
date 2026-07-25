@@ -241,6 +241,37 @@ declare global {
       clearAll: () => Promise<number>
       getInfo: () => Promise<{ coverDir: string; size: number }>
     }
+    videoTranscoder: {
+      transcode: (inputPath: string) => Promise<{ success: boolean; outputPath?: string; error?: string }>
+      getStatus: () => Promise<{
+        isRunning: boolean
+        percent: number
+        fps: number
+        stage: 'idle' | 'probe' | 'encode' | 'done' | 'error' | 'cancelled'
+        originalPath: string
+        outputPath: string
+        error?: string
+      }>
+      cancel: () => Promise<boolean>
+      replaceWithFixed: (
+        originalPath: string,
+        fixedPath: string,
+        renameToOriginal: boolean
+      ) => Promise<{ success: boolean; finalPath?: string; error?: string }>
+      onProgress: (callback: (progress: {
+        currentTime: number
+        totalTime: number
+        percent: number
+        fps: number
+        stage: 'probe' | 'encode' | 'done'
+      }) => void) => () => void
+      onComplete: (callback: (result: {
+        success: boolean
+        outputPath?: string
+        originalPath?: string
+        error?: string
+      }) => void) => () => void
+    }
     missav: {
       getActresses: () => Promise<Array<{ name: string; slug: string; cover: string }>>
       getVideos: (

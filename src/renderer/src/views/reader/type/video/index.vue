@@ -145,6 +145,13 @@
             </template>
             设为封面
           </n-button>
+          <!-- 修复视频（后台转码修复异常 GOP，不阻塞使用，进度以全局通知显示） -->
+          <n-button type="error" @click="onTranscodeClick" :disabled="transcodeState.isRunning">
+            <template #icon>
+              <n-icon :component="BuildIcon" />
+            </template>
+            {{ transcodeState.isRunning ? `${transcodeState.percent}%` : '修复' }}
+          </n-button>
         </n-space>
       </div>
     </Teleport>
@@ -252,7 +259,8 @@ import {
   Text as SubtitleIcon,
   Settings as SettingsIcon,
   Language as TranslateIcon,
-  Image as ImageIcon
+  Image as ImageIcon,
+  BuildOutline as BuildIcon
 } from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
 import type {
@@ -264,8 +272,10 @@ import type {
 import { TRANSLATE_TARGET_OPTIONS } from '@/typings/subtitle'
 import dlnaCast from './dlna-cast.vue'
 import subtitleOverlay from './subtitle-overlay.vue'
+import { useTranscodeTask } from '@renderer/composables/useTranscodeTask'
 
 const message = useMessage()
+const dialog = useDialog()
 const router = useRouter()
 const route = useRoute()
 const props = defineProps<{
@@ -645,6 +655,94 @@ const setCoverFromCurrentFrame = async () => {
     isSavingCover.value = false
   }
 }
+
+// ========== 视频转码修复（后台非阻塞，进度通过按钮文字显示） ==========
+const { state: transcodeState, startTranscode, syncStatus, resetState } = useTranscodeTask()
+
+const onTranscodeClick = async () => {
+  if (!video.value.fullPath) {
+    message.warning('未找到视频文件')
+    return
+  }
+
+  // 二次确认
+  dialog.warning({
+    title: '修复视频',
+    content:
+      '将在后台重新编码修复异常 GOP 结构（约需 30~70 分钟），修复后播放不再抖动。修复期间可继续浏览其他内容，进度显示在「修复」按钮上。是否继续？',
+    positiveText: '开始修复',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const result = await startTranscode(video.value.fullPath)
+      if (!result.success) {
+        message.error(`无法启动修复: ${result.error || '未知错误'}`)
+      } else {
+        message.success('修复任务已在后台启动')
+      }
+    }
+  })
+}
+
+// 监听转码完成/失败/取消（仅在当前组件存活时生效）
+let suppressTerminal = true
+
+watch(
+  () => transcodeState.stage,
+  (stage) => {
+    if (suppressTerminal) return
+    if (stage === 'done') {
+      onTranscodeDone()
+    } else if (stage === 'cancelled') {
+      message.info('已取消修复')
+      resetState()
+    } else if (stage === 'error') {
+      message.error(`修复失败: ${transcodeState.error || '未知错误'}`)
+      resetState()
+    }
+  }
+)
+
+// 转码完成：弹窗选择替换或保留
+const onTranscodeDone = () => {
+  const originalPath = transcodeState.originalPath
+  const outputPath = transcodeState.outputPath
+  const isCurrentVideo = originalPath === video.value.fullPath
+
+  dialog.info({
+    title: '视频修复完成',
+    content: isCurrentVideo
+      ? '修复版已生成。是否删除原文件并将修复版替换为原文件名？'
+      : '修复版已生成。是否删除原文件并将修复版替换为原文件名？',
+    positiveText: '删除并替换',
+    negativeText: '保留两个文件',
+    onPositiveClick: async () => {
+      const result = await window.videoTranscoder.replaceWithFixed(originalPath, outputPath, true)
+      if (result.success) {
+        message.success('原文件已删除，修复版已替换为原文件名')
+        if (isCurrentVideo && videoRef.value) {
+          videoRef.value.load()
+          videoRef.value.play().catch(() => {})
+        }
+      } else {
+        message.error(`替换失败: ${result.error || '未知错误'}`)
+      }
+      resetState()
+    },
+    onNegativeClick: () => {
+      message.success(`修复版已保留: ${outputPath}`)
+      resetState()
+    }
+  })
+}
+
+// 组件挂载时同步一次后台状态，清除遗留的已完成/失败状态（避免重复弹窗）
+onMounted(async () => {
+  await syncStatus()
+  if (!transcodeState.isRunning && transcodeState.stage !== 'idle') {
+    resetState()
+  }
+  suppressTerminal = false
+})
 
 // 编辑收藏
 const editBookmark = (bookmark: VideoBookmark) => {

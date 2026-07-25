@@ -68,6 +68,12 @@ import {
   getCoverDir,
   getCoverDirSize
 } from './services/video-cover'
+import {
+  transcodeVideo,
+  cancelTranscode,
+  replaceWithFixed,
+  getTranscodeState
+} from './services/video-transcoder'
 import type { WhisperModelName, SubtitleLanguage, SubtitleSettings, TranslateTarget } from '../typings/subtitle'
 import { DEFAULT_SUBTITLE_SETTINGS } from '../typings/subtitle'
 /**
@@ -779,6 +785,41 @@ app.whenReady().then(async () => {
       size: getCoverDirSize()
     }
   })
+
+  // ========== 视频转码修复 IPC（修复异常 GOP 导致的播放掉帧抖动） ==========
+
+  // IPC: 转码修复视频（后台非阻塞：立即返回，进度/完成通过事件上报）
+  ipcMain.handle('video:transcode', async (_event, inputPath: string) => {
+    // 防止重复启动
+    if (getTranscodeState().isRunning) {
+      return { success: false, error: '已有转码任务正在进行' }
+    }
+
+    // fire-and-forget：不 await，转码在后台运行
+    transcodeVideo(inputPath, mainWindow).catch((err: any) => {
+      log.warn('[Main] 后台转码任务异常:', err?.message)
+    })
+
+    return { success: true }
+  })
+
+  // IPC: 查询当前转码状态（供渲染层恢复 UI 状态，如刷新/导航后）
+  ipcMain.handle('video:getTranscodeStatus', () => {
+    return getTranscodeState()
+  })
+
+  // IPC: 取消当前转码
+  ipcMain.handle('video:cancelTranscode', () => {
+    return cancelTranscode()
+  })
+
+  // IPC: 删除原文件并将修复版重命名为原文件名
+  ipcMain.handle(
+    'video:replaceWithFixed',
+    (_event, originalPath: string, fixedPath: string, renameToOriginal: boolean) => {
+      return replaceWithFixed(originalPath, fixedPath, renameToOriginal)
+    }
+  )
 
 
   // 解压文件函数
