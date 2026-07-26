@@ -516,7 +516,7 @@ export default defineComponent({
     }
 
     .teleport-left {
-      margin-left: 12px;
+      margin-left: 0px;
     }
 
     /* 缩放显示（已存在，保留） */

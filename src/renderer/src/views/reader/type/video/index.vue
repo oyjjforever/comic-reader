@@ -133,9 +133,6 @@
       <div class="bookmark-controls" :class="{ 'controls-hidden': !showControls }">
         <n-space>
           <n-button type="success" @click="addBookmark" :disabled="!currentTime">
-            <template #icon>
-              <n-icon :component="BookmarkIcon" />
-            </template>
             收藏当前时间点
           </n-button>
           <n-button type="info" @click="openCast"> 投屏 </n-button>

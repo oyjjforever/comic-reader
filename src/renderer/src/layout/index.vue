@@ -478,7 +478,7 @@ onMounted(async () => {
   window.electron.ipcRenderer.invoke('update:check')
   // 启动剪切板监听
   window.electron.ipcRenderer.on('clipboard-content-changed', (event, data) => {
-    console.log('剪切板内容已改变', data)
+    // console.log('剪切板内容已改变', data)
     if (!settingStore.setting.enableClipboardMonitor) return
     window.electron.ipcRenderer.send(
       'show-clipboard-popup',
