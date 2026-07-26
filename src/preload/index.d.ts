@@ -290,7 +290,23 @@ declare global {
         date: string
         isHd: boolean
       }>>
+      getVideoInfo: (url: string) => Promise<{
+        title: string
+        coverUrl: string
+        sources: Array<{ key: string; url: string; label: string }>
+        m3u8Url: string
+        referer: string
+        origin: string
+        host: string
+      }>
+      attachStreamHeaders: (payload: {
+        referer: string
+        origin: string
+        hosts: string[]
+      }) => Promise<boolean>
+      detachStreamHeaders: () => Promise<boolean>
       checkAccess: () => Promise<boolean>
+      ping: () => Promise<boolean>
     }
     /** @electron/llm 提供的本地 LLM API */
     electronAi: {

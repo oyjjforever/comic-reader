@@ -103,6 +103,21 @@ export default class Api {
   post(config) {
     return this.request('POST', config)
   }
+
+  // 返回原始 axios 响应（不重试、不因非 200 抛错），供调用方自行判定状态码/拦截页
+  async rawRequest(method, config) {
+    const req = {
+      method,
+      headers: Object.assign({}, config?.headers),
+      ...config,
+      validateStatus: () => true
+    }
+    return this.api.request(req)
+  }
+
+  rawGet(config) {
+    return this.rawRequest('GET', config)
+  }
   async getCookies(domain) {
     const cookies = await ipcRenderer.invoke('site:getCookies')
     return cookies

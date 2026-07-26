@@ -1,197 +1,270 @@
 <template>
   <div class="actor-video-container">
-    <!-- 左侧演员列表 -->
-    <div class="actor-sidebar">
-      <div class="actor-sidebar__header">
-        <n-input v-model:value="keyword" placeholder="搜索演员..." clearable size="small">
-          <template #prefix>
-            <n-icon :component="Search24Regular" />
-          </template>
-        </n-input>
-        <div class="actor-sidebar__add">
-          <n-input
-            v-model:value="newActressName"
-            placeholder="添加演员名称..."
-            size="small"
-            @keyup.enter="addActress"
-          />
-          <n-button size="small" :disabled="!newActressName.trim()" @click="addActress">
-            <template #icon>
-              <n-icon :component="Add24Regular" />
+    <!-- 视图切换按钮 -->
+    <div v-if="!onlinePlayer.show && !isReading" class="view-toggle">
+      <n-button size="small" type="success" @click="toggleView">
+        {{ viewMode === 'webview' ? '切换到应用视图' : '切换到网页视图' }}
+      </n-button>
+    </div>
+
+    <!-- 网页视图 -->
+    <webview
+      v-if="viewMode === 'webview'"
+      ref="mainWebviewRef"
+      class="main-webview"
+      src="https://missav.ws"
+      partition="persist:thirdparty"
+      allowpopups
+    />
+
+    <!-- 应用视图 -->
+    <template v-else>
+      <!-- 左侧演员列表 -->
+      <div class="actor-sidebar">
+        <div class="actor-sidebar__header">
+          <n-input v-model:value="keyword" placeholder="搜索演员..." clearable size="small">
+            <template #prefix>
+              <n-icon :component="Search24Regular" />
             </template>
-          </n-button>
-        </div>
-      </div>
-      <div class="actor-sidebar__body">
-        <div class="actor-list">
-          <div
-            v-for="item in filteredActresses"
-            :key="item.slug"
-            class="actor-item"
-            :class="{ 'actor-item--active': currentSlug === item.slug }"
-            @click="onSelectActress(item)"
-          >
-            <n-icon
-              class="actor-item__fav"
-              :class="{ 'actor-item__fav--active': isFavorited(item.slug) }"
-              :component="isFavorited(item.slug) ? Star24Filled : Star24Regular"
-              size="14"
-              @click.stop="toggleFavorite(item)"
+          </n-input>
+          <div class="actor-sidebar__add">
+            <n-input
+              v-model:value="newActressName"
+              placeholder="添加演员名称..."
+              size="small"
+              @keyup.enter="addActress"
             />
-            <span class="actor-item__name" :title="item.name">{{ item.name }}</span>
-          </div>
-          <n-empty
-            v-if="!filteredActresses.length && !actressLoading"
-            description="暂无演员数据"
-            style="margin-top: 40px"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- 右侧作品列表 -->
-    <div class="video-pane">
-      <div class="video-pane__header">
-        <div class="video-pane__title">
-          <template v-if="currentActress"> {{ currentActress.name }} 的作品 </template>
-          <template v-else>请选择左侧演员</template>
-        </div>
-        <div class="video-pane__actions">
-          <n-select
-            v-model:value="sort"
-            :options="sortOptions"
-            size="small"
-            style="width: 120px"
-            @update:value="reloadVideos"
-          />
-          <n-button size="small" :disabled="!currentSlug" @click="reloadVideos">刷新</n-button>
-        </div>
-      </div>
-
-      <div class="video-pane__body">
-        <n-spin :show="videoLoading && videos.length === 0">
-          <template v-if="currentSlug">
-            <responsive-virtual-grid
-              v-if="videos.length"
-              ref="videoListRef"
-              :items="videos"
-              key-field="url"
-              :overscan="3"
-              :min-item-width="280"
-              :max-item-width="280"
-              :aspect-ratio="1"
-              :gap="12"
-              class="video-virtual-grid"
-              @scroll="onVideoScroll"
-            >
-              <template #default="{ item }">
-                <div class="video-card" @contextmenu.prevent>
-                  <div class="video-card__cover">
-                    <img
-                      v-if="item.coverUrl"
-                      :src="getCoverSrc(item)"
-                      referrerpolicy="no-referrer"
-                      @error="onVideoCoverError(item, $event)"
-                    />
-                    <div v-else class="video-card__cover-placeholder">
-                      <n-icon :component="VideoClipMultiple24Regular" size="28" color="#cbd5e1" />
-                    </div>
-                    <div
-                      v-if="item.dvdId"
-                      class="video-card__badge video-card__badge--left"
-                      @click.stop="copyText(item.dvdId)"
-                    >
-                      {{ item.dvdId }}
-                    </div>
-                    <div
-                      v-if="item.isUncensored"
-                      class="video-card__badge video-card__badge--right"
-                    >
-                      无码
-                    </div>
-                    <div
-                      v-if="isDownloaded(item)"
-                      class="video-card__badge video-card__badge--downloaded"
-                      title="已下载到本地，点击打开"
-                      @click.stop="openLocal(item)"
-                    >
-                      <n-icon :component="CheckmarkCircle24Filled" size="12" />
-                      已下载
-                    </div>
-                  </div>
-                  <div class="video-card__info">
-                    <div class="video-card__title" :title="item.title">{{ item.title }}</div>
-                    <div class="video-card__actions">
-                      <n-button
-                        size="tiny"
-                        secondary
-                        :loading="item._ptLoading"
-                        @click="openBtDialog(item)"
-                      >
-                        <template #icon>
-                          <n-icon :component="CloudDownload" />
-                        </template>
-                        BT
-                      </n-button>
-                      <n-button size="tiny" secondary @click="openVideo(item)">
-                        <template #icon>
-                          <n-icon :component="Open24Regular" />
-                        </template>
-                      </n-button>
-                    </div>
-                  </div>
-                </div>
+            <n-button size="small" :disabled="!newActressName.trim()" @click="addActress">
+              <template #icon>
+                <n-icon :component="Add24Regular" />
               </template>
-            </responsive-virtual-grid>
-            <n-empty v-else-if="!videoLoading" description="暂无作品" style="margin-top: 60px" />
-            <div v-if="videoLoading && videos.length > 0" class="load-more-tip">
-              <n-spin size="small" /> 加载更多...
+            </n-button>
+          </div>
+        </div>
+        <div class="actor-sidebar__body">
+          <div class="actor-list">
+            <div
+              v-for="item in filteredActresses"
+              :key="item.slug"
+              class="actor-item"
+              :class="{ 'actor-item--active': currentSlug === item.slug }"
+              @click="onSelectActress(item)"
+            >
+              <n-icon
+                class="actor-item__fav"
+                :class="{ 'actor-item__fav--active': isFavorited(item.slug) }"
+                :component="isFavorited(item.slug) ? Star24Filled : Star24Regular"
+                size="14"
+                @click.stop="toggleFavorite(item)"
+              />
+              <span class="actor-item__name" :title="item.name">{{ item.name }}</span>
             </div>
-            <div v-else-if="!hasMore && videos.length > 0" class="load-more-tip">没有更多了</div>
-          </template>
-          <n-empty v-else description="请选择左侧演员查看作品" style="margin-top: 60px" />
-        </n-spin>
-      </div>
-    </div>
-
-    <bt-links-dialog v-model:show="btDialog.show" :dvdId="btDialog.dvdId" :title="btDialog.title" />
-
-    <!-- Cloudflare 人机验证覆盖层 -->
-    <div v-if="needVerify" class="verify-overlay">
-      <div class="verify-overlay__bar">
-        <span class="verify-overlay__tip">
-          <template v-if="verifyPassed">已通过验证，点击下方按钮继续</template>
-          <template v-else>正在打开 missav.ws，请在页面中完成人机验证…</template>
-        </span>
-        <div class="verify-overlay__actions">
-          <n-button size="small" :disabled="!verifyPassed" type="primary" @click="onVerifyDone">
-            完成验证
-          </n-button>
-          <n-button size="small" @click="onVerifyCancel">取消</n-button>
+            <n-empty
+              v-if="!filteredActresses.length && !actressLoading"
+              description="暂无演员数据"
+              style="margin-top: 40px"
+            />
+          </div>
         </div>
       </div>
-      <webview
-        ref="verifyWebviewRef"
-        class="verify-overlay__webview"
-        src="https://missav.ws"
-        partition="persist:thirdparty"
-        allowpopups
-      />
-    </div>
 
-    <!-- 全屏播放器覆盖层 -->
-    <div v-if="isReading" class="reader-overlay">
-      <reader-view
-        :key="currentFilePath"
-        :file-path="encodeURIComponent(currentFilePath)"
-        module="video"
-        :has-next="hasNext"
-        :has-prev="hasPrev"
-        @close="closeReader"
-        @next="loadNext"
-        @prev="loadPrev"
+      <!-- 右侧作品列表 -->
+      <div class="video-pane">
+        <div class="video-pane__header">
+          <div class="video-pane__title">
+            <template v-if="currentActress"> {{ currentActress.name }} 的作品 </template>
+            <template v-else>请选择左侧演员</template>
+          </div>
+          <div class="video-pane__actions">
+            <n-select
+              v-model:value="sort"
+              :options="sortOptions"
+              size="small"
+              style="width: 120px"
+              @update:value="reloadVideos"
+            />
+            <n-button size="small" :disabled="!currentSlug" @click="reloadVideos">刷新</n-button>
+          </div>
+        </div>
+
+        <div class="video-pane__body">
+          <n-spin :show="videoLoading && videos.length === 0">
+            <template v-if="currentSlug">
+              <responsive-virtual-grid
+                v-if="videos.length"
+                ref="videoListRef"
+                :items="videos"
+                key-field="url"
+                :overscan="3"
+                :min-item-width="280"
+                :max-item-width="280"
+                :aspect-ratio="1"
+                :gap="12"
+                class="video-virtual-grid"
+                @scroll="onVideoScroll"
+              >
+                <template #default="{ item }">
+                  <div class="video-card" @contextmenu.prevent>
+                    <div class="video-card__cover">
+                      <img
+                        v-if="item.coverUrl"
+                        :src="getCoverSrc(item)"
+                        referrerpolicy="no-referrer"
+                        @error="onVideoCoverError(item, $event)"
+                      />
+                      <div v-else class="video-card__cover-placeholder">
+                        <n-icon :component="VideoClipMultiple24Regular" size="28" color="#cbd5e1" />
+                      </div>
+                      <div
+                        v-if="item.dvdId"
+                        class="video-card__badge video-card__badge--left"
+                        @click.stop="copyText(item.dvdId)"
+                      >
+                        {{ item.dvdId }}
+                      </div>
+                      <div
+                        v-if="item.isUncensored"
+                        class="video-card__badge video-card__badge--right"
+                      >
+                        无码
+                      </div>
+                      <div
+                        v-if="isDownloaded(item)"
+                        class="video-card__badge video-card__badge--downloaded"
+                        title="已下载到本地，点击打开"
+                        @click.stop="openLocal(item)"
+                      >
+                        <n-icon :component="CheckmarkCircle24Filled" size="12" />
+                        已下载
+                      </div>
+                    </div>
+                    <div class="video-card__info">
+                      <div class="video-card__title" :title="item.title">{{ item.title }}</div>
+                      <div class="video-card__actions">
+                        <n-button
+                          size="tiny"
+                          secondary
+                          :loading="item._ptLoading"
+                          @click="openBtDialog(item)"
+                        >
+                          <template #icon>
+                            <n-icon :component="CloudDownload" />
+                          </template>
+                          BT
+                        </n-button>
+                        <n-button
+                          size="tiny"
+                          secondary
+                          type="success"
+                          :loading="item._playLoading"
+                          @click="playOnline(item)"
+                        >
+                          <template #icon>
+                            <n-icon :component="PlayCircle" />
+                          </template>
+                          播放
+                        </n-button>
+                        <n-button size="tiny" secondary @click="openVideo(item)">
+                          <template #icon>
+                            <n-icon :component="Open24Regular" />
+                          </template>
+                        </n-button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </responsive-virtual-grid>
+              <n-empty v-else-if="!videoLoading" description="暂无作品" style="margin-top: 60px" />
+              <div v-if="videoLoading && videos.length > 0" class="load-more-tip">
+                <n-spin size="small" /> 加载更多...
+              </div>
+              <div v-else-if="!hasMore && videos.length > 0" class="load-more-tip">没有更多了</div>
+            </template>
+            <n-empty v-else description="请选择左侧演员查看作品" style="margin-top: 60px" />
+          </n-spin>
+        </div>
+      </div>
+
+      <bt-links-dialog
+        v-model:show="btDialog.show"
+        :dvdId="btDialog.dvdId"
+        :title="btDialog.title"
       />
-    </div>
+
+      <!-- Cloudflare 人机验证覆盖层 -->
+      <div v-if="needVerify" class="verify-overlay">
+        <div class="verify-overlay__bar">
+          <span class="verify-overlay__tip">
+            <template v-if="verifyPassed">已通过验证，点击下方按钮继续</template>
+            <template v-else>正在打开 missav.ws，请在页面中完成人机验证…</template>
+          </span>
+          <div class="verify-overlay__actions">
+            <n-button size="small" :disabled="!verifyPassed" type="primary" @click="onVerifyDone">
+              完成验证
+            </n-button>
+            <n-button size="small" @click="onVerifyCancel">取消</n-button>
+          </div>
+        </div>
+        <webview
+          ref="verifyWebviewRef"
+          class="verify-overlay__webview"
+          src="https://missav.ws"
+          partition="persist:thirdparty"
+          allowpopups
+        />
+      </div>
+
+      <!-- 全屏播放器覆盖层 -->
+      <div v-if="isReading" class="reader-overlay">
+        <reader-view
+          :key="currentFilePath"
+          :file-path="encodeURIComponent(currentFilePath)"
+          module="video"
+          :has-next="hasNext"
+          :has-prev="hasPrev"
+          @close="closeReader"
+          @next="loadNext"
+          @prev="loadPrev"
+        />
+      </div>
+
+      <!-- 在线流媒体播放器覆盖层 -->
+      <div v-if="onlinePlayer.show" class="online-player">
+        <div class="online-player__bar">
+          <n-button size="small" type="primary" @click="closeOnlinePlayer">返回</n-button>
+          <span class="online-player__title" :title="onlinePlayer.title">{{
+            onlinePlayer.title
+          }}</span>
+          <div class="online-player__bar-right">
+            <div v-if="onlinePlayer.sources.length > 1" class="online-player__quality">
+              <n-button
+                v-for="(s, i) in onlinePlayer.sources"
+                :key="s.url"
+                size="tiny"
+                :type="i === onlinePlayer.currentIndex ? 'success' : 'primary'"
+                @click="switchSource(i)"
+              >
+                {{ s.label }}
+              </n-button>
+            </div>
+          </div>
+        </div>
+        <div class="online-player__stage">
+          <n-spin v-if="onlinePlayer.loading" size="large" class="online-player__spin" />
+          <video
+            v-show="!onlinePlayer.loading"
+            ref="onlineVideoRef"
+            class="online-player__video"
+            controls
+            autoplay
+            @error="onOnlineVideoError"
+          />
+          <div v-if="onlinePlayer.error" class="online-player__error">
+            <n-empty :description="onlinePlayer.error" />
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -206,7 +279,8 @@ import {
   Add24Regular,
   CheckmarkCircle24Filled
 } from '@vicons/fluent'
-import { CloudDownload } from '@vicons/ionicons5'
+import { CloudDownload, PlayCircle } from '@vicons/ionicons5'
+import Hls from 'hls.js'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import BtLinksDialog from '@renderer/components/bt-links-dialog.vue'
 import ReaderView from '@renderer/views/reader/index.vue'
@@ -225,11 +299,30 @@ interface VideoItem {
   dvdId?: string
   isUncensored?: boolean
   _ptLoading?: boolean
+  _playLoading?: boolean
   _retry?: number
 }
 
 const message = useMessage()
 const settingStore = useSettingStore()
+
+// 视图模式：默认进入显示网页
+const viewMode = ref<'webview' | 'native'>('native')
+const mainWebviewRef = ref<any>(null)
+const nativeInited = ref(false)
+
+async function toggleView() {
+  if (viewMode.value === 'webview') {
+    viewMode.value = 'native'
+    if (!nativeInited.value) {
+      nativeInited.value = true
+      const ok = await ensureAccess()
+      if (ok) loadActresses()
+    }
+  } else {
+    viewMode.value = 'webview'
+  }
+}
 
 const actresses = ref<Actress[]>([])
 const actressLoading = ref(false)
@@ -289,7 +382,6 @@ async function ensureAccess(): Promise<boolean> {
   await setupVerifyWebview()
   return false
 }
-
 
 const FAV_STORAGE_KEY = 'actor-video:favorites'
 const CUSTOM_STORAGE_KEY = 'actor-video:custom-actresses'
@@ -599,6 +691,167 @@ function openVideo(item: VideoItem) {
   window.open(item.url)
 }
 
+// ===== 在线流媒体播放（hls.js + 主进程注入 Referer/Origin/CORS） =====
+const onlineVideoRef = ref<HTMLVideoElement | null>(null)
+let hlsInstance: Hls | null = null
+const onlinePlayer = reactive({
+  show: false,
+  loading: false,
+  error: '',
+  title: '',
+  url: '',
+  sources: [] as Array<{ key: string; url: string; label: string }>,
+  currentIndex: 0
+})
+
+function destroyHls() {
+  if (hlsInstance) {
+    hlsInstance.destroy()
+    hlsInstance = null
+  }
+  if (onlineVideoRef.value) {
+    onlineVideoRef.value.removeAttribute('src')
+    onlineVideoRef.value.load()
+  }
+}
+
+async function playOnline(item: VideoItem) {
+  if (item._playLoading) return
+  item._playLoading = true
+  onlinePlayer.error = ''
+  onlinePlayer.loading = true
+  onlinePlayer.title = item.title || item.dvdId || '在线播放'
+  onlinePlayer.sources = []
+  onlinePlayer.currentIndex = 0
+  onlinePlayer.show = true
+  try {
+    const info = await window.missav.getVideoInfo(item.url)
+    if (!info.sources.length || !info.sources[0].url) {
+      throw new Error('未能解析到播放地址')
+    }
+    onlinePlayer.sources = info.sources
+    onlinePlayer.currentIndex = 0
+    // 为媒体 CDN 注入同源凭证与 CORS
+    await window.missav.attachStreamHeaders({
+      referer: info.referer,
+      origin: info.origin,
+      hosts: [info.host]
+    })
+    onlinePlayer.url = info.sources[0].url
+    await nextTick()
+    await startHls(info.sources[0].url)
+  } catch (e: any) {
+    console.error(e)
+    onlinePlayer.error =
+      e?.code === 'BLOCKED' ? '访问被拦截，请先完成人机验证' : e?.message || '播放失败'
+    onlinePlayer.loading = false
+  } finally {
+    item._playLoading = false
+  }
+}
+
+function startHls(url: string) {
+  return new Promise<void>((resolve) => {
+    const video = onlineVideoRef.value
+    if (!video) return resolve()
+
+    destroyHls()
+
+    // 原生 HLS（理论上不会命中，预留）
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url
+      video.addEventListener(
+        'loadedmetadata',
+        () => {
+          onlinePlayer.loading = false
+          resolve()
+        },
+        { once: true }
+      )
+      video.addEventListener(
+        'error',
+        () => {
+          onlinePlayer.loading = false
+          onlinePlayer.error = '视频加载失败'
+          resolve()
+        },
+        { once: true }
+      )
+      return
+    }
+
+    if (!Hls.isSupported()) {
+      onlinePlayer.loading = false
+      onlinePlayer.error = '当前环境不支持 HLS 播放'
+      return resolve()
+    }
+
+    const hls = new Hls({ enableWorker: true, lowLatencyMode: false })
+    hlsInstance = hls
+    hls.loadSource(url)
+    hls.attachMedia(video)
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      onlinePlayer.loading = false
+      video.play().catch(() => {})
+      resolve()
+    })
+    hls.on(Hls.Events.ERROR, (_evt, data) => {
+      if (data.fatal) {
+        onlinePlayer.loading = false
+        onlinePlayer.error = `播放错误：${data.details || data.type}`
+        resolve()
+      }
+    })
+  })
+}
+
+function onOnlineVideoError() {
+  onlinePlayer.loading = false
+  if (!onlinePlayer.error) onlinePlayer.error = '视频播放出错'
+}
+
+async function switchSource(index: number) {
+  if (index === onlinePlayer.currentIndex) return
+  const source = onlinePlayer.sources[index]
+  if (!source) return
+  // 记忆当前播放位置，切换后恢复
+  const currentTime = onlineVideoRef.value?.currentTime ?? 0
+  const wasPlaying = !onlineVideoRef.value?.paused
+  onlinePlayer.currentIndex = index
+  onlinePlayer.url = source.url
+  onlinePlayer.loading = true
+  onlinePlayer.error = ''
+  await nextTick()
+  await startHls(source.url)
+  if (currentTime > 0) {
+    const restore = () => {
+      if (onlineVideoRef.value) {
+        onlineVideoRef.value.currentTime = currentTime
+        if (wasPlaying) onlineVideoRef.value.play().catch(() => {})
+        onlineVideoRef.value.removeEventListener('loadedmetadata', restore)
+      }
+    }
+    onlineVideoRef.value?.addEventListener('loadedmetadata', restore)
+  }
+}
+
+function closeOnlinePlayer() {
+  destroyHls()
+  window.missav.detachStreamHeaders().catch(() => {})
+  onlinePlayer.show = false
+  onlinePlayer.loading = false
+  onlinePlayer.error = ''
+  onlinePlayer.url = ''
+  onlinePlayer.title = ''
+  onlinePlayer.sources = []
+  onlinePlayer.currentIndex = 0
+}
+
+onUnmounted(() => {
+  destroyHls()
+  window.missav.detachStreamHeaders().catch(() => {})
+})
+
 const MAX_COVER_RETRY = 3
 const COVER_RETRY_DELAY = 800
 
@@ -643,6 +896,7 @@ async function copyText(text: string) {
 }
 
 onMounted(async () => {
+  // 默认进入应用视图，挂载后即校验访问并加载演员列表
   const ok = await ensureAccess()
   if (ok) loadActresses()
 })
@@ -656,6 +910,21 @@ onMounted(async () => {
   background: #fff;
   overflow: hidden;
   position: relative;
+}
+
+.view-toggle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+}
+
+.main-webview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex: 1;
 }
 
 .reader-overlay {
@@ -1002,5 +1271,77 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+/* 在线流媒体播放器覆盖层 */
+.online-player {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 110;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+
+  &__bar {
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+  }
+
+  &__bar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__quality {
+    display: flex;
+    gap: 4px;
+  }
+
+  &__title {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 70%;
+  }
+
+  &__stage {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__video {
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+
+  &__spin {
+    position: absolute;
+    z-index: 2;
+  }
+
+  &__error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+  }
 }
 </style>

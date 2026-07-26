@@ -1082,6 +1082,81 @@ ipcMain.handle('site:getCookies', async (_e, payload) => {
   }
 })
 
+// ===== missav 在线播放：为媒体 CDN 注入 Referer/Origin 与 CORS 响应头 =====
+// 渲染进程主窗口使用 default session，hls.js 的 XHR 会经过此处拦截
+let streamMediaHosts: Set<string> = new Set()
+let streamReferer = ''
+let streamOrigin = ''
+let streamSendListener: ((details: any, cb: (res?: any) => void) => void) | null = null
+let streamRecvListener: ((details: any, cb: (res?: any) => void) => void) | null = null
+
+function hostMatches(host: string): boolean {
+  for (const h of streamMediaHosts) {
+    if (host === h || host.endsWith('.' + h)) return true
+  }
+  return false
+}
+
+ipcMain.handle(
+  'missav:stream-attach',
+  async (_e, payload: { referer: string; origin: string; hosts: string[] }) => {
+    const { session } = require('electron')
+    const ses = session.defaultSession
+    streamReferer = payload.referer
+    streamOrigin = payload.origin
+    streamMediaHosts = new Set((payload.hosts || []).filter(Boolean))
+    // 已注册则先移除，避免叠加（webRequest 事件单监听，传 null 清除）
+    if (streamSendListener) ses.webRequest.onBeforeSendHeaders(null)
+    if (streamRecvListener) ses.webRequest.onHeadersReceived(null)
+
+    streamSendListener = (details, callback) => {
+      try {
+        const host = new URL(details.url).hostname
+        if (hostMatches(host)) {
+          const headers = { ...details.requestHeaders }
+          headers['Referer'] = streamReferer
+          headers['Origin'] = streamOrigin
+          return callback({ requestHeaders: headers })
+        }
+      } catch {
+        /* ignore */
+      }
+      callback({ requestHeaders: details.requestHeaders })
+    }
+    streamRecvListener = (details, callback) => {
+      try {
+        const host = new URL(details.url).hostname
+        if (hostMatches(host)) {
+          const headers = { ...details.responseHeaders }
+          headers['access-control-allow-origin'] = ['*']
+          return callback({ responseHeaders: headers })
+        }
+      } catch {
+        /* ignore */
+      }
+      callback({ responseHeaders: details.responseHeaders })
+    }
+    ses.webRequest.onBeforeSendHeaders(streamSendListener)
+    ses.webRequest.onHeadersReceived(streamRecvListener)
+    return true
+  }
+)
+
+ipcMain.handle('missav:stream-detach', async () => {
+  const { session } = require('electron')
+  const ses = session.defaultSession
+  if (streamSendListener) {
+    ses.webRequest.onBeforeSendHeaders(null)
+    streamSendListener = null
+  }
+  if (streamRecvListener) {
+    ses.webRequest.onHeadersReceived(null)
+    streamRecvListener = null
+  }
+  streamMediaHosts.clear()
+  return true
+})
+
 
 // 关闭弹窗的 IPC 处理
 ipcMain.handle('popup-close', () => {
