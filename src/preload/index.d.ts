@@ -308,6 +308,30 @@ declare global {
       checkAccess: () => Promise<boolean>
       ping: () => Promise<boolean>
     }
+    huangguo: {
+      getVideoInfo: (pageUrl: string) => Promise<{
+        success: boolean
+        error?: string
+        title?: string
+        contentId?: string
+        m3u8Url?: string
+      }>
+      startDownload: (payload: {
+        m3u8Url: string
+        quality?: string
+        savePath: string
+        siteUrl?: string
+      }) => Promise<{
+        success: boolean
+        error?: string
+        outputPath?: string
+        quality?: string
+        segments?: number
+        duration?: number
+      }>
+      cancelDownload: () => Promise<{ success: boolean; message?: string }>
+      onProgress: (callback: (progress: { type: string; [key: string]: unknown }) => void) => () => void
+    }
     /** @electron/llm 提供的本地 LLM API */
     electronAi: {
       create: (options: {

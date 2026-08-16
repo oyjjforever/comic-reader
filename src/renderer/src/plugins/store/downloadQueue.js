@@ -1,6 +1,6 @@
 import { reactive, ref, nextTick } from 'vue'
 
-const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, file } = window
+const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, huangguo, file } = window
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -459,6 +459,82 @@ async function runYfantasy(task) {
   }
 }
 
+async function runHuangguo(task) {
+  const { m3u8Url, title, baseDir, quality, siteUrl } = task.payload
+  try {
+    updateTask(task, { status: 'running', errorMessage: undefined })
+    if (!m3u8Url) throw new Error('未解析到 m3u8 地址')
+
+    const safeTitle = file.simpleSanitize(title || `huangguo_${Date.now()}`)
+    const workDir = `${baseDir}`
+    const savePath = `${workDir}\\${safeTitle}.mp4`
+
+    // 已存在则跳过
+    if (await file.pathExists(savePath)) {
+      updateTask(task, { status: 'existed', progress: {}, localFilePath: savePath })
+      throw new Error(`${savePath} 已存在`)
+    }
+
+    // 订阅下载进度，按片段计数映射为 success/total（与 pixiv 下载进度口径一致）
+    let totalSegments = 0
+    let unsubscribe = () => {}
+    try {
+      unsubscribe = huangguo.onProgress((progress) => {
+        if (task._cancel) return
+        if (progress.type === 'download_start') {
+          totalSegments = progress.total
+          updateTask(task, { progress: { success: 0, fail: 0, total: totalSegments } })
+        } else if (progress.type === 'download_progress') {
+          updateTask(task, {
+            progress: { success: progress.current, fail: 0, total: progress.total }
+          })
+        } else if (progress.type === 'merge') {
+          // 合并阶段保持满进度
+          updateTask(task, {
+            progress: { success: progress.total, fail: 0, total: progress.total }
+          })
+        }
+      })
+    } catch (e) {
+      console.warn('huangguo onProgress 订阅失败:', e)
+    }
+
+    try {
+      const result = await huangguo.startDownload({ m3u8Url, quality: quality || '1080p', savePath, siteUrl })
+      if (!result || !result.success) {
+        throw new Error(result?.error || '下载失败')
+      }
+      // 成功后沿用片段总数，避免 total 从片段数跳变为 1
+      if (totalSegments > 0) {
+        updateTask(task, {
+          from: 'huangguo',
+          status: 'success',
+          progress: { success: totalSegments, fail: 0, total: totalSegments },
+          localFilePath: result.outputPath || savePath
+        })
+      } else {
+        updateTask(task, {
+          from: 'huangguo',
+          status: 'success',
+          progress: { success: 1, total: 1 },
+          localFilePath: result.outputPath || savePath
+        })
+      }
+      task.onSuccess?.()
+    } finally {
+      unsubscribe()
+    }
+  } catch (e) {
+    console.log('🚀 ~ runHuangguo ~ e:', e)
+    if (task._cancel) {
+      huangguo.cancelDownload?.()
+      updateTask(task, { status: 'canceled' })
+      return
+    }
+    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+  }
+}
+
 async function executeTask(task) {
   switch (task.site) {
     case 'jmtt':
@@ -481,6 +557,9 @@ async function executeTask(task) {
       break
     case 'yfantasy':
       await runYfantasy(task)
+      break
+    case 'huangguo':
+      await runHuangguo(task)
       break
     default:
       updateTask(task, { status: 'error' })

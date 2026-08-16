@@ -6,6 +6,7 @@ import JmttUtil from './jmtt.js'
 import PicamanUtil from './picaman.js'
 import PornhubUtil from './pornhub.js'
 import YfantasyUtil from './yfantasy.js'
+import HuangguoUtil from './huangguo.js'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -14,6 +15,8 @@ import picamanImg from '@renderer/assets/picaman.ico'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 // yfantasy 图标待用户提供，暂用应用图标占位
 import yfantasyImg from '@renderer/assets/icon.png'
+// huangguo 站点图标
+import huangguoImg from '@renderer/assets/huangguo.png'
 const settingStore = useSettingStore(pinia)
 
 // 站点配置映射，以站点类型为键
@@ -51,6 +54,11 @@ const sites = {
   yfantasy: {
     util: YfantasyUtil,
     icon: yfantasyImg,
+    downloadPathSetting: 'defaultDownloadPath'
+  },
+  huangguo: {
+    util: HuangguoUtil,
+    icon: huangguoImg,
     downloadPathSetting: 'defaultDownloadPath'
   }
 }

@@ -23,6 +23,7 @@ import subtitle from './plugins/subtitle'
 import videoCover from './plugins/video-cover'
 import videoTranscoder from './plugins/video-transcoder'
 import missav from './plugins/missav'
+import huangguo from './plugins/huangguo'
 import rating from './plugins/rating'
 
 // 剪切板 IPC 桥接
@@ -93,6 +94,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('videoCover', videoCover)
     contextBridge.exposeInMainWorld('videoTranscoder', videoTranscoder)
     contextBridge.exposeInMainWorld('missav', missav)
+    contextBridge.exposeInMainWorld('huangguo', huangguo)
     contextBridge.exposeInMainWorld('rating', rating)
   } catch (error) {
     console.error(error)

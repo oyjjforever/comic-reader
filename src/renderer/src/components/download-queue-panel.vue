@@ -153,6 +153,7 @@ import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
+import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
 import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
@@ -162,6 +163,7 @@ function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'twitter') return twitterImg
   if (site === 'weibo') return weiboImg
   if (site === 'picaman') return picamanImg
+  if (site === 'huangguo') return huangguoImg
   if (site === 'yfantasy') return yfantasyImg
 }
 

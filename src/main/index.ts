@@ -74,6 +74,8 @@ import {
   replaceWithFixed,
   getTranscodeState
 } from './services/video-transcoder'
+import { HLSDownloader, type HlsDownloadResult } from './services/hls-downloader'
+import axios from 'axios'
 import type { WhisperModelName, SubtitleLanguage, SubtitleSettings, TranslateTarget } from '../typings/subtitle'
 import { DEFAULT_SUBTITLE_SETTINGS } from '../typings/subtitle'
 /**
@@ -1155,6 +1157,135 @@ ipcMain.handle('missav:stream-detach', async () => {
   }
   streamMediaHosts.clear()
   return true
+})
+
+// ===== huangguo HLS 加密视频下载 =====
+// huangguo.video 使用 AES-128-CBC 加密的 HLS 流，此处复用 persist:thirdparty 分区的 Cookie 进行鉴权
+let huangguoDownloader: HLSDownloader | null = null
+
+/** 解码 HTML 实体（&amp; &lt; &#xxx; 等） */
+function decodeHtmlEntities(text: string): string {
+  if (!text) return ''
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'",
+    '&nbsp;': ' '
+  }
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&[a-z]+;/gi, (m) => entities[m] ?? m)
+}
+
+/** 从 persist:thirdparty 分区读取 huangguo.video 的 Cookie 与 UA，构造请求头 */
+async function buildHuangguoHeaders(siteUrl: string): Promise<Record<string, string>> {
+  const { session } = require('electron')
+  const ses = session.fromPartition('persist:thirdparty')
+  let referer = siteUrl
+  let cookieStr = ''
+  try {
+    const origin = new URL(siteUrl).origin
+    referer = origin + '/'
+    const cookies = await ses.cookies.get({ url: origin })
+    cookieStr = cookies.map((c: Electron.Cookie) => `${c.name}=${c.value}`).join('; ')
+  } catch {
+    /* ignore */
+  }
+  const headers: Record<string, string> = {
+    Referer: referer,
+    'User-Agent': ses.getUserAgent()
+  }
+  if (cookieStr) headers['Cookie'] = cookieStr
+  return headers
+}
+
+/**
+ * 解析视频页 HTML，提取标题、真实内容 ID 与 master.m3u8 地址
+ * 页面结构：
+ *   <h1 class="gallery-title">标题</h1>
+ *   <div class="player-shell" data-content-id="159" data-hls="/uploads/content/video/159/master.m3u8" ...>
+ */
+ipcMain.handle('huangguo:getVideoInfo', async (_event, payload: { pageUrl: string }) => {
+  const pageUrl: string = payload?.pageUrl
+  if (!pageUrl) return { success: false, error: '缺少页面地址' }
+  try {
+    const headers = await buildHuangguoHeaders(pageUrl)
+    const resp = await axios.get(pageUrl, { headers, timeout: 30000, responseType: 'text' })
+    const html = typeof resp.data === 'string' ? resp.data : String(resp.data)
+
+    // 标题：<h1 class="gallery-title">他夏了夏天</h1>
+    const titleRaw = html.match(/<h1[^>]*class="[^"]*gallery-title[^"]*"[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || ''
+    const title = decodeHtmlEntities(titleRaw.replace(/<[^>]+>/g, '').trim())
+
+    const contentId = html.match(/data-content-id="([^"]+)"/)?.[1] || ''
+    const hlsPath = html.match(/data-hls="([^"]+)"/)?.[1] || ''
+
+    let m3u8Url = ''
+    const origin = new URL(pageUrl).origin
+    if (hlsPath) {
+      m3u8Url = new URL(hlsPath, origin).href
+    } else if (contentId) {
+      m3u8Url = `${origin}/uploads/content/video/${contentId}/master.m3u8`
+    }
+    if (!m3u8Url) return { success: false, error: '未在页面中解析到视频地址' }
+
+    return { success: true, title, contentId, m3u8Url }
+  } catch (err: any) {
+    log.warn('[Main] huangguo 解析视频信息失败:', err?.message)
+    return { success: false, error: err?.message || '获取视频信息失败' }
+  }
+})
+
+ipcMain.handle(
+  'huangguo:startDownload',
+  async (
+    event,
+    payload: { m3u8Url: string; quality?: string; savePath: string; siteUrl?: string }
+  ) => {
+    const { m3u8Url, savePath } = payload || {}
+    const quality = payload?.quality || '1080p'
+    const siteUrl = payload?.siteUrl || m3u8Url
+    if (!m3u8Url || !savePath) {
+      return { success: false, error: '缺少必要参数（m3u8Url / savePath）' }
+    }
+
+    try {
+      const headers = await buildHuangguoHeaders(siteUrl)
+      huangguoDownloader = new HLSDownloader(m3u8Url, headers, {
+        concurrency: 8,
+        timeout: 60000
+      })
+
+      const sender = event.sender
+      const result: HlsDownloadResult = await huangguoDownloader.download(
+        quality,
+        savePath,
+        (progress) => {
+          if (!sender.isDestroyed()) {
+            sender.send('huangguo:download-progress', progress)
+          }
+        }
+      )
+      return { success: true, ...result }
+    } catch (err: any) {
+      log.warn('[Main] huangguo 下载失败:', err?.message)
+      return { success: false, error: err?.message || '下载失败' }
+    } finally {
+      huangguoDownloader = null
+    }
+  }
+)
+
+ipcMain.handle('huangguo:cancelDownload', async () => {
+  if (huangguoDownloader) {
+    huangguoDownloader.cancel()
+    return { success: true }
+  }
+  return { success: false, message: '没有正在进行的下载' }
 })
 
 

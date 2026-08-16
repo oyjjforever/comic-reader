@@ -240,6 +240,7 @@ import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
 import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
+import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
 import missavImg from '@renderer/assets/missav.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
@@ -322,7 +323,8 @@ const sitesConfig = [
   { image: pixivImg, site: 'pixiv', label: 'Pixiv' },
   { image: twitterImg, site: 'twitter', label: 'Twitter' },
   { image: weiboImg, site: 'weibo', label: '微博' },
-  { image: picamanImg, site: 'picaman', label: 'Picaman' }
+  { image: picamanImg, site: 'picaman', label: 'Picaman' },
+  { image: huangguoImg, site: 'huangguo', label: '黄果剧场' }
   // { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
 ]
 
