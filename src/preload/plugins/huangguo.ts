@@ -41,6 +41,12 @@ const huangguo = {
   /** 解析视频页 HTML，返回真实内容 ID 与 master.m3u8 地址 */
   getVideoInfo: (pageUrl: string): Promise<HlsVideoInfoResult> =>
     ipcRenderer.invoke('huangguo:getVideoInfo', { pageUrl }),
+  /** 调用 play 接口获取指定集的实时播放地址（auth_key 有时效） */
+  getPlayUrl: (
+    videoId: string | number,
+    ep?: string | number
+  ): Promise<{ success: boolean; videoUrl?: string; duration?: number; title?: string; error?: string }> =>
+    ipcRenderer.invoke('huangguo:getPlayUrl', { videoId, ep }),
   startDownload: (payload: HlsStartDownloadPayload): Promise<HlsStartDownloadResult> =>
     ipcRenderer.invoke('huangguo:startDownload', payload),
   cancelDownload: (): Promise<{ success: boolean; message?: string }> =>

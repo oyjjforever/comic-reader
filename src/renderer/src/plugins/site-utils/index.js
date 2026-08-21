@@ -59,7 +59,7 @@ const sites = {
   huangguo: {
     util: HuangguoUtil,
     icon: huangguoImg,
-    downloadPathSetting: 'defaultDownloadPath'
+    downloadPathSetting: 'downloadPathHuangguo'
   }
 }
 

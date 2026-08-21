@@ -261,7 +261,7 @@ async function getFilesFromPath(dirPath: string, includeSubfolders: boolean = fa
 
         if (itemStat.isFile()) {
           const fileInfo: FileInfo = {
-            name: item.padStart(10, '0'),
+            name: item,
             fullPath: itemPath,
             coverPath: itemPath,
             extension: path.extname(item).toLowerCase(),

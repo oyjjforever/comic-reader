@@ -7,8 +7,10 @@ import axios from 'axios'
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { spawn } from 'child_process'
 import { app } from 'electron'
 import log from '../../utils/log'
+import { getFfmpegPath } from './ffmpeg-service'
 
 export interface HlsProgress {
   type: string
@@ -190,7 +192,50 @@ export class HLSDownloader {
     return buf
   }
 
-  /** 合并 TS 片段为单个文件 */
+  /**
+   * 使用 ffmpeg 将合并后的 TS 流无重编码封装为 MP4（remux）
+   * 失败时（如 ffmpeg 不可用）回退为直接输出 TS 内容
+   */
+  private remuxToMp4(tsFile: string, outputFile: string): Promise<void> {
+    return new Promise<{ remuxed: boolean }>((resolve) => {
+      const args = [
+        '-y',
+        '-i',
+        tsFile,
+        '-c',
+        'copy',
+        '-bsf:a',
+        'aac_adtstoasc',
+        '-movflags',
+        '+faststart',
+        outputFile
+      ]
+      const child = spawn(getFfmpegPath(), args)
+      let stderr = ''
+      child.stderr.on('data', (d: Buffer) => {
+        stderr += d.toString()
+      })
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ remuxed: true })
+        } else {
+          log.warn('[HLS] remux 失败，回退为直接拼接输出:', stderr.slice(-500))
+          resolve({ remuxed: false })
+        }
+      })
+      child.on('error', (err) => {
+        log.warn('[HLS] ffmpeg 不可用，回退为直接拼接输出:', err.message)
+        resolve({ remuxed: false })
+      })
+    }).then(({ remuxed }) => {
+      if (!remuxed) {
+        // 回退：直接把拼接的 TS 流复制为输出文件（部分播放器仍可播放）
+        fs.copyFileSync(tsFile, outputFile)
+      }
+    })
+  }
+
+  /** 合并 TS 片段为单个文件，并封装为标准 MP4 */
   private async mergeSegments(
     tempDir: string,
     outputFile: string,
@@ -209,7 +254,15 @@ export class HLSDownloader {
       throw new Error('没有找到可合并的 TS 片段')
     }
 
-    const writeStream = fs.createWriteStream(outputFile)
+    // 输出目录不存在时自动创建（递归）
+    const outputDir = path.dirname(outputFile)
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true })
+    }
+
+    // 先合并为临时 TS 文件，再 remux 为 MP4
+    const mergedTsFile = path.join(tempDir, `merged_${Date.now()}.ts`)
+    const writeStream = fs.createWriteStream(mergedTsFile)
     let merged = 0
 
     for (const file of files) {
@@ -232,6 +285,14 @@ export class HLSDownloader {
       writeStream.on('finish', resolve)
       writeStream.on('error', reject)
     })
+
+    progressCallback?.({ type: 'remux', message: '正在封装为 MP4...' })
+    await this.remuxToMp4(mergedTsFile, outputFile)
+    try {
+      fs.rmSync(mergedTsFile, { force: true })
+    } catch {
+      // ignore
+    }
   }
 
   /**

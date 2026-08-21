@@ -315,6 +315,15 @@ declare global {
         title?: string
         contentId?: string
         m3u8Url?: string
+        /** 各集 m3u8 地址（含 auth_key），键为集数 */
+        episodes?: Array<{ ep: string; url: string }>
+      }>
+      getPlayUrl: (videoId: string | number, ep?: string | number) => Promise<{
+        success: boolean
+        videoUrl?: string
+        duration?: number
+        title?: string
+        error?: string
       }>
       startDownload: (payload: {
         m3u8Url: string

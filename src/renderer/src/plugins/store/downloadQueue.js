@@ -460,14 +460,29 @@ async function runYfantasy(task) {
 }
 
 async function runHuangguo(task) {
-  const { m3u8Url, title, baseDir, quality, siteUrl } = task.payload
+  const { m3u8Url, title, baseDir, quality, siteUrl, videoId, ep, fileName } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
-    if (!m3u8Url) throw new Error('未解析到 m3u8 地址')
+    let playUrl = m3u8Url
+    // auth_key 有时效，下载开始前通过 play 接口实时获取播放地址
+    if (videoId) {
+      try {
+        const play = await huangguo.getPlayUrl(videoId, ep)
+        if (play?.success && play.videoUrl) {
+          playUrl = play.videoUrl
+        } else {
+          console.warn('huangguo getPlayUrl 失败，回退页面地址:', play?.error)
+        }
+      } catch (e) {
+        console.warn('huangguo getPlayUrl 异常，回退页面地址:', e)
+      }
+    }
+    if (!playUrl) throw new Error('未解析到 m3u8 地址')
 
-    const safeTitle = file.simpleSanitize(title || `huangguo_${Date.now()}`)
+    // baseDir 已含标题父文件夹，文件命名：第n集.mp4
+    const safeName = file.simpleSanitize(fileName || title || `huangguo_${Date.now()}`)
     const workDir = `${baseDir}`
-    const savePath = `${workDir}\\${safeTitle}.mp4`
+    const savePath = `${workDir}\\${safeName}.mp4`
 
     // 已存在则跳过
     if (await file.pathExists(savePath)) {
@@ -500,7 +515,7 @@ async function runHuangguo(task) {
     }
 
     try {
-      const result = await huangguo.startDownload({ m3u8Url, quality: quality || '1080p', savePath, siteUrl })
+      const result = await huangguo.startDownload({ m3u8Url: playUrl, quality: quality || '1080p', savePath, siteUrl })
       if (!result || !result.success) {
         throw new Error(result?.error || '下载失败')
       }
