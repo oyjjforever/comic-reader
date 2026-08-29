@@ -190,11 +190,18 @@ class JmClient {
 
         // 如果请求成功，直接返回
         if (resp.status === 200) {
-          return resp
+          // 200 但返回 HTML（域名被停放/劫持，如 lander 跳转页），视为域名失效
+          const bodyText = typeof resp.data === 'string' ? resp.data.trim() : ''
+          if (bodyText && /^<!DOCTYPE\s+html/i.test(bodyText)) {
+            lastError = new Error(`域名 ${API_DOMAIN} 返回异常页面(疑似被停放)`)
+            console.log(lastError.message)
+          } else {
+            return resp
+          }
+        } else {
+          // 如果状态码不是200，记录错误并尝试下一个域名
+          lastError = new Error(`请求失败，状态码: ${resp.status}`)
         }
-
-        // 如果状态码不是200，记录错误并尝试下一个域名
-        lastError = new Error(`请求失败，状态码: ${resp.status}`)
       } catch (e) {
         lastError = e
         console.log(`域名 ${API_DOMAIN} 请求失败: ${e.message}`)
