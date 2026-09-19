@@ -221,6 +221,15 @@
       @change="onTagsChange"
       @confirm="onTagsConfirm"
     />
+
+    <!-- 分享对话框 -->
+    <share-dialog
+      v-if="shareDialogObject.show"
+      v-model:show="shareDialogObject.show"
+      :candidates="shareDialogObject.candidates"
+      :keyword="shareDialogObject.keyword"
+      @select="onShareCandidate"
+    />
   </div>
 </template>
 
@@ -228,6 +237,7 @@
 import type { FolderInfo } from '@/typings/file'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import TagDialog from '@renderer/components/tag-dialog.vue'
+import ShareDialog from '@renderer/components/share-dialog.vue'
 import HighlightsView from '@renderer/components/highlights-view.vue'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import {
@@ -249,13 +259,16 @@ import {
   TagMultiple24Regular,
   NotepadEdit20Regular,
   FolderOpen24Regular,
-  Delete24Filled
+  Delete24Filled,
+  Share24Regular,
+  Copy24Regular
 } from '@vicons/fluent'
 import { NButton, NIcon, NButtonGroup, NSpin, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
 import { ref, reactive, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@renderer/plugins/store'
+import siteUtils from '@renderer/plugins/site-utils/index.js'
 
 interface ResourceBrowserProps {
   resourcePaths: string[]
@@ -1182,6 +1195,33 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
         }
       },
       {
+        label: '复制标题',
+        icon: h(NIcon, {
+          component: Copy24Regular
+        }),
+        // 多选模式下，不显示
+        hidden: isMultiSelectMode.value,
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(folder.name || '')
+            message.success('已复制标题')
+          } catch (error: any) {
+            message.error(`复制失败: ${error.message || error}`)
+          }
+        }
+      },
+      {
+        label: '分享',
+        icon: h(NIcon, {
+          component: Share24Regular
+        }),
+        // 多选模式下，不显示
+        hidden: isMultiSelectMode.value,
+        onClick: () => {
+          handleShare(folder)
+        }
+      },
+      {
         label: '删除',
         icon: h(NIcon, {
           component: Delete24Filled
@@ -1246,6 +1286,126 @@ function deleteFolder(folder: any) {
     }
   })
 }
+// 分享：使用文件名在各站点搜索作品，列出候选结果供用户选择后复制到剪切板
+const SHARE_SEARCH_TYPES = ['jmtt', 'pixiv', 'picaman']
+// 分享弹窗状态
+const shareDialogObject = reactive<{ show: boolean; candidates: any[]; keyword: string }>({
+  show: false,
+  candidates: [],
+  keyword: ''
+})
+
+// 计算标题与关键字的匹配可信度（越大越可信）
+const scoreMatch = (title: string, keyword: string): number => {
+  const a = (title || '').trim()
+  const b = keyword.trim()
+  if (!a || !b) return 0
+  if (a === b) return 1000
+  const la = a.toLowerCase()
+  const lb = b.toLowerCase()
+  if (la === lb) return 900
+  if (la.includes(lb) || lb.includes(la)) return 500 + Math.min(la.length, lb.length) / Math.max(la.length, lb.length) * 100
+  // Dice 系数：基于二元字符组的相似度
+  const bigrams = (s: string) => {
+    const set = new Map<string, number>()
+    for (let i = 0; i < s.length - 1; i++) {
+      const g = s.slice(i, i + 2)
+      set.set(g, (set.get(g) || 0) + 1)
+    }
+    return set
+  }
+  const mapA = bigrams(la)
+  const mapB = bigrams(lb)
+  let overlap = 0
+  mapA.forEach((count, g) => {
+    const cb = mapB.get(g)
+    if (cb) overlap += Math.min(count, cb)
+  })
+  const total = la.length - 1 + lb.length - 1
+  return total > 0 ? (overlap * 2 * 100) / total : 0
+}
+
+const copyShareInfo = async (info: any): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(
+      `作品名:${info.title}
+作品ID: ${info.artworkId}
+作者: ${info.author}
+来源: ${info.source}`
+    )
+    message.success('已复制分享信息')
+    return true
+  } catch (error: any) {
+    message.error(`复制失败: ${error.message || error}`)
+    return false
+  }
+}
+
+const handleShare = async (folder: FolderInfo) => {
+  // 去除扩展名后作为搜索关键字
+  const keyword = (folder.name || '').replace(/\.[^.]+$/, '').trim()
+  if (!keyword) {
+    message.error('无法获取作品名称')
+    return
+  }
+
+  const loadingMsg = message.loading('正在搜索作品信息...', { duration: 0 })
+  try {
+    // 各站点并行搜索，取前几个结果获取详情
+    const results = await Promise.all(
+      SHARE_SEARCH_TYPES.map(async (type) => {
+        try {
+          const ids = await siteUtils.searchArtworks(type, keyword, 1)
+          if (!ids || !Array.isArray(ids) || ids.length === 0) return []
+          const topIds = ids.slice(0, 3)
+          const infos = await Promise.all(
+            topIds.map((id: any) => siteUtils.getArtworkInfo(type, id).catch(() => null))
+          )
+          return infos.filter(Boolean)
+        } catch (error) {
+          console.warn(`搜索 ${type} 关键字 ${keyword} 失败:`, error)
+          return []
+        }
+      })
+    )
+
+    // 去重（来源+作品ID）并按可信度排序
+    const seen = new Set<string>()
+    const candidates = results
+      .flat()
+      .filter((info: any) => {
+        if (!info || !info.artworkId) return false
+        const key = `${info.source}_${info.artworkId}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .map((info: any) => ({ info, score: scoreMatch(info.title, keyword) }))
+      .sort((a, b) => b.score - a.score)
+
+    if (candidates.length === 0) {
+      message.error('未搜索到相关作品')
+      return
+    }
+
+    // 弹窗列出所有候选，按可信度排序，供用户选择分享
+    shareDialogObject.candidates = candidates
+    shareDialogObject.keyword = keyword
+    shareDialogObject.show = true
+  } catch (error: any) {
+    message.error(`分享失败: ${error.message || error}`)
+  } finally {
+    loadingMsg.destroy()
+  }
+}
+
+// 用户在分享弹窗中选择某条候选后复制分享信息
+const onShareCandidate = async (info: any) => {
+  if (await copyShareInfo(info)) {
+    shareDialogObject.show = false
+  }
+}
+
 // 文件夹右键菜单
 async function handleFolderContextMenu(e: MouseEvent, folder: any) {
   e.preventDefault()
