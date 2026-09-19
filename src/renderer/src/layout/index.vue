@@ -208,7 +208,7 @@
         </n-modal>
         <!-- 非 site 路由使用 router-view + keep-alive -->
         <router-view v-slot="{ Component }">
-          <keep-alive include="book,video,reader,search,specialAttention,actorVideo,yfantasy">
+          <keep-alive include="book,video,reader,search,specialAttention,actorVideo,yfantasy,fourkhd">
             <component
               v-if="!isSiteRoute"
               ref="nonSiteComponentRef"
@@ -267,6 +267,8 @@ import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
 import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
+// 4khd 站点图标
+import fourkhdImg from '@renderer/assets/4khd.png'
 import missavImg from '@renderer/assets/missav.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
@@ -339,7 +341,8 @@ const menuItems = [
 // 二级菜单中的路由项（与站点列表用分割线区分）
 const routeMenuConfig = [
   { image: missavImg, name: 'missav', label: 'MISSAV' },
-  { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' }
+  { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
+  { image: fourkhdImg, name: '4khd', label: '4KHD' }
 ]
 
 // 站点列表配置（二级菜单）

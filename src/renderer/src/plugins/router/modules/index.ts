@@ -68,6 +68,15 @@ export default [
                         }
                     },
                     {
+                        path: '4khd',
+                        name: "4khd",
+                        component: () => import('@renderer/views/site/4khd.vue'),
+                        meta: {
+                            title: "4khd",
+                            keepAlive: true
+                        }
+                    },
+                    {
                         path: 'missav',
                         name: "missav",
                         component: () => import('@renderer/views/site/missav.vue'),

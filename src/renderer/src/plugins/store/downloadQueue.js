@@ -1,6 +1,6 @@
 import { reactive, ref, nextTick } from 'vue'
 
-const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, huangguo, file } = window
+const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, fourkhd, huangguo, file } = window
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -468,6 +468,50 @@ async function runYfantasy(task) {
   }
 }
 
+async function run4khd(task) {
+  const { images: loadedImages = [], url, maxPage = 1, pagesLoaded = 1, title, baseDir } = task.payload
+  try {
+    updateTask(task, { status: 'running', errorMessage: undefined })
+    const workDir = `${baseDir}\\${file.simpleSanitize(title)}`
+    await isPathExists(workDir, task)
+    // 详情页滚动加载只读了部分分页时，下载前自动补齐剩余分页（分批并发）
+    let images = [...loadedImages]
+    if (url && maxPage > 1 && pagesLoaded < maxPage) {
+      const pages = []
+      for (let p = pagesLoaded + 1; p <= maxPage; p++) pages.push(p)
+      for (let i = 0; i < pages.length; i += 5) {
+        const batch = pages.slice(i, i + 5)
+        const results = await Promise.all(
+          batch.map((p) => fourkhd.fetchDetailPage(url, p).catch(() => ({ images: [] })))
+        )
+        results.forEach((r) => images.push(...(r?.images || [])))
+      }
+      images = [...new Set(images)]
+    }
+    if (!images.length) throw new Error('未找到可下载的图片')
+    await runWithConcurrency(
+      images,
+      task,
+      async (url, i) => {
+        const ext = (url.split('?')[0].split('.').pop() || 'jpg').toLowerCase()
+        const savePath = `${workDir}\\${i.toString().padStart(5, '0')}.${ext}`
+        await fourkhd.downloadFile(url, savePath)
+      },
+      (success, fail, total) => {
+        updateTask(task, { progress: { success, fail, total } })
+        task.onSuccess?.()
+      }
+    )
+    updateTask(task, { from: '4khd', status: 'success', localFilePath: workDir })
+  } catch (e) {
+    console.log('🚀 ~ run4khd ~ e:', e)
+    if (task._cancel) {
+      updateTask(task, { status: 'canceled' })
+      return
+    }
+  }
+}
+
 async function runHuangguo(task) {
   const { m3u8Url, title, baseDir, quality, siteUrl, videoId, ep, fileName } = task.payload
   try {
@@ -581,6 +625,9 @@ async function executeTask(task) {
       break
     case 'yfantasy':
       await runYfantasy(task)
+      break
+    case '4khd':
+      await run4khd(task)
       break
     case 'huangguo':
       await runHuangguo(task)

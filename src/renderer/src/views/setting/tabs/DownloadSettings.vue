@@ -98,6 +98,19 @@
           </n-button>
         </n-input-group>
       </n-form-item>
+      <n-form-item path="downloadPath4khd" label="4KHD 下载路径">
+        <n-input-group>
+          <n-input
+            :value="modelValue.downloadPath4khd"
+            @update:value="(value) => updateSetting('downloadPath4khd', value)"
+            placeholder="可选，未设置则使用默认下载路径"
+            readonly
+          />
+          <n-button type="primary" @click="selectResourcePath('downloadPath4khd')">
+            选择文件夹
+          </n-button>
+        </n-input-group>
+      </n-form-item>
     </div>
   </n-form>
 </template>
