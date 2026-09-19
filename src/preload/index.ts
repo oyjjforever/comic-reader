@@ -55,7 +55,14 @@ const closeConfig = {
   onShowDialog: (callback: () => void) => {
     ipcRenderer.on('show-close-dialog', callback)
     return () => ipcRenderer.removeListener('show-close-dialog', callback)
-  }
+  },
+  reportActiveDownloads: (count: number) => ipcRenderer.send('download-queue:active-count', count),
+  onShowDownloadDialog: (callback: (count: number) => void) => {
+    ipcRenderer.on('show-download-close-dialog', (_e, count) => callback(count))
+    return () => ipcRenderer.removeAllListeners('show-download-close-dialog')
+  },
+  respondDownloadClose: (response: { action: 'exit' | 'tray' }) =>
+    ipcRenderer.invoke('download-close-response', response)
 }
 
 // Custom APIs for renderer

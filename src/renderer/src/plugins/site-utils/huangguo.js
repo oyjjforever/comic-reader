@@ -49,7 +49,7 @@ const siteView = {
 
     tip.info('正在解析视频地址...')
     // 视频页：解析 videoInitialData；详情页：解析 data-ep-grid 选集网格
-    const info = await window.huangguo.getVideoInfo(pageUrl)
+    const info = await window.huangguo.getVideoInfo(pageUrl.replaceAll('video', 'detail'))
     if (!info || !info.success || !info.contentId) {
       tip.error(info?.error || '未解析到视频信息，请进入视频/详情页后再下载')
       return
@@ -73,7 +73,23 @@ const siteView = {
 
     // 下载目录：<下载路径>/<标题>，文件命名：第n集.mp4（n 从 1 开始）
     const workDir = `${baseDir}\\${window.file.simpleSanitize(baseTitle)}`
-    episodes.forEach(({ ep, url }) => {
+
+    // 加入队列前先判断是否已下载，跳过已存在的集数
+    const pendingEpisodes = episodes.filter(({ ep }) => {
+      const epNum = Number(ep) || 1
+      const savePath = `${workDir}\\${window.file.simpleSanitize(`第${epNum}集`)}.mp4`
+      return !window.file.pathExists(savePath)
+    })
+    const skippedCount = episodes.length - pendingEpisodes.length
+    if (skippedCount > 0) {
+      tip.info(`已跳过 ${skippedCount} 个已下载的集数`)
+    }
+    if (pendingEpisodes.length === 0) {
+      tip.success('所有集数均已下载，无需重复下载')
+      return
+    }
+
+    pendingEpisodes.forEach(({ ep, url }) => {
       const epNum = Number(ep) || 1
       queue.addTask({
         site: 'huangguo',
@@ -92,7 +108,11 @@ const siteView = {
       })
     })
     tip.success(
-      episodes.length > 1 ? `已加入下载队列（共 ${episodes.length} 集）` : '已加入下载队列'
+      skippedCount > 0
+        ? `已加入下载队列（${pendingEpisodes.length} 集，跳过 ${skippedCount} 集）`
+        : pendingEpisodes.length > 1
+          ? `已加入下载队列（共 ${pendingEpisodes.length} 集）`
+          : '已加入下载队列'
     )
   }
 }

@@ -181,6 +181,31 @@
             </div>
           </template>
         </n-modal>
+        <!-- 有下载任务时的关闭二次确认对话框 -->
+        <n-modal
+          v-model:show="downloadCloseDialogVisible"
+          preset="card"
+          title="下载任务进行中"
+          :closable="false"
+          :close-on-esc="false"
+          :mask-closable="false"
+          style="width: 400px"
+          :segmented="{ content: true, footer: true }"
+        >
+          <div class="close-dialog-content">
+            <p class="close-dialog-message">
+              当前有 {{ activeDownloadCount }} 个下载任务正在进行，退出程序将中断下载。
+            </p>
+            <p class="close-dialog-detail">选择"最小化到托盘"可在后台继续下载。</p>
+          </div>
+          <template #footer>
+            <div class="close-dialog-actions">
+              <n-button @click="onDownloadCloseCancel">取消</n-button>
+              <n-button type="primary" @click="onDownloadCloseTray">最小化到托盘</n-button>
+              <n-button type="error" @click="onDownloadCloseExit">仍然退出</n-button>
+            </div>
+          </template>
+        </n-modal>
         <!-- 非 site 路由使用 router-view + keep-alive -->
         <router-view v-slot="{ Component }">
           <keep-alive include="book,video,reader,search,specialAttention,actorVideo,yfantasy">
@@ -470,7 +495,26 @@ function onCloseDialogExit() {
   window.closeConfig.respond({ closeToTray: false, dontRemind: closeDontRemind.value })
 }
 
+// 有下载任务时的关闭二次确认
+const downloadCloseDialogVisible = ref(false)
+const activeDownloadCount = ref(0)
+
+function onDownloadCloseCancel() {
+  downloadCloseDialogVisible.value = false
+}
+
+function onDownloadCloseTray() {
+  downloadCloseDialogVisible.value = false
+  window.closeConfig.respondDownloadClose({ action: 'tray' })
+}
+
+function onDownloadCloseExit() {
+  downloadCloseDialogVisible.value = false
+  window.closeConfig.respondDownloadClose({ action: 'exit' })
+}
+
 let removeCloseDialogListener: (() => void) | null = null
+let removeDownloadCloseDialogListener: (() => void) | null = null
 
 const isScreenFull = ref(false)
 onMounted(async () => {
@@ -490,6 +534,11 @@ onMounted(async () => {
   // 监听关闭确认对话框事件
   removeCloseDialogListener = window.closeConfig.onShowDialog(() => {
     showCloseDialog()
+  })
+  // 监听有下载任务时的关闭二次确认事件
+  removeDownloadCloseDialogListener = window.closeConfig.onShowDownloadDialog((count) => {
+    activeDownloadCount.value = count
+    downloadCloseDialogVisible.value = true
   })
   setTimeout(async () => {
     try {
@@ -526,6 +575,10 @@ onUnmounted(() => {
   if (sitesHoverTimer) {
     clearTimeout(sitesHoverTimer)
     sitesHoverTimer = null
+  }
+  if (removeDownloadCloseDialogListener) {
+    removeDownloadCloseDialogListener()
+    removeDownloadCloseDialogListener = null
   }
   if (removeCloseDialogListener) {
     removeCloseDialogListener()

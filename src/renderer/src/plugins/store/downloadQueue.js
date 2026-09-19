@@ -35,6 +35,13 @@ function updateTask(t, patch) {
   Object.assign(t, patch)
   t.updatedAt = Date.now()
   sortTasks()
+  reportActiveDownloads()
+}
+
+// 向主进程上报活跃（pending/running/paused）任务数，用于关闭窗口时二次确认
+function reportActiveDownloads() {
+  const count = tasks.filter((t) => ['pending', 'running', 'paused'].includes(t.status)).length
+  window.closeConfig?.reportActiveDownloads(count)
 }
 
 export function addTask(taskList) {
@@ -49,6 +56,7 @@ export function addTask(taskList) {
     }))
   )
   sortTasks()
+  reportActiveDownloads()
   startRunner()
 }
 
@@ -80,6 +88,7 @@ export function deleteTask(id) {
     // 若在运行，先标记取消
     tasks[idx]._cancel = true
     tasks.splice(idx, 1)
+    reportActiveDownloads()
   }
 }
 export function clearCompletedTask() {

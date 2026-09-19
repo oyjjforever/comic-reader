@@ -101,6 +101,14 @@ function formatBytes(bytes: number): string {
 let mainWindow: BrowserWindow;
 let tray: Tray | null = null;
 let isQuitting = false;
+// 各渲染窗口上报的活跃下载任务数（pending/running/paused），按窗口分别记录
+const activeDownloadCounts = new Map<number, number>();
+
+function getActiveDownloadCount(): number {
+  let total = 0
+  for (const c of activeDownloadCounts.values()) total += c
+  return total
+}
 
 /**
  * 关闭行为配置（持久化到 userData 目录）
@@ -1404,6 +1412,12 @@ app.on('window-all-closed', () => {
  * 处理窗口关闭行为：根据配置决定是最小化到托盘还是退出
  */
 function handleWindowClose(): void {
+  // 有活跃下载任务时，先让渲染进程弹出二次确认（退出会中断下载）
+  if (getActiveDownloadCount() > 0) {
+    mainWindow.webContents.send('show-download-close-dialog', getActiveDownloadCount())
+    return
+  }
+
   const config = readCloseConfig()
 
   if (config.dontRemind) {
@@ -1436,4 +1450,24 @@ ipcMain.handle('close-dialog-response', (_event, response: { closeToTray: boolea
     isQuitting = true
     app.quit()
   }
+})
+
+// 渲染进程上报活跃下载任务数（按窗口记录，避免多窗口互相覆盖）
+ipcMain.on('download-queue:active-count', (event, count: number) => {
+  activeDownloadCounts.set(event.sender.id, Number(count) || 0)
+  // 页面销毁/刷新后清理对应记录
+  event.sender.once('destroyed', () => {
+    activeDownloadCounts.delete(event.sender.id)
+  })
+})
+
+// 有下载任务时的关闭二次确认响应
+ipcMain.handle('download-close-response', (_event, response: { action: 'exit' | 'tray' }) => {
+  if (response?.action === 'exit') {
+    isQuitting = true
+    app.quit()
+  } else if (response?.action === 'tray') {
+    mainWindow.hide()
+  }
+  // action 为其他值（取消）时不做处理，窗口保持打开
 })

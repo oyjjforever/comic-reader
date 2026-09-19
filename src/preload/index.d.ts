@@ -127,6 +127,9 @@ declare global {
       reset: () => Promise<void>
       respond: (response: { closeToTray: boolean; dontRemind: boolean }) => Promise<void>
       onShowDialog: (callback: () => void) => () => void
+      reportActiveDownloads: (count: number) => void
+      onShowDownloadDialog: (callback: (count: number) => void) => () => void
+      respondDownloadClose: (response: { action: 'exit' | 'tray' }) => Promise<void>
     }
     databaseBackup: {
       createBackup: (backupPath?: string) => Promise<string>;
