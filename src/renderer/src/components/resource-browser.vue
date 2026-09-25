@@ -228,7 +228,10 @@
       v-model:show="shareDialogObject.show"
       :candidates="shareDialogObject.candidates"
       :keyword="shareDialogObject.keyword"
+      :file-name="shareDialogObject.fileName"
+      :loading="shareDialogObject.loading"
       @select="onShareCandidate"
+      @search="onShareDialogSearch"
     />
   </div>
 </template>
@@ -269,6 +272,7 @@ import { ref, reactive, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@renderer/plugins/store'
 import siteUtils from '@renderer/plugins/site-utils/index.js'
+import { extractShareKeyword, normalizeForMatch } from '@renderer/utils/share-match'
 
 interface ResourceBrowserProps {
   resourcePaths: string[]
@@ -1289,16 +1293,25 @@ function deleteFolder(folder: any) {
 // 分享：使用文件名在各站点搜索作品，列出候选结果供用户选择后复制到剪切板
 const SHARE_SEARCH_TYPES = ['jmtt', 'pixiv', 'picaman']
 // 分享弹窗状态
-const shareDialogObject = reactive<{ show: boolean; candidates: any[]; keyword: string }>({
+const shareDialogObject = reactive<{
+  show: boolean
+  candidates: any[]
+  keyword: string
+  fileName: string
+  loading: boolean
+}>({
   show: false,
   candidates: [],
-  keyword: ''
+  keyword: '',
+  fileName: '',
+  loading: false
 })
 
 // 计算标题与关键字的匹配可信度（越大越可信）
+// 站点标题先提取核心标题（去除作者、汉化组、原作等修饰），避免长标题稀释相似度
 const scoreMatch = (title: string, keyword: string): number => {
-  const a = (title || '').trim()
-  const b = keyword.trim()
+  const a = normalizeForMatch(extractShareKeyword(title))
+  const b = normalizeForMatch(keyword)
   if (!a || !b) return 0
   if (a === b) return 1000
   const la = a.toLowerCase()
@@ -1342,14 +1355,31 @@ const copyShareInfo = async (info: any): Promise<boolean> => {
 }
 
 const handleShare = async (folder: FolderInfo) => {
-  // 去除扩展名后作为搜索关键字
-  const keyword = (folder.name || '').replace(/\.[^.]+$/, '').trim()
+  // 提取核心标题作为搜索关键字（去除作者、汉化组、原作、版本等修饰信息）
+  const keyword = extractShareKeyword(folder.name || '')
   if (!keyword) {
     message.error('无法获取作品名称')
     return
   }
 
-  const loadingMsg = message.loading('正在搜索作品信息...', { duration: 0 })
+  // 立即打开弹窗，在弹窗内显示搜索中状态
+  shareDialogObject.candidates = []
+  shareDialogObject.keyword = keyword
+  shareDialogObject.fileName = folder.name || ''
+  shareDialogObject.show = true
+  await searchShareCandidates(keyword)
+}
+
+// 弹窗内二次编辑关键字后重新搜索
+const onShareDialogSearch = async (keyword: string) => {
+  shareDialogObject.candidates = []
+  shareDialogObject.keyword = keyword
+  await searchShareCandidates(keyword)
+}
+
+// 各站点搜索作品并填充候选列表（按可信度排序）
+const searchShareCandidates = async (keyword: string) => {
+  shareDialogObject.loading = true
   try {
     // 各站点并行搜索，取前几个结果获取详情
     const results = await Promise.all(
@@ -1383,19 +1413,12 @@ const handleShare = async (folder: FolderInfo) => {
       .map((info: any) => ({ info, score: scoreMatch(info.title, keyword) }))
       .sort((a, b) => b.score - a.score)
 
-    if (candidates.length === 0) {
-      message.error('未搜索到相关作品')
-      return
-    }
-
-    // 弹窗列出所有候选，按可信度排序，供用户选择分享
+    // 填充候选列表（无结果时弹窗内显示空状态）
     shareDialogObject.candidates = candidates
-    shareDialogObject.keyword = keyword
-    shareDialogObject.show = true
   } catch (error: any) {
-    message.error(`分享失败: ${error.message || error}`)
+    message.error(`搜索作品失败: ${error.message || error}`)
   } finally {
-    loadingMsg.destroy()
+    shareDialogObject.loading = false
   }
 }
 

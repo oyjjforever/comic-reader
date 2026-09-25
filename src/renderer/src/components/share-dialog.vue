@@ -7,79 +7,149 @@
     style="width: 600px"
     @update:show="(value: boolean) => emit('update:show', value)"
   >
-    <div v-if="keyword" class="share-keyword">
+    <div v-if="fileName" class="share-filename" :title="fileName">{{ fileName }}</div>
+    <div class="share-keyword">
       <span class="share-keyword-label">搜索关键字:</span>
-      <span class="share-keyword-text">{{ keyword }}</span>
+      <n-input
+        v-model:value="searchKeyword"
+        size="small"
+        placeholder="编辑搜索关键字后重新搜索"
+        clearable
+        :disabled="loading"
+        @keydown.enter="onSearch"
+      />
+      <n-button
+        size="small"
+        type="primary"
+        :loading="loading"
+        :disabled="!searchKeyword.trim()"
+        @click="onSearch"
+      >
+        搜索
+      </n-button>
     </div>
-    <div class="share-list">
+    <div v-if="loading" class="share-loading">
+      <n-spin size="medium" />
+      <span>正在搜索作品信息...</span>
+    </div>
+    <div v-else-if="candidates.length === 0" class="share-empty">未搜索到相关作品</div>
+    <div v-else class="share-list">
       <div
-        v-for="({ info, score }, index) in candidates"
+        v-for="{ info, segments } in rows"
         :key="`${info.source}_${info.artworkId}`"
         class="share-item"
         @click="emit('select', info)"
       >
         <img class="share-item-icon" :src="getSiteIcon(info.source)" />
         <div class="share-item-info">
-          <div class="share-item-title" :title="info.title">{{ info.title || '无标题' }}</div>
-          <div class="share-item-meta">作者: {{ info.author || '未知' }} | ID: {{ info.artworkId }}</div>
+          <div class="share-item-title" :title="info.title">
+            <template v-if="segments">
+              <span
+                v-for="(seg, i) in segments"
+                :key="i"
+                :class="{ 'share-item-highlight': seg.highlight }"
+                >{{ seg.text }}</span
+              >
+            </template>
+            <template v-else>{{ info.title || '无标题' }}</template>
+          </div>
+          <div class="share-item-meta">
+            作者: {{ info.author || '未知' }} | ID: {{ info.artworkId }}
+          </div>
         </div>
-        <n-tag size="small" type="info">{{ info.source }}</n-tag>
-        <n-tag size="small" v-bind="matchBadge(score)">{{ matchBadge(score).label }}</n-tag>
-        <span class="share-item-index">{{ index + 1 }}</span>
       </div>
     </div>
   </n-modal>
 </template>
 
 <script setup lang="ts">
-import { NModal, NTag } from 'naive-ui'
+import { computed, ref, watch } from 'vue'
+import { NModal, NSpin, NInput, NButton } from 'naive-ui'
 import siteUtils from '@renderer/plugins/site-utils/index.js'
+import { buildTitleSegments } from '@renderer/utils/share-match'
 
 interface Candidate {
   info: any
   score: number
 }
 
-defineProps<{
+const props = defineProps<{
   show: boolean
   candidates: Candidate[]
   keyword?: string
+  fileName?: string
+  loading?: boolean
 }>()
 
-const emit = defineEmits(['update:show', 'select'])
+const emit = defineEmits(['update:show', 'select', 'search'])
+
+// 可编辑的搜索关键字，随外部传入的关键字同步
+const searchKeyword = ref(props.keyword || '')
+watch(
+  () => props.keyword,
+  (value) => {
+    searchKeyword.value = value || ''
+  }
+)
+
+// 二次编辑后重新搜索
+const onSearch = () => {
+  const keyword = searchKeyword.value.trim()
+  if (!keyword || props.loading) return
+  emit('search', keyword)
+}
 
 const getSiteIcon = (source: string) => siteUtils.getSiteIcon(source)
 
-// 根据匹配可信度返回标签样式
-const matchBadge = (score: number): { type: 'success' | 'warning' | 'default'; label: string } => {
-  if (score >= 900) return { type: 'success', label: '完全匹配' }
-  if (score >= 500) return { type: 'warning', label: '包含匹配' }
-  return { type: 'default', label: `相似度 ${Math.round(score)}%` }
-}
+// 预计算每条候选标题与本地作品名对比的高亮片段，避免模板中重复调用
+const rows = computed(() =>
+  props.candidates.map((candidate) => ({
+    ...candidate,
+    segments: buildTitleSegments(candidate.info.title, props.fileName || props.keyword || '')
+  }))
+)
 </script>
 
 <style lang="scss" scoped>
+.share-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.share-empty {
+  padding: 32px 0;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.share-filename {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
 .share-keyword {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 12px;
-  padding: 8px 12px;
-  background: #f3f4f6;
-  border-radius: 6px;
-  font-size: 13px;
 
-  .share-keyword-label {
-    color: #6b7280;
-    flex-shrink: 0;
+  .n-input {
+    flex: 1;
   }
 
-  .share-keyword-text {
-    color: #1f2937;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .n-button {
+    flex-shrink: 0;
   }
 }
 
@@ -104,7 +174,6 @@ const matchBadge = (score: number): { type: 'success' | 'warning' | 'default'; l
   &:hover {
     border-color: #18a058;
     background-color: #f0faf4;
-    transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
   }
 
@@ -126,7 +195,13 @@ const matchBadge = (score: number): { type: 'success' | 'warning' | 'default'; l
       color: #1f2937;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+
+      .share-item-highlight {
+        color: #d97706;
+        background-color: #fef3c7;
+        border-radius: 2px;
+        padding: 0 1px;
+      }
     }
 
     .share-item-meta {

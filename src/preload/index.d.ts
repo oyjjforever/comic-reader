@@ -20,6 +20,10 @@ declare global {
     electron: ElectronAPI
     api: unknown
     fs: any
+    file: {
+      simpleSanitize: (filename: string, replacement?: string) => string
+      [key: string]: any
+    }
     appData: {
       get: (key: string) => Promise<string | undefined>
       set: (key: string, value: string) => Promise<void>
