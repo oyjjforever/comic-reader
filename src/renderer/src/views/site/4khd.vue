@@ -1,14 +1,30 @@
 <template>
   <div class="fourkhd-view">
-    <!-- 分页控制 -->
-    <div v-if="totalPages > 1" class="pager">
-      <n-pagination
-        :page="page"
-        :page-count="totalPages"
-        :page-slot="7"
-        size="small"
-        @update:page="onPageChange"
-      />
+    <!-- 工具栏：分页 + 搜索 -->
+    <div class="toolbar">
+      <div v-if="totalPages > 1" class="pager">
+        <n-pagination
+          :page="page"
+          :page-count="totalPages"
+          :page-slot="7"
+          size="small"
+          @update:page="onPageChange"
+        />
+      </div>
+      <div v-else class="pager-spacer"></div>
+      <div class="search">
+        <n-input
+          v-model:value="keyword"
+          size="small"
+          placeholder="搜索作品"
+          clearable
+          @keyup.enter="onSearch"
+          @clear="onClearSearch"
+        />
+        <n-button size="small" type="primary" :loading="loading" @click="onSearch">
+          搜索
+        </n-button>
+      </div>
     </div>
     <!-- 列表 -->
     <div v-if="loading && !items.length" class="state-tip">加载中...</div>
@@ -102,7 +118,7 @@
 
 <script lang="ts" setup name="fourkhd">
 import { ref, computed } from 'vue'
-import { NButton, NImage, NPagination, useMessage } from 'naive-ui'
+import { NButton, NImage, NInput, NPagination, useMessage } from 'naive-ui'
 import { ImageOutline, CloudDownload } from '@vicons/ionicons5'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import errorImg from '@renderer/assets/error.png'
@@ -117,6 +133,10 @@ const hasMore = ref(false)
 const totalPages = ref(1)
 const page = ref(1)
 const virtualGridRef = ref()
+
+// 搜索状态（activeKeyword 非空时列表走搜索接口）
+const keyword = ref('')
+const activeKeyword = ref('')
 
 // 详情状态
 const detailVisible = ref(false)
@@ -137,7 +157,11 @@ async function loadList(replace = false) {
   loading.value = true
   error.value = ''
   try {
-    const { list, hasMore: more, totalPages: total } = await fourkhd.fetchList(page.value)
+    // 搜索模式走搜索接口，否则走默认列表，返回结构一致
+    const res = activeKeyword.value
+      ? await fourkhd.fetchSearch(activeKeyword.value, page.value)
+      : await fourkhd.fetchList(page.value)
+    const { list, hasMore: more, totalPages: total } = res
     hasMore.value = !!more
     totalPages.value = Math.max(total || 1, page.value)
     const mapped = list.map((it: any) => ({
@@ -145,7 +169,7 @@ async function loadList(replace = false) {
       downloaded: fourkhd.isLocalDownloaded(it.title)
     }))
     if (replace) {
-      // 跳页：整页替换并回到顶部
+      // 跳页/搜索：整页替换并回到顶部
       items.value = mapped
       virtualGridRef.value?.scrollToTop?.()
     } else {
@@ -164,6 +188,24 @@ async function loadList(replace = false) {
 function onPageChange(p: number) {
   if (p === page.value || p < 1 || p > totalPages.value) return
   page.value = p
+  loadList(true)
+}
+
+// 搜索：进入搜索模式并回到第 1 页
+function onSearch() {
+  const kw = keyword.value.trim()
+  if (kw === activeKeyword.value && items.value.length) return
+  activeKeyword.value = kw
+  page.value = 1
+  loadList(true)
+}
+
+// 清空搜索：回到默认列表
+function onClearSearch() {
+  keyword.value = ''
+  if (!activeKeyword.value) return
+  activeKeyword.value = ''
+  page.value = 1
   loadList(true)
 }
 
@@ -279,12 +321,33 @@ loadList()
   flex-direction: column;
 }
 
-.pager {
+.toolbar {
   flex-shrink: 0;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   padding: 8px 12px;
   border-bottom: 1px solid #eee;
+}
+
+.pager {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.pager-spacer {
+  flex: 1;
+}
+
+.search {
+  display: flex;
+  gap: 8px;
+  width: 280px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .grid-wrap {

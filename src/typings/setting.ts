@@ -43,4 +43,8 @@ export type setting = {
     enableLanService?: boolean
     // 局域网服务端口
     lanServicePort?: number
+    // 浏览历史最大条数
+    historyMaxCount?: number
+    // 最近下载最大条数
+    downloadMaxCount?: number
 }

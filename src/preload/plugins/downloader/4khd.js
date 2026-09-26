@@ -7,8 +7,8 @@ import Api from './api.js'
 import fsp from 'fs/promises'
 import file from '../file.ts'
 
-// 入口与镜像域名：4khd.com 可能跳转到 *.uuss.uk 子域，轮询命中后 sticky
-const MIRRORS = ['www.4khd.com', 'hecoq.uuss.uk']
+// 入口与镜像域名：4khd.com 可能跳转到 *.uuss.uk 子域，轮询命中后 sticky（hpajs 为搜索镜像）
+const MIRRORS = ['www.4khd.com', 'hecoq.uuss.uk', 'hpajs.uuss.uk']
 let activeHost = MIRRORS[0]
 
 const api = new Api({
@@ -253,6 +253,24 @@ function detectMaxPage(html, cap = 200) {
 }
 
 /**
+ * 搜索作品（https://hpajs.uuss.uk/search/{keyword}，返回 HTML，结构与列表页一致）
+ * 分页格式：/search/{keyword}/page/N
+ * @param {string} keyword 关键词
+ * @param {number} page 页码，从 1 开始
+ * @returns {Promise<{list:Array, hasMore:boolean, totalPages:number}>}
+ */
+async function fetchSearch(keyword, page = 1) {
+  const kw = encodeURIComponent(String(keyword || '').trim())
+  if (!kw) return { list: [], page: 1, hasMore: false, totalPages: 1 }
+  const path = page <= 1 ? `/search/${kw}` : `/search/${kw}/page/${page}`
+  const html = await fetchHtml(path)
+  const list = parseListHtml(html)
+  const totalPages = detectMaxPage(html, 1000000)
+  const hasMore = list.length > 0 && page < totalPages
+  return { list, page, hasMore, totalPages }
+}
+
+/**
  * 获取作品详情（仅第 1 页图片 + 相册总页数，供滚动增量加载）
  * 详情页相册按 /2 /3 … 后缀分页（每页约 30 张）
  * @param {string} url 详情页地址
@@ -298,6 +316,7 @@ async function downloadFile(url, savePath) {
 
 export default {
   fetchList,
+  fetchSearch,
   fetchDetail,
   fetchDetailPage,
   downloadFile,

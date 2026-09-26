@@ -9,10 +9,19 @@ const SITE = '4khd'
 /**
  * 获取作品列表（分页）
  * @param {number} page
- * @returns {Promise<{list:Array, hasMore:boolean}>}
+ * @returns {Promise<{list:Array, hasMore:boolean, totalPages:number}>}
  */
 async function fetchList(page = 1) {
   return await window.fourkhd.fetchList(page)
+}
+
+/**
+ * 搜索作品
+ * @param {string} keyword 关键词
+ * @param {number} page 页码
+ */
+async function fetchSearch(keyword, page = 1) {
+  return await window.fourkhd.fetchSearch(keyword, page)
 }
 
 /**
@@ -96,6 +105,7 @@ function isLocalDownloaded(workTitle) {
 export default {
   SITE,
   fetchList,
+  fetchSearch,
   fetchDetail,
   fetchDetailPage,
   downloadWork,

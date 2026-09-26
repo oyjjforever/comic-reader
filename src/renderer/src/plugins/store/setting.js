@@ -18,7 +18,9 @@ export const defaultSetting = {
   backupInterval: 4, // 默认4周
   backupPath: '',
   enableLanService: false, // 默认关闭局域网中转服务
-  lanServicePort: 9527 // 默认端口
+  lanServicePort: 9527, // 默认端口
+  historyMaxCount: 100, // 浏览历史最大条数
+  downloadMaxCount: 100 // 最近下载最大条数
 }
 
 export const useSettingStore = defineStore('setting', {

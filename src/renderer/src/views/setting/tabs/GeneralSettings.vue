@@ -25,6 +25,32 @@
       />
     </n-form-item>
 
+    <n-form-item path="historyMaxCount" label="浏览历史最大条数">
+      <n-input-number
+        :value="modelValue.historyMaxCount || 100"
+        @update:value="(value) => updateSetting('historyMaxCount', value)"
+        :min="10"
+        :max="1000"
+        :step="10"
+        style="width: 200px"
+      >
+        <template #suffix>条</template>
+      </n-input-number>
+    </n-form-item>
+
+    <n-form-item path="downloadMaxCount" label="最近下载最大条数">
+      <n-input-number
+        :value="modelValue.downloadMaxCount || 100"
+        @update:value="(value) => updateSetting('downloadMaxCount', value)"
+        :min="10"
+        :max="1000"
+        :step="10"
+        style="width: 200px"
+      >
+        <template #suffix>条</template>
+      </n-input-number>
+    </n-form-item>
+
     <n-form-item path="enableAuthorUpdateCheck" label="特别关注更新通知">
       <n-switch
         :value="modelValue.enableAuthorUpdateCheck"
@@ -53,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, onMounted } from 'vue'
+import { defineProps, defineEmits, ref, watch, onMounted } from 'vue'
 import { setting } from '../../../../../typings/setting'
 
 const props = defineProps<{
@@ -67,6 +93,25 @@ const updateSetting = (key: keyof setting, value: any) => {
   newSetting[key] = value
   emit('update:modelValue', newSetting)
 }
+
+// 历史记录最大条数变化时，立即按新上限清理旧记录
+watch(
+  () => props.modelValue.historyMaxCount,
+  (newVal, oldVal) => {
+    if (newVal !== oldVal && newVal) {
+      window.browseHistory.cleanupOldHistory(newVal)
+    }
+  }
+)
+
+watch(
+  () => props.modelValue.downloadMaxCount,
+  (newVal, oldVal) => {
+    if (newVal !== oldVal && newVal) {
+      window.downloadHistory.cleanupOldDownloadHistory(newVal)
+    }
+  }
+)
 
 // 关闭行为配置
 const closeConfigData = ref<{ closeToTray: boolean; dontRemind: boolean }>({

@@ -111,12 +111,14 @@ declare global {
       getBrowseHistory: (limit?: number, module?: string) => Promise<any[]>;
       deleteBrowseHistory: (id: number) => Promise<boolean>;
       clearBrowseHistory: (module?: string) => Promise<boolean>;
+      cleanupOldHistory: (maxCount?: number) => Promise<void>;
     }
     downloadHistory: {
       addDownloadHistory: (fullPath: string, module: string) => Promise<boolean>;
       getDownloadHistory: (limit?: number, module?: string) => Promise<any[]>;
       deleteDownloadHistory: (id: number) => Promise<boolean>;
       clearDownloadHistory: (module?: string) => Promise<boolean>;
+      cleanupOldDownloadHistory: (maxCount?: number) => Promise<void>;
     }
     server: {
       status: () => Promise<{ running: boolean; port: number }>

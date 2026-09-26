@@ -659,7 +659,10 @@ const buildHistoryFolders = async (
 // 获取浏览历史
 const getBrowseHistory = async () => {
   try {
-    const records = await window.browseHistory.getBrowseHistory(100, props.namespace)
+    const records = await window.browseHistory.getBrowseHistory(
+      settingStore.setting.historyMaxCount || 100,
+      props.namespace
+    )
     grid.filterRows = grid.rows = await buildHistoryFolders(records)
   } catch (error: any) {
     message.error(`获取浏览历史失败: ${error.message}`)
@@ -669,7 +672,10 @@ const getBrowseHistory = async () => {
 // 获取下载历史
 const getDownloadHistory = async () => {
   try {
-    const records = await window.downloadHistory.getDownloadHistory(100, props.namespace)
+    const records = await window.downloadHistory.getDownloadHistory(
+      settingStore.setting.downloadMaxCount || 100,
+      props.namespace
+    )
     grid.filterRows = grid.rows = await buildHistoryFolders(records, { useCoverAsPath: true })
   } catch (error: any) {
     message.error(`获取下载历史失败: ${error.message}`)

@@ -1,5 +1,26 @@
 import sqlite from './sqlite'
+import appData from './appData'
 import type { downloadHistory } from '../../typings/database'
+
+/**
+ * 从设置中读取最近下载最大条数
+ * @returns Promise<number> 最大条数，默认100
+ */
+const getMaxDownloadCount = async (): Promise<number> => {
+    try {
+        const settingStr = await appData.get('setting')
+        if (settingStr) {
+            const settingData = JSON.parse(settingStr)
+            const count = Number(settingData.downloadMaxCount)
+            if (Number.isFinite(count) && count > 0) {
+                return count
+            }
+        }
+    } catch (error) {
+        console.error('读取最近下载最大条数设置失败:', error)
+    }
+    return 100
+}
 
 /**
  * 添加下载历史记录
@@ -109,12 +130,16 @@ const clearDownloadHistory = async (module?: string): Promise<boolean> => {
 }
 
 /**
- * 清理超过100条的旧记录
+ * 清理超过最大条数的旧记录
+ * @param maxCount 可选，最大条数，不传则从设置中读取
  * @returns Promise<void>
  */
-const cleanupOldDownloadHistory = async (): Promise<void> => {
+const cleanupOldDownloadHistory = async (maxCountParam?: number): Promise<void> => {
     try {
         const db = await sqlite.openDatabase()
+
+        // 获取最大条数设置
+        const maxCount = maxCountParam && maxCountParam > 0 ? maxCountParam : await getMaxDownloadCount()
 
         // 获取总记录数
         const countResult = await db.get<{ count: number }>(
@@ -122,9 +147,9 @@ const cleanupOldDownloadHistory = async (): Promise<void> => {
         )
         const totalCount = countResult?.count || 0
 
-        // 如果超过100条，删除最旧的记录
-        if (totalCount > 100) {
-            const deleteCount = totalCount - 100
+        // 如果超过最大条数，删除最旧的记录
+        if (totalCount > maxCount) {
+            const deleteCount = totalCount - maxCount
             await db.run(
                 `DELETE FROM download_history 
          WHERE id IN (
