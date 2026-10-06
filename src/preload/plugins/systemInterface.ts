@@ -26,8 +26,72 @@ async function deleteFolder(folderPath: string): Promise<boolean> {
     }
 }
 
+async function createFolder(parentPath: string, folderName: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const stats = await fs.stat(parentPath);
+        if (!stats.isDirectory()) {
+            throw new Error('父路径不是文件夹');
+        }
+        // Windows 文件名非法字符
+        if (/[\\/:*?"<>|]/.test(folderName)) {
+            throw new Error('文件夹名称包含非法字符 \\ / : * ? " < > |');
+        }
+        const newPath = path.join(parentPath, folderName);
+        const exists = await fs.stat(newPath).then(() => true, () => false);
+        if (exists) {
+            throw new Error('同名文件夹已存在');
+        }
+        await fs.mkdir(newPath);
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to create folder:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+async function movePath(srcPath: string, destFolderPath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const destStats = await fs.stat(destFolderPath);
+        if (!destStats.isDirectory()) {
+            throw new Error('目标路径不是文件夹');
+        }
+        // 不允许移动到自身或自身的子目录下
+        const normalizedSrc = path.resolve(srcPath) + path.sep;
+        if (path.resolve(destFolderPath).startsWith(normalizedSrc)) {
+            throw new Error('不能移动到自身或其子目录下');
+        }
+        // 源与目标在同一目录时无需移动
+        if (path.dirname(path.resolve(srcPath)) === path.resolve(destFolderPath)) {
+            throw new Error('作品已在目标文件夹中');
+        }
+        const baseName = path.basename(srcPath);
+        const destPath = path.join(destFolderPath, baseName);
+        const exists = await fs.stat(destPath).then(() => true, () => false);
+        if (exists) {
+            throw new Error(`目标位置已存在同名项: ${baseName}`);
+        }
+        try {
+            await fs.rename(srcPath, destPath);
+        } catch (err: any) {
+            if (err.code === 'EXDEV') {
+                // 跨盘移动：先复制再删除源
+                await fs.cp(srcPath, destPath, { recursive: true });
+                await fs.rm(srcPath, { recursive: true, force: true });
+            } else {
+                throw err;
+            }
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to move:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
 export default {
     openExplorer,
     unzip,
-    deleteFolder
+    deleteFolder,
+    createFolder,
+    movePath
 }

@@ -233,6 +233,17 @@
       @select="onShareCandidate"
       @search="onShareDialogSearch"
     />
+
+    <!-- 移动对话框 -->
+    <move-dialog
+      v-model:show="moveDialogObject.show"
+      :resource-paths="resourcePaths"
+      :provide-tree="provideTree"
+      :items="moveDialogObject.items"
+      :invalid-destinations="moveDialogObject.invalidDestinations"
+      :moving="moveDialogObject.moving"
+      @confirm="handleMoveConfirm"
+    />
   </div>
 </template>
 
@@ -241,6 +252,7 @@ import type { FolderInfo } from '@/typings/file'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import TagDialog from '@renderer/components/tag-dialog.vue'
 import ShareDialog from '@renderer/components/share-dialog.vue'
+import MoveDialog from '@renderer/components/move-dialog.vue'
 import HighlightsView from '@renderer/components/highlights-view.vue'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import {
@@ -262,11 +274,13 @@ import {
   TagMultiple24Regular,
   NotepadEdit20Regular,
   FolderOpen24Regular,
+  FolderAdd24Regular,
+  FolderArrowRight24Regular,
   Delete24Filled,
   Share24Regular,
   Copy24Regular
 } from '@vicons/fluent'
-import { NButton, NIcon, NButtonGroup, NSpin, useMessage, useDialog } from 'naive-ui'
+import { NButton, NIcon, NButtonGroup, NSpin, NInput, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
 import { ref, reactive, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -1194,6 +1208,23 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
         ]
       },
       {
+        label: '移动到...',
+        icon: h(NIcon, {
+          component: FolderArrowRight24Regular
+        }),
+        // 多选模式下未选中任何卡片时不显示
+        hidden: isMultiSelectMode.value && selectedCards.value.length === 0,
+        onClick: () => {
+          const items =
+            isMultiSelectMode.value && selectedCards.value.length > 0
+              ? [...selectedCards.value]
+              : [folder]
+          moveDialogObject.items = items
+          moveDialogObject.invalidDestinations = items.map((item) => item.fullPath)
+          moveDialogObject.show = true
+        }
+      },
+      {
         label: '在文件管理器中打开',
         icon: h(NIcon, {
           component: FolderOpen24Regular
@@ -1295,6 +1326,143 @@ function deleteFolder(folder: any) {
       message.error(`删除文件夹"${folder.name}"失败`)
     }
   })
+}
+
+// 创建文件夹对话框（在指定目录下创建本地文件夹）
+const showCreateFolderDialog = (parentPath: string) => {
+  const folderName = ref('')
+  dialog.info({
+    title: '创建文件夹',
+    content: () =>
+      h('div', [
+        h(
+          'p',
+          { style: 'margin: 0 0 8px;font-size: 12px;color: #6b7280;word-break: break-all;' },
+          parentPath
+        ),
+        h(NInput, {
+          value: folderName.value,
+          'onUpdate:value': (v: string) => (folderName.value = v),
+          placeholder: '请输入文件夹名称',
+          autofocus: true
+        })
+      ]),
+    positiveText: '创建',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const name = folderName.value.trim()
+      if (!name) {
+        message.error('文件夹名称不能为空')
+        return false
+      }
+      const res = await window.systemInterface.createFolder(parentPath, name)
+      if (!res.success) {
+        message.error(`创建文件夹失败: ${res.error || '未知错误'}`)
+        return false
+      }
+      message.success(`文件夹"${name}"创建成功`)
+      reloadTreeNodeChildren(parentPath)
+      if (tree.currentKey === parentPath) {
+        fetchGridData(parentPath)
+      }
+    }
+  })
+}
+
+// 重新加载指定树节点的子节点
+const reloadTreeNodeChildren = async (folderPath: string) => {
+  const findNode = (nodes: any[]): any => {
+    for (const node of nodes) {
+      if (node.fullPath === folderPath) return node
+      if (node.children) {
+        const found = findNode(node.children)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  const node = findNode(tree.data)
+  if (!node) return
+  try {
+    node.children = await props.provideTree(folderPath)
+  } catch (error) {
+    console.warn(`刷新树节点失败: ${folderPath}`, error)
+  }
+}
+
+// 获取父目录路径
+const getParentPath = (fullPath: string): string => {
+  const p = fullPath.replace(/[\\/]+$/, '')
+  const idx = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'))
+  return idx > 0 ? p.slice(0, idx) : ''
+}
+
+// 移动弹窗状态
+const moveDialogObject = reactive<{
+  show: boolean
+  items: any[]
+  invalidDestinations: string[]
+  moving: boolean
+}>({
+  show: false,
+  items: [],
+  invalidDestinations: [],
+  moving: false
+})
+
+// 确认移动：将作品移动到目标文件夹
+const handleMoveConfirm = async (destFolderPath: string) => {
+  const items = moveDialogObject.items
+  if (!items.length) return
+  moveDialogObject.moving = true
+  const results: Array<{ item: any; res: { success: boolean; error?: string } }> = []
+  for (const item of items) {
+    const res = await window.systemInterface.movePath(item.fullPath, destFolderPath)
+    results.push({ item, res })
+  }
+  moveDialogObject.moving = false
+
+  const failed = results.filter((r) => !r.res.success)
+  const succeeded = results.filter((r) => r.res.success)
+  if (failed.length) {
+    message.error(
+      `部分作品移动失败：${failed[0].item.name}（${failed[0].res.error}）${
+        failed.length > 1 ? ` 等 ${failed.length} 项` : ''
+      }`
+    )
+  }
+  if (!succeeded.length) return
+
+  message.success(`已移动 ${succeeded.length} 个作品到目标文件夹`)
+  moveDialogObject.show = false
+  toggleMultiSelectMode(false)
+
+  // 刷新树：源目录与目标目录
+  const pathsToReload = new Set<string>([destFolderPath])
+  succeeded.forEach((r) => {
+    const parent = getParentPath(r.item.fullPath)
+    if (parent) pathsToReload.add(parent)
+  })
+  pathsToReload.forEach((p) => reloadTreeNodeChildren(p))
+
+  // 刷新网格
+  if (currentViewMode.value === 'folders') {
+    // 若当前正在浏览的目录被移动，切换到其父目录（或第一个资源根路径）
+    const movedPaths = new Set(succeeded.map((r) => r.item.fullPath))
+    if (movedPaths.has(tree.currentKey)) {
+      const fallback =
+        getParentPath(tree.currentKey) ||
+        (props.resourcePaths && props.resourcePaths.length > 0 ? props.resourcePaths[0] : '')
+      if (fallback) {
+        tree.currentKey = fallback
+      }
+    }
+    fetchGridData(tree.currentKey)
+  } else {
+    const movedPaths = new Set(succeeded.map((r) => r.item.fullPath))
+    grid.rows = grid.rows.filter((f) => !movedPaths.has(f.fullPath))
+    grid.filterRows = grid.filterRows.filter((f) => !movedPaths.has(f.fullPath))
+  }
 }
 // 分享：使用文件名在各站点搜索作品，列出候选结果供用户选择后复制到剪切板
 const SHARE_SEARCH_TYPES = ['jmtt', 'pixiv', 'picaman']
@@ -1448,8 +1616,31 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
       y: e.y,
       theme: 'mac',
       items: [
-        {
-          label: isFolderTagged ? '取消收藏' : '添加到收藏',
+      {
+        label: '创建文件夹',
+        icon: h(NIcon, {
+          component: FolderAdd24Regular
+        }),
+        onClick: () => {
+          showCreateFolderDialog(folder.fullPath)
+        }
+      },
+      {
+        label: '移动到...',
+        icon: h(NIcon, {
+          component: FolderArrowRight24Regular
+        }),
+        onClick: () => {
+          moveDialogObject.items = [folder]
+          moveDialogObject.invalidDestinations = [folder.fullPath]
+          moveDialogObject.show = true
+        }
+      },
+      {
+        label: isFolderTagged ? '取消收藏' : '添加到收藏',
+        icon: h(NIcon, {
+          component: isFolderTagged ? BookmarkOff24Filled : BookmarkAdd24Regular
+        }),
           onClick: async () => {
             try {
               if (isFolderTagged) {

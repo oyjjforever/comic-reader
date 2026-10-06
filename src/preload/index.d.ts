@@ -32,6 +32,8 @@ declare global {
       openExplorer: (path: string) => void
       unzip: (path: string) => void
       deleteFolder: (folderPath: string) => Promise<boolean>
+      createFolder: (parentPath: string, folderName: string) => Promise<{ success: boolean; error?: string }>
+      movePath: (srcPath: string, destFolderPath: string) => Promise<{ success: boolean; error?: string }>
     }
     media: {
       getFolderTree: (dirPath: string, noLeaf: boolean) => Promise<FolderInfo[]>
