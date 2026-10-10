@@ -24,7 +24,7 @@ import subtitle from './plugins/subtitle'
 import videoCover from './plugins/video-cover'
 import videoTranscoder from './plugins/video-transcoder'
 import missav from './plugins/missav'
-import huangguo from './plugins/huangguo'
+import huangguo from './plugins/downloader/huangguo'
 import rating from './plugins/rating'
 
 // 剪切板 IPC 桥接

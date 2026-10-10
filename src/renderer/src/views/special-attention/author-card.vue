@@ -56,9 +56,14 @@
               <button size="small" @click="onDownload(row)">
                 <n-icon :component="CloudDownload" size="24" />
               </button>
-              <button size="small" @click="onPreview(row)">
-                <n-icon :component="InformationCircle" size="24" />
-              </button>
+              <n-tooltip trigger="hover" placement="top" :delay="200">
+                <template #trigger>
+                  <button size="small" @click="onPreview(row)">
+                    <n-icon :component="InformationCircle" size="24" />
+                  </button>
+                </template>
+                {{ row.title || '作品' }}
+              </n-tooltip>
             </div>
             <!-- <div class="artwork-title">{{ row.title || '作品' }}</div> -->
           </div>

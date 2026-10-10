@@ -1,4 +1,17 @@
-import { app, net, shell, BrowserWindow, ipcMain, dialog, globalShortcut, clipboard, screen, Tray, Menu, nativeImage } from 'electron'
+import {
+  app,
+  net,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  globalShortcut,
+  clipboard,
+  screen,
+  Tray,
+  Menu,
+  nativeImage
+} from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { spawn, execSync } from 'child_process'
@@ -33,16 +46,8 @@ import {
   getSubtitleDataSize,
   getSubtitleDataDir
 } from './services/subtitle-config'
-import {
-  getBinaryStatus,
-  downloadWhisper,
-  downloadFfmpeg
-} from './services/binary-manager'
-import {
-  translateText,
-  translateSegments,
-  clearTranslateCache
-} from './services/translate-service'
+import { getBinaryStatus, downloadWhisper, downloadFfmpeg } from './services/binary-manager'
+import { translateText, translateSegments, clearTranslateCache } from './services/translate-service'
 import {
   getAllTranslateModels,
   downloadTranslateModel,
@@ -75,8 +80,12 @@ import {
   getTranscodeState
 } from './services/video-transcoder'
 import { HLSDownloader, type HlsDownloadResult } from './services/hls-downloader'
-import axios from 'axios'
-import type { WhisperModelName, SubtitleLanguage, SubtitleSettings, TranslateTarget } from '../typings/subtitle'
+import type {
+  WhisperModelName,
+  SubtitleLanguage,
+  SubtitleSettings,
+  TranslateTarget
+} from '../typings/subtitle'
 import { DEFAULT_SUBTITLE_SETTINGS } from '../typings/subtitle'
 /**
  * 目录存在性缓存，避免重复 IO 检查
@@ -98,11 +107,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
 
-let mainWindow: BrowserWindow;
-let tray: Tray | null = null;
-let isQuitting = false;
+let mainWindow: BrowserWindow
+let tray: Tray | null = null
+let isQuitting = false
 // 各渲染窗口上报的活跃下载任务数（pending/running/paused），按窗口分别记录
-const activeDownloadCounts = new Map<number, number>();
+const activeDownloadCounts = new Map<number, number>()
+// 已注册 destroyed 清理钩子的 WebContents id（避免重复挂载监听导致 MaxListenersExceededWarning）
+const downloadCountCleanupHooks = new Set<number>()
 
 function getActiveDownloadCount(): number {
   let total = 0
@@ -114,77 +125,77 @@ function getActiveDownloadCount(): number {
  * 关闭行为配置（持久化到 userData 目录）
  */
 interface CloseConfig {
-  closeToTray: boolean;
-  dontRemind: boolean;
+  closeToTray: boolean
+  dontRemind: boolean
 }
 
 function getCloseConfigPath(): string {
-  return path.join(app.getPath('userData'), 'close-config.json');
+  return path.join(app.getPath('userData'), 'close-config.json')
 }
 
 function readCloseConfig(): CloseConfig {
   try {
-    const configPath = getCloseConfigPath();
+    const configPath = getCloseConfigPath()
     if (fs.existsSync(configPath)) {
-      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       return {
         closeToTray: data.closeToTray ?? true,
         dontRemind: data.dontRemind ?? false
-      };
+      }
     }
   } catch (e) {
-    log.warn('[Main] Failed to read close config:', e);
+    log.warn('[Main] Failed to read close config:', e)
   }
-  return { closeToTray: true, dontRemind: false };
+  return { closeToTray: true, dontRemind: false }
 }
 
 function writeCloseConfig(config: CloseConfig): void {
   try {
-    const configPath = getCloseConfigPath();
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    const configPath = getCloseConfigPath()
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
   } catch (e) {
-    log.warn('[Main] Failed to write close config:', e);
+    log.warn('[Main] Failed to write close config:', e)
   }
 }
 
 function createTray(): void {
-  const trayIconPath = path.join(__dirname, '../resources/icon.png');
-  let trayIcon: Electron.NativeImage;
+  const trayIconPath = path.join(__dirname, '../resources/icon.png')
+  let trayIcon: Electron.NativeImage
   if (fs.existsSync(trayIconPath)) {
-    trayIcon = nativeImage.createFromPath(trayIconPath);
+    trayIcon = nativeImage.createFromPath(trayIconPath)
   } else {
-    trayIcon = nativeImage.createFromPath(icon);
+    trayIcon = nativeImage.createFromPath(icon)
   }
   // Resize for tray (16x16 on Windows)
-  trayIcon = trayIcon.resize({ width: 16, height: 16 });
-  tray = new Tray(trayIcon);
-  tray.setToolTip('Comic Reader');
+  trayIcon = trayIcon.resize({ width: 16, height: 16 })
+  tray = new Tray(trayIcon)
+  tray.setToolTip('Comic Reader')
 
   const contextMenu = Menu.buildFromTemplate([
     {
       label: '显示主窗口',
       click: () => {
-        mainWindow?.show();
-        mainWindow?.focus();
+        mainWindow?.show()
+        mainWindow?.focus()
       }
     },
     { type: 'separator' },
     {
       label: '退出',
       click: () => {
-        isQuitting = true;
-        app.quit();
+        isQuitting = true
+        app.quit()
       }
     }
-  ]);
+  ])
 
-  tray.setContextMenu(contextMenu);
+  tray.setContextMenu(contextMenu)
 
   // 点击托盘图标显示窗口
   tray.on('click', () => {
-    mainWindow?.show();
-    mainWindow?.focus();
-  });
+    mainWindow?.show()
+    mainWindow?.focus()
+  })
 }
 
 function createWindow(): void {
@@ -204,16 +215,16 @@ function createWindow(): void {
       sandbox: false,
       webSecurity: false,
       webviewTag: true,
-      preload: path.join(__dirname, '../preload/index.cjs'),
+      preload: path.join(__dirname, '../preload/index.cjs')
     }
   })
   // 拦截 window.open 及新窗口请求
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // 使用默认浏览器打开链接
-    shell.openExternal(url); // 注意：需对url进行安全校验，特别是来自不可信源时
+    shell.openExternal(url) // 注意：需对url进行安全校验，特别是来自不可信源时
     // 阻止 Electron 创建新窗口
-    return { action: 'deny' };
-  });
+    return { action: 'deny' }
+  })
   mainWindow.on('ready-to-show', () => {
     setTimeout(() => {
       mainWindow!.show()
@@ -235,13 +246,13 @@ function createWindow(): void {
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
-  globalShortcut.register("CommandOrControl+alt+shift+l", () => {
-    mainWindow.webContents.openDevTools({ mode: "detach" });
-  });
+  globalShortcut.register('CommandOrControl+alt+shift+l', () => {
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
+  })
 }
 
 app.whenReady().then(async () => {
@@ -255,7 +266,11 @@ app.whenReady().then(async () => {
     // 首次运行时尝试从内置 ZIP 解压安装（生产环境可能无内置 ZIP，需用户手动下载）
     const installResult = await autoInstallLlmModule()
     if (!installResult.success) {
-      log.warn('[Main] @electron/llm 自动安装失败:', installResult.error, '（用户可从设置页面手动下载）')
+      log.warn(
+        '[Main] @electron/llm 自动安装失败:',
+        installResult.error,
+        '（用户可从设置页面手动下载）'
+      )
     }
 
     // 加载模块
@@ -366,27 +381,27 @@ app.whenReady().then(async () => {
     })
     return result
   })
-  ipcMain.on("get-window-size", (event) => {
+  ipcMain.on('get-window-size', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     return win ? win.isFullScreen() : false
-  });
-  ipcMain.handle("window-min", (event) => {
+  })
+  ipcMain.handle('window-min', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) win.minimize()
-  });
-  ipcMain.handle("window-unmax", (event) => {
+  })
+  ipcMain.handle('window-unmax', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
       win.setFullScreen(false)
       win.setSize(1280, 720)
       win.center()
     }
-  });
-  ipcMain.handle("window-max", (event) => {
+  })
+  ipcMain.handle('window-max', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) win.setFullScreen(true)
-  });
-  ipcMain.handle("window-close", (event) => {
+  })
+  ipcMain.handle('window-close', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
     if (win === mainWindow) {
@@ -394,64 +409,67 @@ app.whenReady().then(async () => {
     } else {
       win.close()
     }
-  });
+  })
 
-  ipcMain.handle("window-show", (event) => {
+  ipcMain.handle('window-show', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
       win.show()
       win.focus()
     }
-  });
+  })
 
   // 创建新窗口
-  ipcMain.handle("window-create", (_event, options?: { route?: string; title?: string; width?: number; height?: number }) => {
-    const route = options?.route || '/'
-    const title = options?.title || '新窗口'
-    const width = options?.width || 1280
-    const height = options?.height || 720
+  ipcMain.handle(
+    'window-create',
+    (_event, options?: { route?: string; title?: string; width?: number; height?: number }) => {
+      const route = options?.route || '/'
+      const title = options?.title || '新窗口'
+      const width = options?.width || 1280
+      const height = options?.height || 720
 
-    const newWin = new BrowserWindow({
-      width,
-      height,
-      minWidth: 1024,
-      minHeight: 720,
-      show: false,
-      autoHideMenuBar: true,
-      frame: false,
-      transparent: false,
-      titleBarStyle: 'hidden',
-      title: title,
-      webPreferences: {
-        contextIsolation: true,
-        sandbox: false,
-        webSecurity: false,
-        webviewTag: true,
-        preload: path.join(__dirname, '../preload/index.cjs'),
-      }
-    })
-
-    newWin.webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
-      return { action: 'deny' }
-    })
-
-    newWin.on('ready-to-show', () => {
-      setTimeout(() => {
-        newWin.show()
-      }, 100)
-    })
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      newWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${route}`)
-    } else {
-      newWin.loadFile(path.join(__dirname, '../renderer/index.html'), {
-        hash: route
+      const newWin = new BrowserWindow({
+        width,
+        height,
+        minWidth: 1024,
+        minHeight: 720,
+        show: false,
+        autoHideMenuBar: true,
+        frame: false,
+        transparent: false,
+        titleBarStyle: 'hidden',
+        title: title,
+        webPreferences: {
+          contextIsolation: true,
+          sandbox: false,
+          webSecurity: false,
+          webviewTag: true,
+          preload: path.join(__dirname, '../preload/index.cjs')
+        }
       })
-    }
 
-    return { success: true }
-  })
+      newWin.webContents.setWindowOpenHandler(({ url }) => {
+        shell.openExternal(url)
+        return { action: 'deny' }
+      })
+
+      newWin.on('ready-to-show', () => {
+        setTimeout(() => {
+          newWin.show()
+        }, 100)
+      })
+
+      if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+        newWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${route}`)
+      } else {
+        newWin.loadFile(path.join(__dirname, '../renderer/index.html'), {
+          hash: route
+        })
+      }
+
+      return { success: true }
+    }
+  )
 
   // 关闭配置 IPC
   ipcMain.handle('close-config:get', () => {
@@ -488,19 +506,26 @@ app.whenReady().then(async () => {
   })
 
   // IPC: 渐进式生成字幕
-  ipcMain.handle('subtitle:generate', async (_event, videoPath: string, options?: {
-    language: SubtitleLanguage
-    model: WhisperModelName
-    force?: boolean
-  }) => {
-    const settings = readSubtitleSettings()
-    return generateSubtitleProgressive(videoPath, mainWindow, {
-      language: options?.language || settings.defaultLanguage,
-      model: options?.model || settings.defaultModel,
-      useGpu: settings.useGpu,
-      force: options?.force || false
-    })
-  })
+  ipcMain.handle(
+    'subtitle:generate',
+    async (
+      _event,
+      videoPath: string,
+      options?: {
+        language: SubtitleLanguage
+        model: WhisperModelName
+        force?: boolean
+      }
+    ) => {
+      const settings = readSubtitleSettings()
+      return generateSubtitleProgressive(videoPath, mainWindow, {
+        language: options?.language || settings.defaultLanguage,
+        model: options?.model || settings.defaultModel,
+        useGpu: settings.useGpu,
+        force: options?.force || false
+      })
+    }
+  )
 
   // IPC: 取消生成
   ipcMain.handle('subtitle:cancel-generate', async () => {
@@ -633,29 +658,40 @@ app.whenReady().then(async () => {
   })
 
   // IPC: 翻译字幕段落（批量）
-  ipcMain.handle('subtitle:translate', async (_event, segments: Array<{
-    id: number
-    startTime: number
-    endTime: number
-    text: string
-  }>, from: string, to: string) => {
-    try {
-      const translated = await translateSegments(segments, from, to, mainWindow)
-      return { success: true, segments: translated }
-    } catch (err: any) {
-      return { success: false, error: err.message }
+  ipcMain.handle(
+    'subtitle:translate',
+    async (
+      _event,
+      segments: Array<{
+        id: number
+        startTime: number
+        endTime: number
+        text: string
+      }>,
+      from: string,
+      to: string
+    ) => {
+      try {
+        const translated = await translateSegments(segments, from, to, mainWindow)
+        return { success: true, segments: translated }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
     }
-  })
+  )
 
   // IPC: 翻译单条文本（按需翻译）
-  ipcMain.handle('subtitle:translate-single', async (_event, text: string, from: string, to: string) => {
-    try {
-      const translated = await translateText(text, from, to)
-      return { success: true, translated }
-    } catch (err: any) {
-      return { success: false, error: err.message }
+  ipcMain.handle(
+    'subtitle:translate-single',
+    async (_event, text: string, from: string, to: string) => {
+      try {
+        const translated = await translateText(text, from, to)
+        return { success: true, translated }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
     }
-  })
+  )
 
   // IPC: 清理翻译缓存
   ipcMain.handle('subtitle:clear-translate-cache', async () => {
@@ -831,7 +867,6 @@ app.whenReady().then(async () => {
     }
   )
 
-
   // 解压文件函数
   async function extractFile(filePath: string, extractDir: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -905,12 +940,26 @@ app.whenReady().then(async () => {
     const baseDelayMs = 1000
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-    const { url, fileName, savePath, autoExtract = true, headers = {}, sessionFetch = false } = payload || {}
+    const {
+      url,
+      fileName,
+      savePath,
+      autoExtract = true,
+      headers = {},
+      sessionFetch = false
+    } = payload || {}
     if (!url || !fileName || !savePath) {
       log.warn('download:invalid-params', { downloadId, url, fileName, savePath })
       throw new Error('缺少必要参数')
     }
-    log.info('download:start', { downloadId, url, fileName, savePath, autoExtract, headers: Object.keys(headers || {}) })
+    log.info('download:start', {
+      downloadId,
+      url,
+      fileName,
+      savePath,
+      autoExtract,
+      headers: Object.keys(headers || {})
+    })
 
     // 清理文件名，拼接保存路径
     const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_')
@@ -920,7 +969,11 @@ app.whenReady().then(async () => {
 
     // 单次尝试：返回 Promise
     // 下载完成后：按需解压并 resolve（两种下载方式共用）
-    const finalize = async (): Promise<{ savePath: string; extractedPath?: string; extracted: boolean }> => {
+    const finalize = async (): Promise<{
+      savePath: string
+      extractedPath?: string
+      extracted: boolean
+    }> => {
       const ext = path.extname(fullPath).toLowerCase()
       const supportedExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
       if (autoExtract && supportedExts.includes(ext)) {
@@ -976,7 +1029,8 @@ app.whenReady().then(async () => {
               }
               if (Object.keys(h).length) fetchOpts.headers = h
             }
-            net.fetch(url, fetchOpts)
+            net
+              .fetch(url, fetchOpts)
               .then(async (response: any) => {
                 if (!response.ok) {
                   log.warn('download:fetch-bad-status', { downloadId, status: response.status })
@@ -1055,7 +1109,11 @@ app.whenReady().then(async () => {
       try {
         log.info('download:attempt', { downloadId, attempt })
         const res: any = await attemptOnce()
-        log.info('download:completed', { downloadId, path: res.extracted ? res.extractedPath : res.savePath, extracted: !!res.extracted })
+        log.info('download:completed', {
+          downloadId,
+          path: res.extracted ? res.extractedPath : res.savePath,
+          extracted: !!res.extracted
+        })
         return res
       } catch (e: any) {
         lastErr = e
@@ -1075,10 +1133,12 @@ app.whenReady().then(async () => {
   const thirdPartySession = session.fromPartition('persist:thirdparty')
   thirdPartySession.on('will-download', (event, item, webContents) => {
     item.setSavePath('C:/')
-    mainWindow.webContents.send("download:prepare", { url: item.getURL(), fileName: item.getFilename() });
+    mainWindow.webContents.send('download:prepare', {
+      url: item.getURL(),
+      fileName: item.getFilename()
+    })
     return
   })
-
 })
 ipcMain.handle('site:getCookies', async (_e, payload) => {
   try {
@@ -1171,25 +1231,7 @@ ipcMain.handle('missav:stream-detach', async () => {
 // huangguoai.com 使用 AES-128-CBC 加密的 HLS 流，此处复用 persist:thirdparty 分区的 Cookie 进行鉴权
 let huangguoDownloader: HLSDownloader | null = null
 
-/** 解码 HTML 实体（&amp; &lt; &#xxx; 等） */
-function decodeHtmlEntities(text: string): string {
-  if (!text) return ''
-  const entities: Record<string, string> = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&#39;': "'",
-    '&apos;': "'",
-    '&nbsp;': ' '
-  }
-  return text
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
-    .replace(/&[a-z]+;/gi, (m) => entities[m] ?? m)
-}
-
-/** 从 persist:thirdparty 分区读取 huangguoai.com 的 Cookie 与 UA，构造请求头 */
+/** 从 persist:thirdparty 分区读取 huangguoai.com 的 Cookie 与 UA，构造请求头（页面解析类接口已迁移至 preload/plugins/downloader/huangguo.js） */
 async function buildHuangguoHeaders(siteUrl: string): Promise<Record<string, string>> {
   const { session } = require('electron')
   const ses = session.fromPartition('persist:thirdparty')
@@ -1210,97 +1252,6 @@ async function buildHuangguoHeaders(siteUrl: string): Promise<Record<string, str
   if (cookieStr) headers['Cookie'] = cookieStr
   return headers
 }
-
-/**
- * 解析视频页 / 详情页 HTML
- * 视频页（/video/<id>/）：从 videoInitialData JSON 提取标题、各集 m3u8 地址（含 auth_key）
- * 详情页（/detail/<id>/）：无 videoInitialData，从 data-ep-grid 选集网格提取各集 ID
- */
-ipcMain.handle('huangguo:getVideoInfo', async (_event, payload: { pageUrl: string }) => {
-  const pageUrl: string = payload?.pageUrl
-  if (!pageUrl) return { success: false, error: '缺少页面地址' }
-  try {
-    const headers = await buildHuangguoHeaders(pageUrl)
-    const resp = await axios.get(pageUrl, { headers, timeout: 30000, responseType: 'text' })
-    const html = typeof resp.data === 'string' ? resp.data : String(resp.data)
-
-    // 从 URL 提取视频 ID（/video/<id>/ 或 /detail/<id>/）
-    const pathParts = new URL(pageUrl).pathname.split('/').filter(Boolean)
-    const vIdx = pathParts.indexOf('video')
-    const dIdx = pathParts.indexOf('detail')
-    const idFromUrl =
-      (vIdx !== -1 && pathParts[vIdx + 1]) || (dIdx !== -1 && pathParts[dIdx + 1]) || ''
-
-    const jsonRaw = html.match(
-      /<script id="videoInitialData" type="application\/json">([\s\S]*?)<\/script>/
-    )?.[1]
-
-    if (jsonRaw) {
-      const data = JSON.parse(jsonRaw)
-      const title = decodeHtmlEntities(String(data.title || '').trim())
-      const contentId = String(data.id || idFromUrl)
-
-      // epPlaySrcs: { "1": m3u8Url, "2": m3u8Url, ... }，键为集数
-      const episodes = Object.entries(data.epPlaySrcs || {})
-        .map(([ep, url]) => ({ ep, url: String(url) }))
-        .filter((e) => e.url)
-        .sort((a, b) => Number(a.ep) - Number(b.ep))
-
-      // 当前集（ep 字段）优先，否则取第一集
-      const currentEp = String(data.ep ?? '')
-      const m3u8Url =
-        episodes.find((e) => e.ep === currentEp)?.url || episodes[0]?.url || String(data.videoSrc || '')
-
-      return { success: true, title, contentId, m3u8Url, episodes }
-    }
-
-    // 详情页：解析选集网格 <div class="hg-web-detail__ep-grid" data-ep-grid>...<a data-ep-id="1">01</a>...
-    const epGridHtml = html.match(/<div[^>]*data-ep-grid[^>]*>([\s\S]*?)<\/div>/)?.[1] || ''
-    const eps = [...epGridHtml.matchAll(/data-ep-id="(\d+)"/g)].map((m) => m[1])
-    if (eps.length === 0) return { success: false, error: '未在页面中解析到视频或选集信息' }
-
-    // 标题回退 og:title / <title>
-    const title = decodeHtmlEntities(
-      html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)?.[1] ||
-      html.match(/<title>([^<]*)<\/title>/i)?.[1] ||
-      ''
-    ).trim()
-
-    // 各集地址由下载开始前通过 play 接口实时获取（auth_key 有时效）
-    const episodes = eps.map((ep) => ({ ep, url: '' }))
-    return { success: true, title, contentId: idFromUrl, m3u8Url: '', episodes }
-  } catch (err: any) {
-    log.warn('[Main] huangguo 解析视频信息失败:', err?.message)
-    return { success: false, error: err?.message || '获取视频信息失败' }
-  }
-})
-
-/**
- * 调用 play 接口获取指定集的实时播放地址（auth_key 有时效，下载前需实时获取）
- * GET https://huangguoai.com/api/videos/<videoId>/play?ep=<ep>
- */
-ipcMain.handle(
-  'huangguo:getPlayUrl',
-  async (_event, payload: { videoId: string | number; ep?: string | number }) => {
-    const videoId = payload?.videoId
-    if (!videoId) return { success: false, error: '缺少视频 ID' }
-    try {
-      const apiUrl = `https://huangguoai.com/api/videos/${videoId}/play?ep=${payload?.ep ?? 1}`
-      console.log("🚀 ~ apiUrl:", apiUrl)
-      const headers = await buildHuangguoHeaders(apiUrl)
-      const resp = await axios.get(apiUrl, { headers, timeout: 30000 })
-      const body = resp.data
-      const videoUrl = body?.data?.video_url
-      if (body?.status !== 1 || !videoUrl) {
-        return { success: false, error: body?.msg || 'play 接口未返回播放地址' }
-      }
-      return { success: true, videoUrl, duration: body.data.duration, title: body.data.title }
-    } catch (err: any) {
-      log.warn('[Main] huangguo 获取播放地址失败:', err?.message)
-      return { success: false, error: err?.message || '获取播放地址失败' }
-    }
-  }
-)
 
 ipcMain.handle(
   'huangguo:startDownload',
@@ -1350,11 +1301,10 @@ ipcMain.handle('huangguo:cancelDownload', async () => {
   return { success: false, message: '没有正在进行的下载' }
 })
 
-
 // 关闭弹窗的 IPC 处理
 ipcMain.handle('popup-close', () => {
   const windows = BrowserWindow.getAllWindows()
-  const popupWindow = windows.find(w => w !== mainWindow && w.getTitle().includes('剪切板弹窗'))
+  const popupWindow = windows.find((w) => w !== mainWindow && w.getTitle().includes('剪切板弹窗'))
   if (popupWindow && !popupWindow.isDestroyed()) {
     popupWindow.hide()
   }
@@ -1375,10 +1325,8 @@ ipcMain.handle('clipboard:readText', () => {
 
 // 显示剪切板弹窗的 IPC 处理
 ipcMain.on('show-clipboard-popup', (_, position: 'cursor' | 'bottom-right' = 'cursor') => {
-
   showClipboardPopup(position)
 })
-
 
 app.on('before-quit', () => {
   isQuitting = true
@@ -1436,29 +1384,36 @@ function handleWindowClose(): void {
 }
 
 // 接收渲染进程的关闭对话框响应
-ipcMain.handle('close-dialog-response', (_event, response: { closeToTray: boolean; dontRemind: boolean }) => {
-  const { closeToTray, dontRemind } = response
+ipcMain.handle(
+  'close-dialog-response',
+  (_event, response: { closeToTray: boolean; dontRemind: boolean }) => {
+    const { closeToTray, dontRemind } = response
 
-  // 保存用户选择
-  if (dontRemind) {
-    writeCloseConfig({ closeToTray, dontRemind: true })
-  }
+    // 保存用户选择
+    if (dontRemind) {
+      writeCloseConfig({ closeToTray, dontRemind: true })
+    }
 
-  if (closeToTray) {
-    mainWindow.hide()
-  } else {
-    isQuitting = true
-    app.quit()
+    if (closeToTray) {
+      mainWindow.hide()
+    } else {
+      isQuitting = true
+      app.quit()
+    }
   }
-})
+)
 
 // 渲染进程上报活跃下载任务数（按窗口记录，避免多窗口互相覆盖）
 ipcMain.on('download-queue:active-count', (event, count: number) => {
   activeDownloadCounts.set(event.sender.id, Number(count) || 0)
-  // 页面销毁/刷新后清理对应记录
-  event.sender.once('destroyed', () => {
-    activeDownloadCounts.delete(event.sender.id)
-  })
+  // 页面销毁/刷新后清理对应记录（每个 WebContents 只挂一次监听）
+  if (!downloadCountCleanupHooks.has(event.sender.id)) {
+    downloadCountCleanupHooks.add(event.sender.id)
+    event.sender.once('destroyed', () => {
+      downloadCountCleanupHooks.delete(event.sender.id)
+      activeDownloadCounts.delete(event.sender.id)
+    })
+  }
 })
 
 // 有下载任务时的关闭二次确认响应

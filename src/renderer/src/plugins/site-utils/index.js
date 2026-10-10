@@ -226,7 +226,8 @@ async function downloadArtwork(site, row, item) {
       twitter: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url),
       jmtt: () => util.downloadArtwork(item.authorName, row.artworkId),
       weibo: () => util.downloadArtwork(item.authorName, item.authorId, row.title, row.url),
-      picaman: () => util.downloadArtwork(item.authorName, row.artworkId)
+      picaman: () => util.downloadArtwork(item.authorName, row.artworkId),
+      huangguo: () => util.downloadArtwork(item.authorName, item.authorId, row.artworkId)
     }
 
     const downloadMethod = downloadMethods[site]

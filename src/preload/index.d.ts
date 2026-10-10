@@ -27,31 +27,48 @@ declare global {
     appData: {
       get: (key: string) => Promise<string | undefined>
       set: (key: string, value: string) => Promise<void>
-    },
+    }
     systemInterface: {
       openExplorer: (path: string) => void
       unzip: (path: string) => void
       deleteFolder: (folderPath: string) => Promise<boolean>
-      createFolder: (parentPath: string, folderName: string) => Promise<{ success: boolean; error?: string }>
-      movePath: (srcPath: string, destFolderPath: string) => Promise<{ success: boolean; error?: string }>
+      createFolder: (
+        parentPath: string,
+        folderName: string
+      ) => Promise<{ success: boolean; error?: string }>
+      movePath: (
+        srcPath: string,
+        destFolderPath: string
+      ) => Promise<{ success: boolean; error?: string }>
     }
     media: {
       getFolderTree: (dirPath: string, noLeaf: boolean) => Promise<FolderInfo[]>
       getFolderList: (dirPath: string) => Promise<FolderInfo[]>
-      getFolderListPaginated: (dirPath: string, page: number, pageSize: number) => Promise<{ folders: FolderInfo[], hasMore: boolean }>
+      getFolderListPaginated: (
+        dirPath: string,
+        page: number,
+        pageSize: number
+      ) => Promise<{ folders: FolderInfo[]; hasMore: boolean }>
       getFolderListBasic: (dirPath: string) => Promise<any[]>
       loadFolderDetails: (folderPath: string) => Promise<FolderInfo>
-      getFiles: (dirPath: string, sortOptions?: any, filterExtensions?: string[], mediaType?: 'image' | 'video' | 'all') => Promise<FileInfo[]>
+      getFiles: (
+        dirPath: string,
+        sortOptions?: any,
+        filterExtensions?: string[],
+        mediaType?: 'image' | 'video' | 'all'
+      ) => Promise<FileInfo[]>
       getFolderInfo: (filePath: string, sortOptions?: any) => Promise<FolderInfo>
       getFolderInfoCached: (folderPath: string) => Promise<FolderInfo>
       getFileInfo: (dirPath: string) => Promise<FileInfo>
-      getFolderCoverInfo: (filePath: string) => Promise<{ coverPath?: string; coverFileName?: string }>
+      getFolderCoverInfo: (
+        filePath: string
+      ) => Promise<{ coverPath?: string; coverFileName?: string }>
       clearExpiredCache: () => void
       // 工具函数
       isImageFile: (file: FileInfo) => boolean
       isVideoFile: (file: FileInfo) => boolean
       determineMediaType: (files: FileInfo[]) => 'image' | 'video' | 'mixed' | 'empty' | string
-    },
+    }
     favorite: {
       getFavorites: (order: string, module: string) => Promise<any[]>
       getFavorite: (id: number, module: string) => Promise<any | null>
@@ -87,40 +104,75 @@ declare global {
       getTagCount: () => Promise<number>
       getTagsByIds: (ids: string, namespace?: string) => Promise<any[]>
       updateTagSortOrder: (id: number, sortOrder: number) => Promise<void>
-      updateTagsSortOrder: (tagSorts: { id: number, sortOrder: number }[]) => Promise<void>
+      updateTagsSortOrder: (tagSorts: { id: number; sortOrder: number }[]) => Promise<void>
     }
     videoBookmarks: {
-      getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>;
-      getAllVideoBookmarks: (order?: string) => Promise<VideoBookmark[]>;
-      addVideoBookmark: (videoPath: string, timePoint: number, title?: string, description?: string) => Promise<number>;
-      deleteVideoBookmark: (id: number) => Promise<void>;
-      updateVideoBookmark: (id: number, title?: string, description?: string) => Promise<void>;
-      getVideoBookmarkCount: (videoPath: string) => Promise<number>;
-      isTimePointBookmarked: (videoPath: string, timePoint: number) => Promise<boolean>;
-    },
+      getVideoBookmarks: (videoPath: string, order?: string) => Promise<VideoBookmark[]>
+      getAllVideoBookmarks: (order?: string) => Promise<VideoBookmark[]>
+      addVideoBookmark: (
+        videoPath: string,
+        timePoint: number,
+        title?: string,
+        description?: string
+      ) => Promise<number>
+      deleteVideoBookmark: (id: number) => Promise<void>
+      updateVideoBookmark: (id: number, title?: string, description?: string) => Promise<void>
+      getVideoBookmarkCount: (videoPath: string) => Promise<number>
+      isTimePointBookmarked: (videoPath: string, timePoint: number) => Promise<boolean>
+    }
     specialAttention: {
-      init: () => Promise<void>;
-      add: (entry: { source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string; extra?: any; latestWorkTime?: number; latestWorkId?: string; ignoredWorkIds?: string[] }) => Promise<{ id: number | undefined }>;
-      remove: (id: number) => Promise<boolean>;
-      update: (id: number, patch: Partial<{ authorName: string; extra: any; latestWorkTime: number; latestWorkId: string; ignoredWorkIds: string[]; sort: number }>) => Promise<boolean>;
-      list: () => Promise<Array<{ id?: number; source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string | null; extra?: any | null; createdAt?: number; latestWorkTime?: number | null; latestWorkId?: string | null; ignoredWorkIds?: string[] }>>;
-      increasePriority: (id: number, delta?: number) => Promise<boolean>;
-      decreasePriority: (id: number, delta?: number) => Promise<boolean>;
-      swapPriority: (id1: number, id2: number) => Promise<boolean>;
+      init: () => Promise<void>
+      add: (entry: {
+        source: 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo'
+        authorId: string
+        authorName?: string
+        extra?: any
+        latestWorkTime?: number
+        latestWorkId?: string
+        ignoredWorkIds?: string[]
+      }) => Promise<{ id: number | undefined }>
+      remove: (id: number) => Promise<boolean>
+      update: (
+        id: number,
+        patch: Partial<{
+          authorName: string
+          extra: any
+          latestWorkTime: number
+          latestWorkId: string
+          ignoredWorkIds: string[]
+          sort: number
+        }>
+      ) => Promise<boolean>
+      list: () => Promise<
+        Array<{
+          id?: number
+          source: 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo'
+          authorId: string
+          authorName?: string | null
+          extra?: any | null
+          createdAt?: number
+          latestWorkTime?: number | null
+          latestWorkId?: string | null
+          ignoredWorkIds?: string[]
+        }>
+      >
+      increasePriority: (id: number, delta?: number) => Promise<boolean>
+      decreasePriority: (id: number, delta?: number) => Promise<boolean>
+      swapPriority: (id1: number, id2: number) => Promise<boolean>
     }
     browseHistory: {
-      addBrowseHistory: (fullPath: string, module: string) => Promise<boolean>;
-      getBrowseHistory: (limit?: number, module?: string) => Promise<any[]>;
-      deleteBrowseHistory: (id: number) => Promise<boolean>;
-      clearBrowseHistory: (module?: string) => Promise<boolean>;
-      cleanupOldHistory: (maxCount?: number) => Promise<void>;
+      addBrowseHistory: (fullPath: string, module: string) => Promise<boolean>
+      getBrowseHistory: (limit?: number, module?: string) => Promise<any[]>
+      deleteBrowseHistory: (id: number) => Promise<boolean>
+      clearBrowseHistory: (module?: string) => Promise<boolean>
+      cleanupOldHistory: (maxCount?: number) => Promise<void>
     }
     downloadHistory: {
-      addDownloadHistory: (fullPath: string, module: string) => Promise<boolean>;
-      getDownloadHistory: (limit?: number, module?: string) => Promise<any[]>;
-      deleteDownloadHistory: (id: number) => Promise<boolean>;
-      clearDownloadHistory: (module?: string) => Promise<boolean>;
-      cleanupOldDownloadHistory: (maxCount?: number) => Promise<void>;
+      addDownloadHistory: (fullPath: string, module: string) => Promise<boolean>
+      getDownloadHistory: (limit?: number, module?: string) => Promise<any[]>
+      deleteDownloadHistory: (id: number) => Promise<boolean>
+      clearDownloadHistory: (module?: string) => Promise<boolean>
+      cleanupOldDownloadHistory: (maxCount?: number) => Promise<void>
     }
     server: {
       status: () => Promise<{ running: boolean; port: number }>
@@ -140,20 +192,27 @@ declare global {
       respondDownloadClose: (response: { action: 'exit' | 'tray' }) => Promise<void>
     }
     databaseBackup: {
-      createBackup: (backupPath?: string) => Promise<string>;
-      restoreBackup: (backupFilePath: string) => Promise<void>;
-      getBackupList: (backupPath?: string) => Promise<Array<{ fileName: string, filePath: string, size: number, createdAt: Date }>>;
-      deleteBackup: (backupFilePath: string) => Promise<void>;
-      setupScheduledBackup: (intervalInWeeks: number, backupPath?: string) => NodeJS.Timeout;
-      cancelScheduledBackup: (timerId: NodeJS.Timeout) => void;
-      getDatabasePath: () => string;
-      getBackupDirectory: (customPath?: string) => string;
+      createBackup: (backupPath?: string) => Promise<string>
+      restoreBackup: (backupFilePath: string) => Promise<void>
+      getBackupList: (
+        backupPath?: string
+      ) => Promise<Array<{ fileName: string; filePath: string; size: number; createdAt: Date }>>
+      deleteBackup: (backupFilePath: string) => Promise<void>
+      setupScheduledBackup: (intervalInWeeks: number, backupPath?: string) => NodeJS.Timeout
+      cancelScheduledBackup: (timerId: NodeJS.Timeout) => void
+      getDatabasePath: () => string
+      getBackupDirectory: (customPath?: string) => string
     }
     clipboard: {
       readText: () => Promise<string>
     }
     windowManager: {
-      create: (options?: { route?: string; title?: string; width?: number; height?: number }) => Promise<{ success: boolean }>
+      create: (options?: {
+        route?: string
+        title?: string
+        width?: number
+        height?: number
+      }) => Promise<{ success: boolean }>
     }
     subtitle: {
       checkCache: (videoPath: string) => Promise<SubtitleCacheInfo>
@@ -171,7 +230,14 @@ declare global {
       selectDataDir: () => Promise<string | null>
       migrateData: (newPath: string) => Promise<{ success: boolean }>
       onGenerateProgress: (callback: (progress: GenerateProgress) => void) => () => void
-      onDownloadProgress: (callback: (progress: { model: string; percent: number; receivedBytes: number; totalBytes: number }) => void) => () => void
+      onDownloadProgress: (
+        callback: (progress: {
+          model: string
+          percent: number
+          receivedBytes: number
+          totalBytes: number
+        }) => void
+      ) => () => void
       onRealtimeText: (callback: (text: string, isFinal: boolean) => void) => () => void
       getBinaryStatus: () => Promise<{
         whisperInstalled: boolean
@@ -181,49 +247,60 @@ declare global {
       }>
       downloadWhisper: () => Promise<{ success: boolean; error?: string }>
       downloadFfmpeg: () => Promise<{ success: boolean; error?: string }>
-      onBinaryDownloadProgress: (callback: (progress: {
-        binary: 'whisper' | 'ffmpeg'
-        percent: number
-        status: 'downloading' | 'extracting' | 'done'
-      }) => void) => () => void
-      translate: (segments: SubtitleSegment[], from: string, to: string) => Promise<{
+      onBinaryDownloadProgress: (
+        callback: (progress: {
+          binary: 'whisper' | 'ffmpeg'
+          percent: number
+          status: 'downloading' | 'extracting' | 'done'
+        }) => void
+      ) => () => void
+      translate: (
+        segments: SubtitleSegment[],
+        from: string,
+        to: string
+      ) => Promise<{
         success: boolean
         segments?: SubtitleSegment[]
         error?: string
       }>
-      translateSingle: (text: string, from: string, to: string) => Promise<{
+      translateSingle: (
+        text: string,
+        from: string,
+        to: string
+      ) => Promise<{
         success: boolean
         translated?: string
         error?: string
       }>
       clearTranslateCache: () => Promise<{ success: boolean }>
-      onTranslateProgress: (callback: (progress: {
-        current: number
-        total: number
-        percent: number
-      }) => void) => () => void
-      onTranslateSegment: (callback: (data: {
-        segment: SubtitleSegment
-        index: number
-      }) => void) => () => void
-      getTranslateModels: () => Promise<Array<{
-        alias: string
-        displayName: string
-        size: string
-        sizeBytes: number
-        downloadUrl: string
-        downloaded: boolean
-        path?: string
-      }>>
+      onTranslateProgress: (
+        callback: (progress: { current: number; total: number; percent: number }) => void
+      ) => () => void
+      onTranslateSegment: (
+        callback: (data: { segment: SubtitleSegment; index: number }) => void
+      ) => () => void
+      getTranslateModels: () => Promise<
+        Array<{
+          alias: string
+          displayName: string
+          size: string
+          sizeBytes: number
+          downloadUrl: string
+          downloaded: boolean
+          path?: string
+        }>
+      >
       downloadTranslateModel: (modelAlias: string) => Promise<{ success: boolean; error?: string }>
       deleteTranslateModel: (modelAlias: string) => Promise<{ success: boolean; error?: string }>
-      onTranslateModelDownloadProgress: (callback: (progress: {
-        modelAlias: string
-        percent: number
-        receivedBytes: number
-        totalBytes: number
-        status: 'downloading' | 'done'
-      }) => void) => () => void
+      onTranslateModelDownloadProgress: (
+        callback: (progress: {
+          modelAlias: string
+          percent: number
+          receivedBytes: number
+          totalBytes: number
+          status: 'downloading' | 'done'
+        }) => void
+      ) => () => void
       // LLM 模块管理
       getLlmModuleStatus: () => Promise<{
         installed: boolean
@@ -236,11 +313,13 @@ declare global {
       }>
       autoInstallLlmModule: () => Promise<{ success: boolean; error?: string }>
       downloadLlmModuleFromRemote: () => Promise<{ success: boolean; error?: string }>
-      onLlmDownloadProgress: (callback: (progress: {
-        status: 'downloading' | 'extracting' | 'done' | 'error'
-        percent: number
-        error?: string
-      }) => void) => () => void
+      onLlmDownloadProgress: (
+        callback: (progress: {
+          status: 'downloading' | 'extracting' | 'done' | 'error'
+          percent: number
+          error?: string
+        }) => void
+      ) => () => void
       uninstallLlmModule: () => Promise<{ success: boolean; error?: string }>
     }
     videoCover: {
@@ -253,7 +332,9 @@ declare global {
       getInfo: () => Promise<{ coverDir: string; size: number }>
     }
     videoTranscoder: {
-      transcode: (inputPath: string) => Promise<{ success: boolean; outputPath?: string; error?: string }>
+      transcode: (
+        inputPath: string
+      ) => Promise<{ success: boolean; outputPath?: string; error?: string }>
       getStatus: () => Promise<{
         isRunning: boolean
         percent: number
@@ -269,19 +350,23 @@ declare global {
         fixedPath: string,
         renameToOriginal: boolean
       ) => Promise<{ success: boolean; finalPath?: string; error?: string }>
-      onProgress: (callback: (progress: {
-        currentTime: number
-        totalTime: number
-        percent: number
-        fps: number
-        stage: 'probe' | 'encode' | 'done'
-      }) => void) => () => void
-      onComplete: (callback: (result: {
-        success: boolean
-        outputPath?: string
-        originalPath?: string
-        error?: string
-      }) => void) => () => void
+      onProgress: (
+        callback: (progress: {
+          currentTime: number
+          totalTime: number
+          percent: number
+          fps: number
+          stage: 'probe' | 'encode' | 'done'
+        }) => void
+      ) => () => void
+      onComplete: (
+        callback: (result: {
+          success: boolean
+          outputPath?: string
+          originalPath?: string
+          error?: string
+        }) => void
+      ) => () => void
     }
     missav: {
       getActresses: () => Promise<Array<{ name: string; slug: string; cover: string }>>
@@ -294,13 +379,15 @@ declare global {
         page: number
         hasMore: boolean
       }>
-      getVideoBTLinks: (dvdId: string) => Promise<Array<{
-        magnet: string
-        name: string
-        size: string
-        date: string
-        isHd: boolean
-      }>>
+      getVideoBTLinks: (dvdId: string) => Promise<
+        Array<{
+          magnet: string
+          name: string
+          size: string
+          date: string
+          isHd: boolean
+        }>
+      >
       getVideoInfo: (url: string) => Promise<{
         title: string
         coverUrl: string
@@ -329,13 +416,25 @@ declare global {
         /** 各集 m3u8 地址（含 auth_key），键为集数 */
         episodes?: Array<{ ep: string; url: string }>
       }>
-      getPlayUrl: (videoId: string | number, ep?: string | number) => Promise<{
+      getPageInfo: (pageUrl: string) => Promise<{
+        success: boolean
+        title?: string
+        episodes?: number[]
+        cover?: string
+        error?: string
+      }>
+      getPlayUrl: (
+        videoId: string | number,
+        ep?: string | number
+      ) => Promise<{
         success: boolean
         videoUrl?: string
         duration?: number
         title?: string
         error?: string
       }>
+      /** 下载并解密加密图片（封面等），返回 blob URL；失败返回空串 */
+      decryptImage: (url: string) => Promise<string>
       startDownload: (payload: {
         m3u8Url: string
         quality?: string
@@ -350,7 +449,9 @@ declare global {
         duration?: number
       }>
       cancelDownload: () => Promise<{ success: boolean; message?: string }>
-      onProgress: (callback: (progress: { type: string; [key: string]: unknown }) => void) => () => void
+      onProgress: (
+        callback: (progress: { type: string; [key: string]: unknown }) => void
+      ) => () => void
     }
     /** @electron/llm 提供的本地 LLM API */
     electronAi: {
@@ -366,16 +467,22 @@ declare global {
         temperature?: number
       }) => Promise<void>
       destroy: () => Promise<void>
-      prompt: (input: string, options?: {
-        responseJSONSchema?: object
-        requestUUID?: string
-        timeout?: number
-      }) => Promise<string>
-      promptStreaming: (input: string, options?: {
-        responseJSONSchema?: object
-        requestUUID?: string
-        timeout?: number
-      }) => Promise<AsyncIterableIterator<string>>
+      prompt: (
+        input: string,
+        options?: {
+          responseJSONSchema?: object
+          requestUUID?: string
+          timeout?: number
+        }
+      ) => Promise<string>
+      promptStreaming: (
+        input: string,
+        options?: {
+          responseJSONSchema?: object
+          requestUUID?: string
+          timeout?: number
+        }
+      ) => Promise<AsyncIterableIterator<string>>
       abortRequest: (requestUUID: string) => void
     }
   }

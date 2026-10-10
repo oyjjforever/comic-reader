@@ -11,10 +11,17 @@
             <UgoiraPlayer :frames="dialog.data.frames" />
           </div>
           <div v-else-if="dialog.data.artworkType === '视频'" class="video-preview">
-            <div v-if="!videoSrc" class="image-placeholder">
-              <span>视频加载中...</span>
+            <div v-if="!videoReady" class="image-placeholder">
+              <span>{{ videoError || '视频加载中...' }}</span>
             </div>
-            <video v-else :src="videoSrc" controls autoplay loop class="gallery-video"></video>
+            <video
+              v-show="videoReady"
+              ref="videoRef"
+              controls
+              autoplay
+              loop
+              class="gallery-video"
+            ></video>
           </div>
           <div
             v-for="(url, index) in dialog.data.imageUrls || []"
@@ -40,7 +47,9 @@
             <h2 class="project-title">{{ dialog.data.title }}</h2>
             <div class="image-count">
               <n-icon :component="SlideMultiple24Regular" size="16" />
-              <span style="margin-left: 5px">包含 {{ dialog.data.pages }} 张图片</span>
+              <span style="margin-left: 5px">
+                包含 {{ dialog.data.pages }} 个{{ dialog.data.artworkType || '图片' }}
+              </span>
             </div>
           </div>
 
@@ -68,6 +77,7 @@
 
 <script setup>
 import siteUtils from '@renderer/plugins/site-utils/index.js'
+import Hls from 'hls.js'
 import { CloseOutline } from '@vicons/ionicons5'
 import { SlideMultiple24Regular } from '@vicons/fluent'
 import UgoiraPlayer from './ugoira-player.vue'
@@ -88,6 +98,47 @@ const loadedImages = reactive({})
 const observer = ref(null)
 const imageItems = ref([])
 const videoSrc = ref('')
+const videoRef = ref(null)
+const videoReady = ref(false)
+const videoError = ref('')
+let hlsInstance = null
+
+// HLS 播放（huangguo 等加密流媒体站点）
+function destroyHls() {
+  if (hlsInstance) {
+    hlsInstance.destroy()
+    hlsInstance = null
+  }
+}
+
+function startHls(url) {
+  const video = videoRef.value
+  if (!video) return
+  destroyHls()
+  // 原生 HLS（Safari 内核预留）
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = url
+    videoReady.value = true
+    return
+  }
+  if (!Hls.isSupported()) {
+    videoError.value = '当前环境不支持 HLS 播放'
+    return
+  }
+  const hls = new Hls({ enableWorker: true, lowLatencyMode: false })
+  hlsInstance = hls
+  hls.loadSource(url)
+  hls.attachMedia(video)
+  hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    videoReady.value = true
+    video.play().catch(() => {})
+  })
+  hls.on(Hls.Events.ERROR, (_evt, data) => {
+    if (data.fatal) {
+      videoError.value = `播放错误：${data.details || data.type}`
+    }
+  })
+}
 
 // Methods
 const closeModal = () => {
@@ -190,12 +241,35 @@ onMounted(async () => {
       console.error('加载动图帧失败:', e)
     }
   } else if (props.dialog.data.artworkType === '视频') {
-    // 视频作品：加载视频流用于播放
+    // 视频作品：获取播放地址；m3u8 流需注入 Referer/Origin 后用 hls.js 播放
     try {
       const url = props.dialog.data.imageUrls?.[0] || props.dialog.data.url
-      videoSrc.value = await siteUtils.previewImage(props.dialog.data.source, url)
+      const playUrl = await siteUtils.previewImage(props.dialog.data.source, url)
+      if (!playUrl) throw new Error('未获取到播放地址')
+      if (/\.m3u8(\?|$)/i.test(playUrl)) {
+        let origin = ''
+        try {
+          origin = new URL(url || playUrl).origin
+        } catch {
+          /* ignore */
+        }
+        if (origin) {
+          // 复用流媒体头注入：为媒体 CDN 补 Referer/Origin 与 CORS 响应头
+          await window.missav.attachStreamHeaders({
+            referer: origin + '/',
+            origin,
+            hosts: [new URL(playUrl).hostname]
+          })
+        }
+        await nextTick()
+        startHls(playUrl)
+      } else {
+        videoSrc.value = playUrl
+        videoReady.value = true
+      }
     } catch (e) {
       console.error('加载视频失败:', e)
+      videoError.value = e?.message || '视频加载失败'
     }
   } else {
     // 立即加载前几张图片
@@ -214,7 +288,9 @@ onBeforeUnmount(() => {
     observer.value.disconnect()
   }
   // 清理视频源
+  destroyHls()
   videoSrc.value = ''
+  window.missav.detachStreamHeaders?.()
 })
 </script>
 

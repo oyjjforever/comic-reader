@@ -152,7 +152,8 @@ const sourceOptions = [
   { label: 'pixiv', value: 'pixiv' },
   { label: 'jmtt', value: 'jmtt' },
   { label: 'twitter', value: 'twitter' },
-  { label: 'weibo', value: 'weibo' }
+  { label: 'weibo', value: 'weibo' },
+  { label: 'huangguo', value: 'huangguo' }
 ]
 
 // 虚拟滚动网格引用
