@@ -453,6 +453,45 @@ declare global {
         callback: (progress: { type: string; [key: string]: unknown }) => void
       ) => () => void
     }
+    pornhub: {
+      getVideoInfo: (pageUrl: string) => Promise<{
+        success: boolean
+        error?: string
+        pageUrl?: string
+        title?: string
+        uploader?: string
+        duration?: number
+        cover?: string
+        videoId?: string
+        /** 按「mp4 优先、清晰度降序」排序的下载源 */
+        sources?: Array<{ label: string; url: string; format: 'mp4' | 'm3u8'; quality: number }>
+      }>
+      getModelVideos: (pageUrl: string, page?: number) => Promise<{
+        success: boolean
+        error?: string
+        page?: number
+        hasMore?: boolean
+        list?: Array<{ vkey: string; url: string; title: string; duration: string; cover: string }>
+      }>
+      startDownload: (payload: {
+        videoUrl: string
+        format: 'mp4' | 'm3u8'
+        quality?: number | string
+        savePath: string
+        pageUrl?: string
+      }) => Promise<{
+        success: boolean
+        error?: string
+        outputPath?: string
+        quality?: string
+        segments?: number
+        duration?: number
+      }>
+      cancelDownload: () => Promise<{ success: boolean; message?: string }>
+      onProgress: (
+        callback: (progress: { type: string; [key: string]: unknown }) => void
+      ) => () => void
+    }
     /** @electron/llm 提供的本地 LLM API */
     electronAi: {
       create: (options: {

@@ -54,6 +54,8 @@ export default class HlsDownloader {
     this.timeout = options.timeout ?? 60000
     this.tempDirPrefix = options.tempDirPrefix ?? 'hls_'
     this.maxRetries = options.maxRetries ?? 3
+    // 可注入自定义 axios 实例（如需走代理），默认用本文件顶部的直连实例
+    this.client = options.client || client
     this.tempDir = null
     this.isCanceled = false
   }
@@ -64,7 +66,7 @@ export default class HlsDownloader {
 
   async fetchText(url) {
     try {
-      const response = await client.get(url, {
+      const response = await this.client.get(url, {
         headers: this.headers,
         timeout: this.timeout,
         responseType: 'text'
@@ -76,7 +78,7 @@ export default class HlsDownloader {
   }
 
   async fetchBinary(url) {
-    const response = await client.get(url, {
+    const response = await this.client.get(url, {
       headers: this.headers,
       responseType: 'arraybuffer',
       timeout: this.timeout
@@ -119,6 +121,7 @@ export default class HlsDownloader {
     const segments = []
     let keyUrl = null
     let iv = null
+    let initUrl = null
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
@@ -134,6 +137,14 @@ export default class HlsDownloader {
         }
       }
 
+      // fMP4 HLS：初始化段（ftyp+moov）必须置于所有分片之前
+      if (line.startsWith('#EXT-X-MAP:')) {
+        const mapMatch = line.match(/URI="([^"]+)"/)
+        if (mapMatch) {
+          initUrl = new URL(mapMatch[1], playlistUrl).href
+        }
+      }
+
       if (line.startsWith('#EXTINF:')) {
         const duration = parseFloat(line.split(':')[1].replace(/,.*$/, ''))
         const nextLine = lines[i + 1]?.trim()
@@ -144,7 +155,7 @@ export default class HlsDownloader {
       }
     }
 
-    return { keyUrl, iv, segments }
+    return { keyUrl, iv, segments, initUrl }
   }
 
   async fetchKey(keyUrl) {
@@ -165,17 +176,17 @@ export default class HlsDownloader {
     return buf
   }
 
-  async remuxToMp4(tsFile, outputFile) {
+  async remuxToMp4(tsFile, outputFile, { audioBsf = true } = {}) {
     const ffmpegPath = await getFfmpegPath()
-    const remuxed = await new Promise((resolve) => {
+    return await new Promise((resolve) => {
       const args = [
         '-y',
         '-i',
         tsFile,
         '-c',
         'copy',
-        '-bsf:a',
-        'aac_adtstoasc',
+        // TS 流的 AAC 为 ADTS 封装，转 MP4 需转换；fMP4 已是 ASC 无需处理
+        ...(audioBsf ? ['-bsf:a', 'aac_adtstoasc'] : []),
         '-movflags',
         '+faststart',
         outputFile
@@ -189,16 +200,13 @@ export default class HlsDownloader {
         resolve(code === 0)
       })
       child.on('error', () => {
-        console.warn('[HLS] ffmpeg 不可用，回退为直接拼接输出:', stderr.slice(-500))
+        console.warn('[HLS] ffmpeg 不可用，使用拼接结果输出:', stderr.slice(-500))
         resolve(false)
       })
     })
-    if (!remuxed) {
-      fs.copyFileSync(tsFile, outputFile)
-    }
   }
 
-  async mergeSegments(tempDir, outputFile, progressCallback) {
+  async mergeSegments(tempDir, outputFile, progressCallback, { isFmp4 = false } = {}) {
     const files = fs
       .readdirSync(tempDir)
       .filter((f) => f.endsWith('.ts'))
@@ -217,9 +225,17 @@ export default class HlsDownloader {
       fs.mkdirSync(outputDir, { recursive: true })
     }
 
+    const initFile = path.join(tempDir, 'init.frag')
+    const hasInit = fs.existsSync(initFile)
+
     const mergedTsFile = path.join(tempDir, `merged_${Date.now()}.ts`)
     const writeStream = fs.createWriteStream(mergedTsFile)
     let merged = 0
+
+    // fMP4 初始化段（ftyp+moov）必须写在最前，否则无法播放
+    if (hasInit) {
+      writeStream.write(fs.readFileSync(initFile))
+    }
 
     for (const file of files) {
       if (this.isCanceled) {
@@ -243,12 +259,25 @@ export default class HlsDownloader {
     })
 
     progressCallback?.({ type: 'remux', message: '正在封装为 MP4...' })
-    await this.remuxToMp4(mergedTsFile, outputFile)
+    const remuxed = await this.remuxToMp4(mergedTsFile, outputFile, { audioBsf: !isFmp4 })
+
+    let finalOutput = outputFile
+    if (!remuxed) {
+      if (isFmp4) {
+        // fMP4 拼接结果（init + moof/mdat）本身即为可播放的 fragmented MP4
+        fs.copyFileSync(mergedTsFile, outputFile)
+      } else {
+        // TS 流无法直接作为 MP4 播放，改存 .ts 扩展名
+        finalOutput = outputFile.replace(/\.[^./\\]+$/, '') + '.ts'
+        fs.copyFileSync(mergedTsFile, finalOutput)
+      }
+    }
     try {
       fs.rmSync(mergedTsFile, { force: true })
     } catch {
       /* ignore */
     }
+    return finalOutput
   }
 
   async download(quality, outputPath, progressCallback) {
@@ -286,6 +315,19 @@ export default class HlsDownloader {
 
       const segments = parsed.segments
       const totalSegments = segments.length
+      const isFmp4 = !!parsed.initUrl || segments.some((s) => /\.m4s(\?|$)/i.test(s.url))
+
+      // fMP4：先下载初始化段（缺失则拼接结果无法播放）
+      if (parsed.initUrl) {
+        progressCallback?.({ type: 'fetch_init', message: '正在下载初始化片段...' })
+        const initPath = path.join(this.tempDir, 'init.frag')
+        if (isEncrypted && key) {
+          await this.decryptWithIv(parsed.initUrl, key, parsed.iv ?? this.defaultIv(0), initPath)
+        } else {
+          await this.downloadRaw(parsed.initUrl, initPath)
+        }
+      }
+
       let downloaded = 0
 
       progressCallback?.({
@@ -320,14 +362,16 @@ export default class HlsDownloader {
       }
 
       progressCallback?.({ type: 'merge_start', message: '正在合并视频片段...' })
-      await this.mergeSegments(this.tempDir, outputPath, progressCallback)
+      const finalPath = await this.mergeSegments(this.tempDir, outputPath, progressCallback, {
+        isFmp4
+      })
 
       progressCallback?.({ type: 'cleanup', message: '正在清理临时文件...' })
       this.cleanupTemp()
 
       const result = {
         success: true,
-        outputPath,
+        outputPath: finalPath,
         quality,
         segments: totalSegments,
         duration: segments.reduce((sum, seg) => sum + seg.duration, 0)
@@ -335,7 +379,7 @@ export default class HlsDownloader {
       progressCallback?.({
         type: 'complete',
         message: '下载完成！',
-        outputPath,
+        outputPath: finalPath,
         result
       })
       return result

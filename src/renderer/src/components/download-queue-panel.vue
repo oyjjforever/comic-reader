@@ -155,7 +155,7 @@ import weiboImg from '@renderer/assets/weibo.ico'
 import picamanImg from '@renderer/assets/picaman.ico'
 import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
-// 4khd 站点图标
+import pornhubImg from '@renderer/assets/pornhub.ico'
 import fourkhdImg from '@renderer/assets/4khd.png'
 import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
@@ -168,6 +168,7 @@ function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'huangguo') return huangguoImg
   if (site === 'yfantasy') return yfantasyImg
   if (site === '4khd') return fourkhdImg
+  if (site === 'pornhub') return pornhubImg
 }
 
 function calcPercent(t: any) {

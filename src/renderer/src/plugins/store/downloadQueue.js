@@ -1,6 +1,6 @@
 import { reactive, ref, nextTick } from 'vue'
 
-const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, fourkhd, huangguo, file } = window
+const { jmtt, pixiv, twitter, weibo, picaman, yfantasy, fourkhd, huangguo, pornhub, file } = window
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
@@ -39,8 +39,12 @@ function updateTask(t, patch) {
 }
 
 // 向主进程上报活跃（pending/running/paused）任务数，用于关闭窗口时二次确认
+// 缓存上次数量，仅在变化时发送 IPC（进度高频更新时避免 IPC 风暴）
+let lastActiveCount = -1
 function reportActiveDownloads() {
   const count = tasks.filter((t) => ['pending', 'running', 'paused'].includes(t.status)).length
+  if (count === lastActiveCount) return
+  lastActiveCount = count
   window.closeConfig?.reportActiveDownloads(count)
 }
 
@@ -361,43 +365,104 @@ async function runWeibo(task) {
   }
 }
 async function runPornhub(task) {
-  const { url, viewkey } = task.payload
+  let { videoUrl, format, quality, fileName } = task.payload
+  const { pageUrl, baseDir } = task.payload
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
 
-    // Execute Python command to download the video
-    const { exec } = require('child_process')
-    const { promisify } = require('util')
-    const execAsync = promisify(exec)
-
-    // Get download directory from settings or use default
-    const downloadDir = task.baseDir || 'D:\\Downloads'
-    const command = `phub -url '${url}' -quality best -d "${downloadDir}"`
-
-    updateTask(task, { progress: { total: 1, current: 0 } })
-
-    // Execute the command
-    const { stdout, stderr } = await execAsync(command)
-
-    if (stderr) {
-      console.error('PornHub download error:', stderr)
+    // 批量任务入队时未解析直链：下载开始时再解析（避免 token 过期）
+    if (!videoUrl) {
+      const info = await pornhub.getVideoInfo(pageUrl)
+      if (!info?.success || !info.sources?.length) {
+        throw new Error(info?.error || '未解析到播放地址')
+      }
+      const best = info.sources[0]
+      videoUrl = best.url
+      format = best.format
+      quality = best.quality || 0
+      fileName = fileName || [info.uploader, info.title].filter(Boolean).join('--')
     }
 
-    // Try to extract the downloaded file path from stdout
-    const pathMatch = stdout.match(/Downloaded to: (.+)/)
-    const filePath = pathMatch ? pathMatch[1] : `${downloadDir}\\${viewkey}.mp4`
+    const safeName = file.simpleSanitize(fileName || `pornhub_${Date.now()}`)
+    // 批量下载时按用户名建子目录（downloadPath/<用户名>/<文件名>），单个下载直接存根目录
+    const workDir = task.payload.subDir
+      ? `${baseDir}\\${file.simpleSanitize(task.payload.subDir)}`
+      : `${baseDir}`
+    const savePath = `${workDir}\\${safeName}.mp4`
 
-    updateTask(task, {
-      progress: { success: 1, total: 1 },
-      status: 'success',
-      localFilePath: filePath
-    })
-  } catch (error) {
-    console.error('PornHub download failed:', error)
-    updateTask(task, {
-      status: 'error',
-      errorMessage: error.message
-    })
+    // mp4 直链支持 Range 断点续传（部分文件可追加，完整文件返回 416 视为已完成），不做已存在跳过
+    // m3u8 无跨任务续传能力，已存在则跳过
+    if (format !== 'mp4') {
+      await isPathExists(savePath, task)
+    }
+
+    // 订阅下载进度：m3u8 按片段计数映射 success/total，mp4 按字节百分比映射 value/total
+    // 高频进度节流：updateTask 会触发全队列排序，事件过密时批量任务会把渲染进程拖垮
+    let totalSegments = 0
+    let lastUiUpdate = 0
+    let unsubscribe = () => {}
+    try {
+      unsubscribe = pornhub.onProgress((progress) => {
+        if (task._cancel) {
+          // 任务被取消：主动中断底层下载，令 startDownload 抛错走取消收尾
+          pornhub.cancelDownload?.()
+          return
+        }
+        const highFreq = progress.type === 'download_progress' || progress.type === 'mp4_progress'
+        if (highFreq) {
+          const now = Date.now()
+          if (now - lastUiUpdate < 200) return
+          lastUiUpdate = now
+        }
+        if (progress.type === 'download_start') {
+          totalSegments = progress.total
+          updateTask(task, { progress: { success: 0, fail: 0, total: totalSegments } })
+        } else if (progress.type === 'download_progress') {
+          updateTask(task, { progress: { success: progress.current, fail: 0, total: progress.total } })
+        } else if (progress.type === 'mp4_progress') {
+          updateTask(task, { progress: { value: (progress.percent || 0) / 100, total: 1 } })
+        } else if (progress.type === 'merge') {
+          updateTask(task, {
+            progress: { success: progress.total, fail: 0, total: progress.total }
+          })
+        }
+      })
+    } catch (e) {
+      console.warn('pornhub onProgress 订阅失败:', e)
+    }
+
+    try {
+      const result = await pornhub.startDownload({ videoUrl, format, quality, savePath })
+      if (!result || !result.success) {
+        throw new Error(result?.error || '下载失败')
+      }
+      const finalProgress =
+        format === 'mp4'
+          ? { value: 1, total: 1 }
+          : totalSegments > 0
+            ? { success: totalSegments, fail: 0, total: totalSegments }
+            : { success: 1, total: 1 }
+      updateTask(task, {
+        from: 'pornhub',
+        status: 'success',
+        progress: finalProgress,
+        localFilePath: result.outputPath || savePath
+      })
+      task.onSuccess?.()
+    } finally {
+      unsubscribe()
+    }
+  } catch (e) {
+    console.log('🚀 ~ runPornhub ~ e:', e)
+    if (task._cancel) {
+      pornhub.cancelDownload?.()
+      updateTask(task, { status: 'canceled' })
+      return
+    }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    }
   }
 }
 

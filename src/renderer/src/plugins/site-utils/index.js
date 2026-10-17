@@ -52,7 +52,7 @@ const sites = {
   pornhub: {
     util: PornhubUtil,
     icon: pornhubImg,
-    downloadPathSetting: 'defaultDownloadPath'
+    downloadPathSetting: 'downloadPathPornhub'
   },
   yfantasy: {
     util: YfantasyUtil,

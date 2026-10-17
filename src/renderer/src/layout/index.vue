@@ -352,8 +352,8 @@ const sitesConfig = [
   { image: twitterImg, site: 'twitter', label: 'Twitter' },
   { image: weiboImg, site: 'weibo', label: '微博' },
   { image: picamanImg, site: 'picaman', label: 'Picaman' },
-  { image: huangguoImg, site: 'huangguo', label: '黄果剧场' }
-  // { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
+  { image: huangguoImg, site: 'huangguo', label: '黄果剧场' },
+  { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
 ]
 
 const sitesMenuVisible = ref(false)
