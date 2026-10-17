@@ -1,6 +1,7 @@
 import Api from './api.js'
 import crypto from 'crypto'
 import { ipcRenderer } from 'electron'
+import HlsDownloader from './hls.js'
 
 const SITE_ORIGIN = 'https://huangguoai.com'
 
@@ -232,16 +233,62 @@ async function getPlayUrl(videoId, ep) {
   }
 }
 
+// ===== HLS 下载（preload 内直接执行，无需主进程 huangguo:* IPC）=====
+let currentDownloader = null
+const progressListeners = new Set()
+
+function notifyProgress(progress) {
+  for (const callback of progressListeners) {
+    try {
+      callback(progress)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** 下载 HLS 视频：在 preload 中下载解密片段并封装为 MP4，进度通过 onProgress 订阅回调推送 */
+async function startDownload(payload) {
+  const { m3u8Url, savePath } = payload || {}
+  const quality = payload?.quality || '1080p'
+  const siteUrl = payload?.siteUrl || m3u8Url
+  if (!m3u8Url || !savePath) {
+    return { success: false, error: '缺少必要参数（m3u8Url / savePath）' }
+  }
+
+  try {
+    const headers = await buildHeaders(siteUrl)
+    headers['User-Agent'] = navigator.userAgent
+    currentDownloader = new HlsDownloader(m3u8Url, headers, {
+      concurrency: 8,
+      timeout: 60000
+    })
+
+    const result = await currentDownloader.download(quality, savePath, notifyProgress)
+    return { success: true, ...result }
+  } catch (err) {
+    console.error('huangguo 下载失败:', err?.message)
+    return { success: false, error: err?.message || '下载失败' }
+  } finally {
+    currentDownloader = null
+  }
+}
+
 export default {
   getVideoInfo,
   getPageInfo,
   getPlayUrl,
   decryptImage,
-  startDownload: (payload) => ipcRenderer.invoke('huangguo:startDownload', payload),
-  cancelDownload: () => ipcRenderer.invoke('huangguo:cancelDownload'),
+  startDownload,
+  cancelDownload: async () => {
+    if (currentDownloader) {
+      currentDownloader.cancel()
+      return { success: true }
+    }
+    return { success: false, message: '没有正在进行的下载' }
+  },
   onProgress: (callback) => {
-    const handler = (_event, data) => callback(data)
-    ipcRenderer.on('huangguo:download-progress', handler)
-    return () => ipcRenderer.removeListener('huangguo:download-progress', handler)
+    progressListeners.add(callback)
+    return () => progressListeners.delete(callback)
   }
 }

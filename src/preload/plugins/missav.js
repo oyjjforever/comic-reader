@@ -8,6 +8,9 @@ import { ipcRenderer } from 'electron'
 
 // MissAV 镜像白名单（参考 config.py MIRRORS['missav']）
 const MIRRORS = ['missav.ws', 'missav.ai', 'missav123.com', 'missav.live']
+// 重定向自动发现的新镜像域名（站点换域名后无需改代码，进程内生效）
+const discoveredHosts = new Set()
+const REDIRECT_STATUS = [301, 302, 303, 307, 308]
 const BASE_HOST = 'missav.ws'
 const BASE = `https://${BASE_HOST}`
 
@@ -62,6 +65,36 @@ function swapHost(url, host) {
   }
 }
 
+function urlHost(u) {
+  try {
+    return new URL(u).host
+  } catch {
+    return ''
+  }
+}
+
+/** 解析 Location 头为绝对 URL */
+function resolveLocation(location, base) {
+  try {
+    return new URL(location, base).toString()
+  } catch {
+    return ''
+  }
+}
+
+function isKnownHost(h) {
+  return MIRRORS.includes(h) || discoveredHosts.has(h)
+}
+
+/** 记录重定向发现的新镜像 host（设上限防止重定向链膨胀） */
+function recordDiscoveredHost(host) {
+  if (!host || isKnownHost(host)) return false
+  if (discoveredHosts.size >= 8) return false
+  discoveredHosts.add(host)
+  console.log('[missav] discovered mirror host:', host)
+  return true
+}
+
 /**
  * Cloudflare 拦截页判定（参考 _is_cf_interstitial）
  * - 状态码 403 / 429 / 503
@@ -90,6 +123,7 @@ async function cookiesFor(host) {
 
 /**
  * 镜像轮询请求（参考 fetch_with_mirrors）
+ * 重定向不自动跟随：逐跳请求以捕获站点更换的新域名，发现即加入候选
  * @param {string} url 原始 URL（host 会被逐个替换）
  * @param {object} opts
  * @param {(resp)=>boolean} [opts.validate] 内容校验，返回 true 视为有效
@@ -98,51 +132,62 @@ async function cookiesFor(host) {
  * @returns {Promise<object|null>} 命中的响应，全部失败返回 null
  */
 async function fetchWithMirrors(url, { validate, headersFactory, timeout = 15000 } = {}) {
-  const original = (() => {
-    try {
-      return new URL(url).host
-    } catch {
-      return ''
-    }
-  })()
+  const original = urlHost(url)
 
-  // 轮询顺序：sticky host -> 原始 host -> 其余镜像（去重、保序）
+  // 轮询顺序：sticky host -> 原始 host -> 其余镜像/发现域名（去重、保序）
   const ordered = []
   const pushUnique = (h) => {
-    if (h && MIRRORS.includes(h) && !ordered.includes(h)) ordered.push(h)
+    if (h && isKnownHost(h) && !ordered.includes(h)) ordered.push(h)
   }
   if (activeHost) pushUnique(activeHost)
   pushUnique(original)
   MIRRORS.forEach(pushUnique)
-  if (!ordered.length) ordered.push(...MIRRORS)
+  discoveredHosts.forEach(pushUnique)
 
   for (const host of ordered) {
-    const targetUrl = swapHost(url, host)
-    const baseHeaders = headersFactory ? headersFactory(host) || {} : {}
-    const cookie = await cookiesFor(host)
-    const headers = {
-      ...COMMON_HEADERS,
-      ...baseHeaders,
-      ...(cookie ? { Cookie: cookie } : {})
+    let targetUrl = swapHost(url, host)
+    let resp = null
+    let finalHost = host
+
+    // 手动跟随重定向（最多 5 跳）；单跳内对传输错误重试 1 次
+    for (let hop = 0; hop < 5; hop++) {
+      const refererHost = urlHost(targetUrl) || host
+      const cookie = await cookiesFor(refererHost)
+      const headers = {
+        ...COMMON_HEADERS,
+        ...(headersFactory ? headersFactory(refererHost) || {} : {}),
+        ...(cookie ? { Cookie: cookie } : {})
+      }
+
+      resp = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          resp = await api.rawGet({ url: targetUrl, headers, timeout, maxRedirects: 0 })
+          break
+        } catch (e) {
+          if (attempt === 1) console.warn('[missav] transport error', refererHost, e.message)
+        }
+      }
+      if (!resp) break
+      if (!REDIRECT_STATUS.includes(resp.status)) break
+
+      const next = resolveLocation(resp.headers?.location, targetUrl)
+      if (!next) break
+      const nextHost = urlHost(next)
+      if (nextHost) {
+        if (recordDiscoveredHost(nextHost)) pushUnique(nextHost)
+        finalHost = nextHost
+      }
+      targetUrl = next
     }
 
-    // 单个 host 内对传输错误重试 1 次
-    let resp = null
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        resp = await api.rawGet({ url: targetUrl, headers, timeout })
-        break
-      } catch (e) {
-        if (attempt === 1) console.warn('[missav] transport error', host, e.message)
-      }
-    }
     if (!resp) continue
 
     if (isCfInterstitial(resp)) continue
     if (validate && !validate(resp)) continue
 
-    // 命中成功，记为 sticky host
-    activeHost = host
+    // 命中成功，记为 sticky host（重定向后以最终域名为准）
+    activeHost = finalHost
     return resp
   }
   return null
@@ -298,7 +343,7 @@ async function getVideoBTLinks(dvdId) {
  * 检测是否已通过 Cloudflare 验证（存在 cf_clearance cookie）
  */
 async function checkAccess() {
-  for (const host of [activeHost, BASE_HOST, ...MIRRORS].filter(Boolean)) {
+  for (const host of [activeHost, BASE_HOST, ...MIRRORS, ...discoveredHosts].filter(Boolean)) {
     const cookie = await cookiesFor(host)
     if (/(^|;\s*)cf_clearance=/.test(cookie)) return true
   }

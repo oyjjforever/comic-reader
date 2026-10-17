@@ -8,7 +8,10 @@ import fsp from 'fs/promises'
 import file from '../file.ts'
 
 // 入口与镜像域名：4khd.com 可能跳转到 *.uuss.uk 子域，轮询命中后 sticky（hpajs 为搜索镜像）
-const MIRRORS = ['www.4khd.com', 'hecoq.uuss.uk', 'hpajs.uuss.uk']
+const MIRRORS = ['www.4khd.com', 'hecoq.uuss.uk', 'hpajs.uuss.uk', 'usti.uuss.uk']
+// 重定向自动发现的新镜像域名（站点换域名后无需改代码，进程内生效）
+const discoveredHosts = new Set()
+const REDIRECT_STATUS = [301, 302, 303, 307, 308]
 let activeHost = MIRRORS[0]
 
 const api = new Api({
@@ -60,8 +63,35 @@ function swapHost(url, host) {
   }
 }
 
+function urlHost(u) {
+  try {
+    return new URL(u).host
+  } catch {
+    return ''
+  }
+}
+
+/** 解析 Location 头为绝对 URL */
+function resolveLocation(location, base) {
+  try {
+    return new URL(location, base).toString()
+  } catch {
+    return ''
+  }
+}
+
+/** 记录重定向发现的新镜像 host（设上限防止重定向链膨胀） */
+function recordDiscoveredHost(host) {
+  if (!host || MIRRORS.includes(host) || discoveredHosts.has(host)) return false
+  if (discoveredHosts.size >= 8) return false
+  discoveredHosts.add(host)
+  console.log('[4khd] discovered mirror host:', host)
+  return true
+}
+
 /**
  * 镜像轮询请求：sticky host 优先，命中有效响应后记住
+ * 重定向不自动跟随：逐跳请求以捕获站点更换的新域名，发现即加入候选
  * @returns {Promise<object|null>} 命中的响应，全部失败返回 null
  */
 async function fetchWithMirrors(url, { validate } = {}) {
@@ -71,26 +101,47 @@ async function fetchWithMirrors(url, { validate } = {}) {
   }
   pushUnique(activeHost)
   MIRRORS.forEach(pushUnique)
+  discoveredHosts.forEach(pushUnique)
 
   for (const host of ordered) {
-    const targetUrl = url.startsWith('http') ? swapHost(url, host) : `https://${host}${url}`
+    let targetUrl = url.startsWith('http') ? swapHost(url, host) : `https://${host}${url}`
     let resp = null
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        resp = await api.rawGet({
-          url: targetUrl,
-          headers: { Referer: `https://${host}/` },
-          timeout: 20000
-        })
-        break
-      } catch (e) {
-        if (attempt === 1) console.warn('[4khd] transport error', host, e.message)
+    let finalHost = host
+
+    // 手动跟随重定向（最多 5 跳）；单跳内对传输错误重试 1 次
+    for (let hop = 0; hop < 5; hop++) {
+      const refererHost = urlHost(targetUrl) || host
+      resp = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          resp = await api.rawGet({
+            url: targetUrl,
+            headers: { Referer: `https://${refererHost}/` },
+            timeout: 20000,
+            maxRedirects: 0
+          })
+          break
+        } catch (e) {
+          if (attempt === 1) console.warn('[4khd] transport error', refererHost, e.message)
+        }
       }
+      if (!resp) break
+      if (!REDIRECT_STATUS.includes(resp.status)) break
+
+      const next = resolveLocation(resp.headers?.location, targetUrl)
+      if (!next) break
+      const nextHost = urlHost(next)
+      if (nextHost) {
+        if (recordDiscoveredHost(nextHost)) pushUnique(nextHost)
+        finalHost = nextHost
+      }
+      targetUrl = next
     }
+
     if (!resp) continue
     if (isCfInterstitial(resp)) continue
     if (validate && !validate(resp)) continue
-    activeHost = host
+    activeHost = finalHost
     return resp
   }
   return null
@@ -99,7 +150,8 @@ async function fetchWithMirrors(url, { validate } = {}) {
 /** 通用 HTML 拉取，全部镜像失败时抛出 BLOCKED */
 async function fetchHtml(url, validate) {
   const resp = await fetchWithMirrors(url, {
-    validate: validate || ((r) => r.status === 200 && typeof r.data === 'string' && r.data.length > 0)
+    validate:
+      validate || ((r) => r.status === 200 && typeof r.data === 'string' && r.data.length > 0)
   })
   if (!resp) {
     const err = new Error('站点访问被拦截或不可用')
@@ -128,9 +180,7 @@ function parseListHtml(html) {
     )
     if (!href || seen.has(href)) return
     const img = li.querySelector('img.wp-post-image') || li.querySelector('img')
-    const thumb = toAbsolute(
-      img?.getAttribute('data-src') || img?.getAttribute('src') || ''
-    )
+    const thumb = toAbsolute(img?.getAttribute('data-src') || img?.getAttribute('src') || '')
     // 移动端/桌面端各有一个同名 h2，textContent 已自动解码实体
     const title = decode(titleLink?.textContent).replace(/\s+/g, ' ').trim()
     const date = li.querySelector('.wp-block-post-date time')?.getAttribute('datetime') || ''
@@ -210,13 +260,13 @@ function parseDetailHtml(html, fallbackTitle) {
     clean(doc.querySelector('meta[property="og:title"]')?.getAttribute('content')),
     clean(doc.querySelector('h1.entry-title')?.textContent),
     // 页头 logo 常是 h1 包裹站点名，需排除
-    [...doc.querySelectorAll('h1')].map((h) => clean(h.textContent)).find((t) => t && !BAD_TITLE_RE.test(t)),
+    [...doc.querySelectorAll('h1')]
+      .map((h) => clean(h.textContent))
+      .find((t) => t && !BAD_TITLE_RE.test(t)),
     clean(doc.querySelector('title')?.textContent).split(/\s+[|–—-]\s+/)[0]
   ]
   const title =
-    clean(fallbackTitle) ||
-    candidates.find((t) => t && !BAD_TITLE_RE.test(t)) ||
-    'untitled'
+    clean(fallbackTitle) || candidates.find((t) => t && !BAD_TITLE_RE.test(t)) || 'untitled'
 
   return {
     title,

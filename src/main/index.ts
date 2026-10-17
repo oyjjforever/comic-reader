@@ -79,7 +79,6 @@ import {
   replaceWithFixed,
   getTranscodeState
 } from './services/video-transcoder'
-import { HLSDownloader, type HlsDownloadResult } from './services/hls-downloader'
 import type {
   WhisperModelName,
   SubtitleLanguage,
@@ -1225,80 +1224,6 @@ ipcMain.handle('missav:stream-detach', async () => {
   }
   streamMediaHosts.clear()
   return true
-})
-
-// ===== huangguo HLS 加密视频下载 =====
-// huangguoai.com 使用 AES-128-CBC 加密的 HLS 流，此处复用 persist:thirdparty 分区的 Cookie 进行鉴权
-let huangguoDownloader: HLSDownloader | null = null
-
-/** 从 persist:thirdparty 分区读取 huangguoai.com 的 Cookie 与 UA，构造请求头（页面解析类接口已迁移至 preload/plugins/downloader/huangguo.js） */
-async function buildHuangguoHeaders(siteUrl: string): Promise<Record<string, string>> {
-  const { session } = require('electron')
-  const ses = session.fromPartition('persist:thirdparty')
-  let referer = siteUrl
-  let cookieStr = ''
-  try {
-    const origin = new URL(siteUrl).origin
-    referer = origin + '/'
-    const cookies = await ses.cookies.get({ url: origin })
-    cookieStr = cookies.map((c: Electron.Cookie) => `${c.name}=${c.value}`).join('; ')
-  } catch {
-    /* ignore */
-  }
-  const headers: Record<string, string> = {
-    Referer: referer,
-    'User-Agent': ses.getUserAgent()
-  }
-  if (cookieStr) headers['Cookie'] = cookieStr
-  return headers
-}
-
-ipcMain.handle(
-  'huangguo:startDownload',
-  async (
-    event,
-    payload: { m3u8Url: string; quality?: string; savePath: string; siteUrl?: string }
-  ) => {
-    const { m3u8Url, savePath } = payload || {}
-    const quality = payload?.quality || '1080p'
-    const siteUrl = payload?.siteUrl || m3u8Url
-    if (!m3u8Url || !savePath) {
-      return { success: false, error: '缺少必要参数（m3u8Url / savePath）' }
-    }
-
-    try {
-      const headers = await buildHuangguoHeaders(siteUrl)
-      huangguoDownloader = new HLSDownloader(m3u8Url, headers, {
-        concurrency: 8,
-        timeout: 60000
-      })
-
-      const sender = event.sender
-      const result: HlsDownloadResult = await huangguoDownloader.download(
-        quality,
-        savePath,
-        (progress) => {
-          if (!sender.isDestroyed()) {
-            sender.send('huangguo:download-progress', progress)
-          }
-        }
-      )
-      return { success: true, ...result }
-    } catch (err: any) {
-      log.warn('[Main] huangguo 下载失败:', err?.message)
-      return { success: false, error: err?.message || '下载失败' }
-    } finally {
-      huangguoDownloader = null
-    }
-  }
-)
-
-ipcMain.handle('huangguo:cancelDownload', async () => {
-  if (huangguoDownloader) {
-    huangguoDownloader.cancel()
-    return { success: true }
-  }
-  return { success: false, message: '没有正在进行的下载' }
 })
 
 // 关闭弹窗的 IPC 处理
