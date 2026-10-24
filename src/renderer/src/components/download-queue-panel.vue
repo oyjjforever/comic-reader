@@ -71,6 +71,16 @@
                   >
                     <n-icon size="16"><PlayOutline /></n-icon>
                   </n-button>
+                  <n-button
+                    v-if="['error', 'canceled'].includes(t.status)"
+                    quaternary
+                    circle
+                    size="tiny"
+                    @click="onRetry(t)"
+                    title="重试"
+                  >
+                    <n-icon size="16"><RefreshOutline /></n-icon>
+                  </n-button>
                   <!-- <n-button
                     v-if="t.status === 'running'"
                     quaternary
@@ -157,7 +167,7 @@ import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import fourkhdImg from '@renderer/assets/4khd.png'
-import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline } from '@vicons/ionicons5'
+import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline, RefreshOutline } from '@vicons/ionicons5'
 
 function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'jmtt') return jmttImg
@@ -189,6 +199,9 @@ function onPause(t: any) {
 }
 function onResume(t: any) {
   queue.resumeTask(t.id)
+}
+function onRetry(t: any) {
+  queue.retryTask(t.id)
 }
 function onCancel(t: any) {
   queue.cancelTask(t.id)

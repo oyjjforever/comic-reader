@@ -20,7 +20,9 @@ export const defaultSetting = {
   enableLanService: false, // 默认关闭局域网中转服务
   lanServicePort: 9527, // 默认端口
   historyMaxCount: 100, // 浏览历史最大条数
-  downloadMaxCount: 100 // 最近下载最大条数
+  downloadMaxCount: 100, // 最近下载最大条数
+  doublePageMode: false, // 漫画双页模式（一屏两页）
+  showReaderProgress: true // 阅读器底部进度条显示
 }
 
 export const useSettingStore = defineStore('setting', {

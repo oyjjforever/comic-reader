@@ -249,6 +249,7 @@
 
 <script setup lang="ts">
 import type { FolderInfo } from '@/typings/file'
+import { isImageFilePath } from '@/typings/media'
 import ResponsiveVirtualGrid from '@renderer/components/responsive-virtual-grid.vue'
 import TagDialog from '@renderer/components/tag-dialog.vue'
 import ShareDialog from '@renderer/components/share-dialog.vue'
@@ -307,6 +308,8 @@ interface ResourceBrowserProps {
   namespace?: string
   // 是否启用「精彩片段」视图（视频模块专用）
   enableHighlights?: boolean
+  // 文件夹模块是否同时列出目录下的单独图片文件（书架用，支持单图封面与阅读）
+  includeImageFiles?: boolean
 }
 
 const props = withDefaults(defineProps<ResourceBrowserProps>(), {
@@ -851,8 +854,8 @@ const applyTagFilter = debounce(async () => {
           name: fullPath.split(/[/\\]/).pop() || fullPath,
           isBookmarked: false
         }
-        if (isFileModule) {
-          // 文件模块（如视频）：封面即文件本身，立即设置以便卡片即时生成缩略图
+        if (isFileModule || isImageFilePath(fullPath)) {
+          // 文件条目（视频模块或书架散图）：封面即文件本身，立即设置以便卡片即时生成缩略图
           base.coverPath = fullPath
         } else {
           // 文件夹模块：标记为加载中，等待渐进式详情补全封面与内容类型
@@ -861,10 +864,11 @@ const applyTagFilter = debounce(async () => {
         return base
       })
       allItems = allItems.concat(ratedItems)
-      // 渐进式补全封面等详情（文件模块用 getFileInfo，文件夹模块用 loadFolderDetails）
-      const getDetail = isFileModule
-        ? (p: string) => window.media.getFileInfo(p)
-        : (p: string) => window.media.loadFolderDetails(p)
+      // 渐进式补全封面等详情（文件条目用 getFileInfo，文件夹条目用 loadFolderDetails）
+      const getDetail = (p: string) =>
+        isFileModule || isImageFilePath(p)
+          ? window.media.getFileInfo(p)
+          : window.media.loadFolderDetails(p)
       loadDetailsProgressively(ratedItems, ratedItems, getDetail)
     }
 
@@ -951,8 +955,14 @@ const fetchGridData = async (folderPath: string) => {
     } else {
       // 第一阶段：快速加载基本信息
       const basicFolders = await window.media.getFolderListBasic(folderPath)
-      grid.rows = basicFolders
-      // 第二阶段：渐进式加载详细信息
+      let rows = basicFolders
+      if (props.includeImageFiles) {
+        // 同时列出目录下的单独图片文件（FileInfo，封面即自身路径），与文件夹混合展示
+        const imageFiles = await window.media.getFiles(folderPath, undefined, undefined, 'image')
+        rows = rows.concat(imageFiles)
+      }
+      grid.rows = rows
+      // 第二阶段：渐进式加载详细信息（仅文件夹条目需要补全详情）
       loadDetailsProgressively(grid.rows, basicFolders)
     }
     await query()

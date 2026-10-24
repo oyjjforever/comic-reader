@@ -5,6 +5,16 @@
         :src="`file://${file.fullPath}`"
         :alt="file.name"
         class="main-image"
+        :class="{ 'pair-image': !!nextFile }"
+        @dragstart.prevent
+        @error="onImageError"
+      />
+      <!-- 双页模式：与当前页并排显示的下一页 -->
+      <img
+        v-if="nextFile"
+        :src="`file://${nextFile.fullPath}`"
+        :alt="nextFile.name"
+        class="main-image pair-image"
         @dragstart.prevent
         @error="onImageError"
       />
@@ -13,22 +23,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMessage } from 'naive-ui'
+import { computed } from 'vue'
+import type { FileInfo } from '@/typings/file'
 // Props
-const props = defineProps<{
-  file: Object
+defineProps<{
+  file: FileInfo
+  // 双页模式下与当前页并排显示的下一页
+  nextFile?: FileInfo
 }>()
 
-const router = useRouter()
-const message = useMessage()
 const onImageError = () => {}
 const imageTransformStyle = computed(() => ({
   transform: `scale(1)`,
   transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
 }))
-onMounted(() => {})
 </script>
 
 <style lang="scss" scoped>
@@ -43,6 +51,7 @@ onMounted(() => {})
   .image-wrapper {
     @apply flex items-center justify-center w-full h-full;
     transform-origin: center center;
+    gap: 4px;
   }
 
   .main-image {
@@ -51,6 +60,12 @@ onMounted(() => {})
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+  }
+
+  /* 双页模式：两页并排，各自最多占一半宽度 */
+  .pair-image {
+    width: auto;
+    max-width: 50%;
   }
 }
 /* 全屏时的样式调整 */

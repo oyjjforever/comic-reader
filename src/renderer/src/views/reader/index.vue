@@ -11,9 +11,10 @@
       :rating="currentRating"
       :show-progress="showProgressBar"
       :disabled-prev="page.index <= 0 && !props.hasPrev"
-      :disabled-next="page.index >= page.total - 1 && !props.hasNext"
+      :disabled-next="page.index >= page.total - pagesPerView && !props.hasNext"
       :has-next="props.hasNext"
       :has-prev="props.hasPrev"
+      :page-label="pageLabel"
       @back="goBack"
       @toggleFullscreen="toggleFullscreen"
       @toggleAutoPlay="toggleAutoPlay"
@@ -24,8 +25,21 @@
       @progress-input="handleProgressChange"
       @toggleProgress="toggleProgressBar"
     >
+      <!-- 双页模式切换（仅图片阅读时显示） -->
+      <template v-if="isImageReading" #right-extra>
+        <button
+          class="control-button"
+          :class="{ active: doublePageMode }"
+          :title="doublePageMode ? '切换为单页模式' : '切换为双页模式'"
+          @click="toggleDoublePage"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 5h8v14H3V5zm10 0h8v14h-8V5z" />
+          </svg>
+        </button>
+      </template>
       <div class="reader-container">
-        <component :is="readerComponent" :file="currentFile"></component>
+        <component :is="readerComponent" :file="currentFile" :next-file="nextFileInPair"></component>
       </div>
     </reader-controls>
   </div>
@@ -37,7 +51,7 @@ import imageReader from './type/image.vue'
 import pdfReader from './type/pdf.vue'
 import videoReader from './type/video/index.vue'
 import readerControls from './reader-controls.vue'
-import { showProgressBar } from './reader-state'
+import { showProgressBar, doublePageMode, setShowReaderProgress, setDoublePageMode } from './reader-state'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
 
@@ -60,17 +74,41 @@ const emit = defineEmits<{
   (e: 'prev'): void
 }>()
 
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
+
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const AUTO_PLAY_INTERVAL = 3000
 const readerComponent = computed(() => {
-  const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
   if (IMAGE_EXTENSIONS.includes(currentFile.value.extension)) return imageReader
   else if (currentFile.value.extension === '.pdf') return pdfReader
   else if (currentFile.value.extension === '.mp4') return videoReader
   else if (currentFile.value.extension === '.epub') return epubReader
+  return imageReader
 })
+// 双页模式：仅图片阅读时生效，一次翻动两页
+const isImageReading = computed(() => readerComponent.value === imageReader)
+const pagesPerView = computed(() =>
+  doublePageMode.value && isImageReading.value ? 2 : 1
+)
+// 双页模式下与当前页配对显示的下一页（不存在或非图片则为空，如最后一页）
+const nextFileInPair = computed(() => {
+  if (pagesPerView.value !== 2) return undefined
+  const next = page.list[page.index + 1]
+  return next && IMAGE_EXTENSIONS.includes(next.extension) ? next : undefined
+})
+// 页码显示文案：双页时显示 "2-3 / 46" 形式
+const pageLabel = computed(() => {
+  if (pagesPerView.value !== 2) return undefined
+  const first = page.index + 1
+  return nextFileInPair.value ? `${first}-${first + 1} / ${page.total}` : `${first} / ${page.total}`
+})
+const toggleDoublePage = () => {
+  setDoublePageMode(!doublePageMode.value)
+  // 切换后将当前页重新对齐到双页对的起点
+  jumpToPage(page.index)
+}
 const isAutoPlaying = ref(false)
 const zoomLevel = ref(1)
 const page = reactive({
@@ -167,13 +205,18 @@ let prevHintTimer: ReturnType<typeof setTimeout> | null = null
 
 const jumpToPage = async (index: number) => {
   if (index < 0 || index >= page.total) return
+  // 双页模式按偶数索引对齐：每次显示 index 与 index+1 两页
+  if (pagesPerView.value === 2) {
+    index = Math.floor(index / 2) * 2
+  }
   page.index = index
   currentFile.value = page.list[index]
 }
 const nextPage = async () => {
+  const target = Math.min(page.index + pagesPerView.value, page.total - 1)
   if (page.index < page.total - 1) {
     nextHintShown.value = false
-    await jumpToPage(page.index + 1)
+    await jumpToPage(target)
   } else if (props.hasNext) {
     // 已是最后一页，且有下一篇
     if (nextHintShown.value) {
@@ -196,9 +239,10 @@ const nextPage = async () => {
   }
 }
 const prevPage = async () => {
+  const target = Math.max(page.index - pagesPerView.value, 0)
   if (page.index > 0) {
     prevHintShown.value = false
-    await jumpToPage(page.index - 1)
+    await jumpToPage(target)
   } else if (props.hasPrev) {
     // 已是第一页，且有上一篇
     if (prevHintShown.value) {
@@ -238,8 +282,9 @@ const toggleAutoPlay = () => {
     startAutoPlay()
   }
 }
+// 进度条显示开关：同步写入设置
 const toggleProgressBar = () => {
-  showProgressBar.value = !showProgressBar.value
+  setShowReaderProgress(!showProgressBar.value)
 }
 const startAutoPlay = () => {
   if (page.index >= page.total - 1) {
@@ -291,6 +336,22 @@ const goBack = () => {
   .reader-container {
     height: 100%;
     width: 100%;
+  }
+
+  /* 双页切换按钮：投送到 reader-controls 顶栏插槽，插槽内容不吃其 scoped 样式，需自带样式 */
+  .control-button {
+    @apply flex items-center justify-center w-10 h-10 text-white rounded-lg transition-all duration-200;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.6);
+      transform: scale(1.05);
+    }
+
+    &.active {
+      background: rgba(255, 255, 255, 0.25);
+    }
   }
 }
 </style>

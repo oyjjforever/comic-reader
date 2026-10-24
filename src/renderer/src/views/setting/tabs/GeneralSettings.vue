@@ -51,6 +51,20 @@
       </n-input-number>
     </n-form-item>
 
+    <n-form-item path="doublePageMode" label="漫画双页模式（一屏两页）">
+      <n-switch
+        :value="modelValue.doublePageMode"
+        @update:value="(value) => updateSetting('doublePageMode', value)"
+      />
+    </n-form-item>
+
+    <n-form-item path="showReaderProgress" label="显示阅读器进度条">
+      <n-switch
+        :value="modelValue.showReaderProgress"
+        @update:value="(value) => updateSetting('showReaderProgress', value)"
+      />
+    </n-form-item>
+
     <n-form-item path="enableAuthorUpdateCheck" label="特别关注更新通知">
       <n-switch
         :value="modelValue.enableAuthorUpdateCheck"

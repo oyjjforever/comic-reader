@@ -22,7 +22,7 @@
 
       <!-- 页码显示（绝对居中） -->
       <div class="page-indicator" @click="enablePageEdit">
-        <template v-if="!isEditingPage">{{ currentPage }} / {{ totalPages }}</template>
+        <template v-if="!isEditingPage">{{ pageLabel || `${currentPage} / ${totalPages}` }}</template>
         <input
           v-else
           ref="pageInputRef"
@@ -189,6 +189,8 @@ export default defineComponent({
     showControls: { type: Boolean, default: undefined },
     currentPage: { type: Number, required: true },
     totalPages: { type: Number, required: true },
+    // 自定义页码文案（如双页模式的 "2-3 / 46"），不传则显示 "当前 / 总数"
+    pageLabel: { type: String, default: '' },
     showAutoPlay: { type: Boolean, default: false },
     isAutoPlaying: { type: Boolean, default: false },
     showZoomControls: { type: Boolean, default: false },

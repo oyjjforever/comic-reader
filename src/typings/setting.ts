@@ -48,4 +48,8 @@ export type setting = {
     historyMaxCount?: number
     // 最近下载最大条数
     downloadMaxCount?: number
+    // 漫画双页模式（一屏两页）
+    doublePageMode?: boolean
+    // 阅读器底部进度条显示
+    showReaderProgress?: boolean
 }

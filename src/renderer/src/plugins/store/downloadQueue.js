@@ -79,6 +79,21 @@ export function resumeTask(id) {
   startRunner()
 }
 
+// 失败/取消的任务重新入队下载
+export function retryTask(id) {
+  const t = tasks.find((x) => x.id === id)
+  if (!t) return
+  if (!['error', 'canceled'].includes(t.status)) return
+  t._pause = false
+  t._cancel = false
+  // pornhub 入队时解析的直链有时效，重试时清空让其重新解析，避免再次因过期失败
+  if (t.site === 'pornhub' && t.payload) {
+    t.payload.videoUrl = undefined
+  }
+  updateTask(t, { status: 'pending', errorMessage: undefined, progress: {} })
+  startRunner()
+}
+
 export function cancelTask(id) {
   const t = tasks.find((x) => x.id === id)
   if (!t) return
@@ -188,6 +203,10 @@ async function runJmtt(task) {
       // 取消不提示
       return
     }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    }
   } finally {
     // 章间暂停 5s 避免频繁请求
     await new Promise((r) => setTimeout(r, 5000))
@@ -212,6 +231,7 @@ async function runPixiv(task) {
       } catch (error) {
         console.log('🚀 ~ runPixiv ~ error:', error)
         updateTask(task, { progress: { fail: 1, total: 1 } })
+        throw error
       }
     }
     // 0：插画，1：漫画 下载
@@ -243,6 +263,10 @@ async function runPixiv(task) {
       updateTask(task, { status: 'canceled' })
       // 取消不提示
       return
+    }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
     }
   }
 }
@@ -312,6 +336,10 @@ async function runTwitter(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    }
   }
 }
 async function runWeibo(task) {
@@ -361,6 +389,10 @@ async function runWeibo(task) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       return
+    }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
     }
   }
 }
@@ -500,6 +532,10 @@ async function runPicaman(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    }
   }
 }
 
@@ -530,6 +566,7 @@ async function runYfantasy(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
   }
 }
 
@@ -573,6 +610,10 @@ async function run4khd(task) {
     if (task._cancel) {
       updateTask(task, { status: 'canceled' })
       return
+    }
+    // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
+    if (task.status !== 'existed') {
+      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
     }
   }
 }
@@ -733,6 +774,7 @@ export const queue = {
   addTask,
   pauseTask,
   resumeTask,
+  retryTask,
   cancelTask,
   deleteTask,
   clearCompletedTask,

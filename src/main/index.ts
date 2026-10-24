@@ -1316,22 +1316,25 @@ app.on('window-all-closed', () => {
  * 处理窗口关闭行为：根据配置决定是最小化到托盘还是退出
  */
 function handleWindowClose(): void {
+  const config = readCloseConfig()
+
+  // 用户已选择「最小化到托盘」且不再提醒：直接最小化到托盘即可，
+  // 下载任务不受影响，无需再弹任何确认（包括有活跃下载任务时的退出确认）
+  if (config.dontRemind && config.closeToTray) {
+    mainWindow.hide()
+    return
+  }
+
   // 有活跃下载任务时，先让渲染进程弹出二次确认（退出会中断下载）
   if (getActiveDownloadCount() > 0) {
     mainWindow.webContents.send('show-download-close-dialog', getActiveDownloadCount())
     return
   }
 
-  const config = readCloseConfig()
-
   if (config.dontRemind) {
-    // 用户选择了不再提醒，直接按保存的偏好执行
-    if (config.closeToTray) {
-      mainWindow.hide()
-    } else {
-      isQuitting = true
-      app.quit()
-    }
+    // 用户选择了不再提醒且偏好为直接退出，按保存的偏好执行
+    isQuitting = true
+    app.quit()
     return
   }
 

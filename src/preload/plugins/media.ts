@@ -77,15 +77,37 @@ function determineMediaType(files: FileInfo[]): 'image' | 'video' | 'mixed' | 'e
     return 'unknown'
 }
 
+/**
+ * 可直接作为作品打开的文件扩展名。
+ * 书架（文件夹模块）现在会列出散图等单文件条目，
+ * 收藏/历史等聚合视图对这类路径调用 getFolderInfo 时需兼容返回文件信息。
+ */
+const DIRECT_FILE_EXTENSIONS = [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS, '.pdf', '.epub']
+
+/**
+ * 判断路径是否为受支持的媒体/文档文件
+ */
+function isMediaFilePath(p: string): boolean {
+    const dot = p.lastIndexOf('.')
+    if (dot === -1) return false
+    return DIRECT_FILE_EXTENSIONS.includes(p.substring(dot).toLowerCase())
+}
+
 async function getFolderInfo(path: string, sortOptions?: SortOptions): Promise<FolderInfo> {
     try {
+        // 文件路径（如书架散图）：返回文件信息，封面即自身路径
+        if (isMediaFilePath(path)) {
+            return await getFileInfo(path)
+        }
         // 先获取文件夹信息
         const folder = await File.getFolderInfo(path)
         // 在获取内部文件列表
         let files = await getFiles(path, sortOptions)
         // 判断文件夹类型
         const contentType = determineMediaType(files)
-        const coverPath = files[0]?.fullPath
+        // 封面优先取第一张图片：混合内容文件夹按名称排序的首个文件可能是视频等非图片
+        const firstImage = files.find((f) => isImageFile(f))
+        const coverPath = (firstImage || files[0])?.fullPath
         return {
             ...folder,
             fileCount: files.length,

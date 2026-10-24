@@ -6,7 +6,7 @@ export default [
             {
                 path: '/',
                 name: "book",
-                component: () => import('@renderer/views/book/index.vue'),
+                component: () => import('@renderer/views/library/index.vue'),
                 meta: {
                     title: "书架",
                     keepAlive: true
@@ -25,7 +25,7 @@ export default [
             {
                 path: '/video',
                 name: "video",
-                component: () => import('@renderer/views/video/index.vue'),
+                component: () => import('@renderer/views/library/index.vue'),
             },
 
             {
