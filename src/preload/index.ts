@@ -25,6 +25,7 @@ import videoCover from './plugins/video-cover'
 import videoTranscoder from './plugins/video-transcoder'
 import missav from './plugins/missav'
 import huangguo from './plugins/downloader/huangguo'
+import fanqie from './plugins/fanqie'
 import pornhub from './plugins/downloader/pornhub'
 import rating from './plugins/rating'
 
@@ -102,6 +103,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('videoTranscoder', videoTranscoder)
     contextBridge.exposeInMainWorld('missav', missav)
     contextBridge.exposeInMainWorld('huangguo', huangguo)
+    contextBridge.exposeInMainWorld('fanqie', fanqie)
     contextBridge.exposeInMainWorld('pornhub', pornhub)
     contextBridge.exposeInMainWorld('rating', rating)
   } catch (error) {

@@ -85,6 +85,15 @@ export default [
                             keepAlive: true
                         }
                     },
+                    {
+                        path: 'fanqie',
+                        name: "fanqie",
+                        component: () => import('@renderer/views/site/fanqie.vue'),
+                        meta: {
+                            title: "番茄短剧",
+                            keepAlive: true
+                        }
+                    },
                 ]
             }
         ],

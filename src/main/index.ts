@@ -10,10 +10,12 @@ import {
   screen,
   Tray,
   Menu,
-  nativeImage
+  nativeImage,
+  protocol
 } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { pathToFileURL } from 'url'
 import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
@@ -47,6 +49,30 @@ import {
   getSubtitleDataDir
 } from './services/subtitle-config'
 import { getBinaryStatus, downloadWhisper, downloadFfmpeg } from './services/binary-manager'
+
+// ========== 番茄短剧：缓存目录与 fqvideo:// 播放协议 ==========
+// 短剧缓存 mp4 的播放地址（dev 模式渲染页为 http 源，file:// 会被拦截，
+// 统一走特权协议；handler 校验路径必须位于缓存目录内）
+const FANQIE_CACHE_DIR = () => path.join(app.getPath('userData'), 'fanqie-cache')
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'fqvideo',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
+
+function registerFanqieProtocol(): void {
+  protocol.handle('fqvideo', (request) => {
+    const encoded = request.url.replace(/^fqvideo:\/\/cache\//, '')
+    const filePath = decodeURIComponent(encoded)
+    const root = path.resolve(FANQIE_CACHE_DIR())
+    if (!path.resolve(filePath).startsWith(root + path.sep)) {
+      return new Response('forbidden', { status: 403 })
+    }
+    return net.fetch(pathToFileURL(filePath).toString())
+  })
+}
+
 import { translateText, translateSegments, clearTranslateCache } from './services/translate-service'
 import {
   getAllTranslateModels,
@@ -251,6 +277,10 @@ app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // ========== 番茄短剧：播放协议与缓存目录 IPC ==========
+  registerFanqieProtocol()
+  ipcMain.handle('fanqie:get-cache-dir', () => FANQIE_CACHE_DIR())
 
   // ========== 初始化 @electron/llm（本地 LLM 翻译，自动安装） ==========
   try {

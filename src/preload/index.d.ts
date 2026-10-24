@@ -453,6 +453,80 @@ declare global {
         callback: (progress: { type: string; [key: string]: unknown }) => void
       ) => () => void
     }
+    fanqie: {
+      /** 搜索短剧（offset 翻页，每页 20 条，返回 seriesId 与展示信息；空数组即到底） */
+      search: (
+        query: string,
+        offset?: number
+      ) => Promise<
+        Array<{
+          bookId: string
+          title: string
+          subtitle?: string
+          abstract?: string
+          category?: string
+          coverUrl?: string
+          episodeCount?: number
+          tagText?: string
+          tagColors?: [string, string]
+        }>
+      >
+      /** 漫剧首页 feed（"值得一看的漫剧"）：内部游标分页，首次调用拉第一页、
+       *  后续调用自动翻页，到底返回空数组；重新开始前先 resetLatest */
+      latest: () => Promise<
+        Array<{
+          bookId: string
+          title: string
+          subtitle?: string
+          abstract?: string
+          category?: string
+          coverUrl?: string
+          episodeCount?: number
+          tagText?: string
+          tagColors?: [string, string]
+        }>
+      >
+      /** 重置漫剧 feed 会话（重新进入"最新"tab 时调用） */
+      resetLatest: () => void
+      /** 系列详情：标题 + 剧集表（videoId 即 all_items 的 item_id） */
+      getSeries: (
+        seriesId: string,
+        titleHint?: string
+      ) => Promise<{
+        seriesId: string
+        title: string
+        episodes: Array<{ videoId: string; title: string; index: number }>
+      }>
+      /** 准备某集播放：缓存命中直接返回，否则下载+解密+缓存 */
+      ensureEpisode: (
+        seriesId: string,
+        videoId: string,
+        episodeIndex?: number,
+        onProgress?: (p: {
+          stage: 'resolve' | 'download' | 'decrypt' | 'done'
+          got?: number
+          total?: number
+        }) => void
+      ) => Promise<{ url: string; path: string; codec: string }>
+      /** 预取下一集（后台静默，失败忽略） */
+      prefetchEpisode: (seriesId: string, videoId: string, episodeIndex?: number) => void
+      /** 设备状态（registered=false 或 cooldown=true 时 UI 提示重试） */
+      getDeviceStatus: () => Promise<{
+        registered: boolean
+        cooldown: boolean
+        deviceId?: string
+      }>
+      /** 重置设备并重新注册 */
+      resetDevice: () => Promise<void>
+      /** 某集是否已缓存 */
+      hasEpisode: (seriesId: string, videoId: string) => Promise<boolean>
+      /** 缓存统计与清理 */
+      getCacheSize: () => Promise<number>
+      clearCache: () => Promise<void>
+      /** 本地路径 → fqvideo:// 播放地址 */
+      toPlayUrl: (filePath: string) => string
+      getCacheDir: () => Promise<string>
+    }
     pornhub: {
       getVideoInfo: (pageUrl: string) => Promise<{
         success: boolean

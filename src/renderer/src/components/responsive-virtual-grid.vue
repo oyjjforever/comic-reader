@@ -60,17 +60,17 @@ const screenWidth = ref(window.innerWidth)
 const itemWidth = computed(() => {
   // 根据屏幕宽度计算合适的项目宽度
   if (screenWidth.value < 640) {
-    return Math.max(props.minItemWidth, 140)
+    return Math.min(Math.max(props.minItemWidth, 140), props.maxItemWidth)
   } else if (screenWidth.value < 768) {
-    return Math.max(props.minItemWidth, 160)
+    return Math.min(Math.max(props.minItemWidth, 160), props.maxItemWidth)
   } else if (screenWidth.value < 1024) {
-    return Math.max(props.minItemWidth, 180)
+    return Math.min(Math.max(props.minItemWidth, 180), props.maxItemWidth)
   } else if (screenWidth.value < 1280) {
-    return Math.max(props.minItemWidth, 210)
+    return Math.min(Math.max(props.minItemWidth, 210), props.maxItemWidth)
   } else if (screenWidth.value < 1480) {
-    return Math.max(props.minItemWidth, 220)
+    return Math.min(Math.max(props.minItemWidth, 220), props.maxItemWidth)
   } else {
-    return Math.max(props.minItemWidth, 240)
+    return Math.min(Math.max(props.minItemWidth, 240), props.maxItemWidth)
   }
 })
 

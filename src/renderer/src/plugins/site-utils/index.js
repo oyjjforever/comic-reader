@@ -8,6 +8,7 @@ import PornhubUtil from './pornhub.js'
 import YfantasyUtil from './yfantasy.js'
 import FourkhdUtil from './4khd.js'
 import HuangguoUtil from './huangguo.js'
+import FanqieUtil from './fanqie.js'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -20,6 +21,8 @@ import yfantasyImg from '@renderer/assets/icon.png'
 import fourkhdImg from '@renderer/assets/4khd.png'
 // huangguo 站点图标
 import huangguoImg from '@renderer/assets/huangguo.png'
+// fanqie 站点图标
+import fanqieImg from '@renderer/assets/fanqie.png'
 const settingStore = useSettingStore(pinia)
 
 // 站点配置映射，以站点类型为键
@@ -68,6 +71,11 @@ const sites = {
     util: HuangguoUtil,
     icon: huangguoImg,
     downloadPathSetting: 'downloadPathHuangguo'
+  },
+  fanqie: {
+    util: FanqieUtil,
+    icon: fanqieImg,
+    downloadPathSetting: 'defaultDownloadPath'
   }
 }
 

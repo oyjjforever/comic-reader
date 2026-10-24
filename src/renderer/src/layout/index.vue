@@ -270,6 +270,8 @@ import yfantasyImg from '@renderer/assets/yfantasy.png'
 // 4khd 站点图标
 import fourkhdImg from '@renderer/assets/4khd.png'
 import missavImg from '@renderer/assets/missav.png'
+// 番茄短剧站点图标
+import fanqieImg from '@renderer/assets/fanqie.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import AboutDialog from '@renderer/components/about-dialog.vue'
@@ -355,7 +357,8 @@ const menuItems = [
 const routeMenuConfig = [
   { image: missavImg, name: 'missav', label: 'MISSAV' },
   { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
-  { image: fourkhdImg, name: '4khd', label: '4KHD' }
+  { image: fourkhdImg, name: '4khd', label: '4KHD' },
+  { image: fanqieImg, name: 'fanqie', label: '番茄短剧' }
 ]
 
 // 站点列表配置（二级菜单）
