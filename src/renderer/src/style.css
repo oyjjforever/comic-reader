@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 圆角无边框窗口：主布局挂载后会给 body 加 rounded-window 类。
+   在 body 层做圆角裁剪，页面内容及所有传送到 body 的浮层
+   （弹窗遮罩、消息提示、右键菜单等）都不会越出窗口圆角 */
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+body.rounded-window {
+  border-radius: 12px;
+  clip-path: inset(0 round 12px);
+}
+
+/* 全屏/最大化时取消圆角，避免屏幕四角出现透明缺口 */
+body.rounded-window.is-fullscreen {
+  border-radius: 0;
+  clip-path: none;
+}

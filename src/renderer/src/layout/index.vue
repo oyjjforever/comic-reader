@@ -518,11 +518,25 @@ function onDownloadCloseExit() {
 
 let removeCloseDialogListener: (() => void) | null = null
 let removeDownloadCloseDialogListener: (() => void) | null = null
+let removeShapeListener: (() => void) | null = null
 
 const isScreenFull = ref(false)
+// 全屏/最大化时移除窗口圆角，避免屏幕四角出现透明缺口
+watch(isScreenFull, (full) => {
+  document.body.classList.toggle('is-fullscreen', full)
+})
 onMounted(async () => {
-  // 渲染进程加载完成后，主动发起请求获取窗口大小
-  isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
+  // 标记当前窗口为圆角窗口，启用 body 级圆角裁剪（见 style.css）
+  document.body.classList.add('rounded-window')
+  // 渲染进程加载完成后，主动发起请求获取窗口全屏状态
+  isScreenFull.value = !!(await window.electron.ipcRenderer.invoke('get-window-size'))
+  // 全屏/最大化状态由主进程推送同步（window-max/window-unmax 及系统快捷键等途径）
+  removeShapeListener = window.electron.ipcRenderer.on(
+    'window-shape-changed',
+    (_e, full: boolean) => {
+      isScreenFull.value = !!full
+    }
+  )
   // 应用启动时初始化新作品检测和自动备份
   window.electron.ipcRenderer.invoke('update:check')
   // 启动剪切板监听
@@ -575,6 +589,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.body.classList.remove('rounded-window', 'is-fullscreen')
+  if (removeShapeListener) {
+    removeShapeListener()
+    removeShapeListener = null
+  }
   if (sitesHoverTimer) {
     clearTimeout(sitesHoverTimer)
     sitesHoverTimer = null
@@ -597,9 +616,15 @@ $background-color: #322f3b;
   height: 100vh;
   width: 100vw;
   background: #f5f5f5;
-  // border-radius: 24px;
+  // 与 body 圆角（style.css 中 body.rounded-window）保持一致，裁剪内部内容
+  border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+// 全屏/最大化时取消圆角（body 上会同步添加 is-fullscreen 类）
+body.is-fullscreen .layout-container {
+  border-radius: 0;
 }
 
 .sidebar {
