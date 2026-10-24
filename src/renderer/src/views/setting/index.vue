@@ -6,6 +6,11 @@
         <GeneralSettings v-model="formData" />
       </n-tab-pane>
 
+      <!-- 阅读设置 -->
+      <n-tab-pane name="reading" tab="阅读设置">
+        <ReadingSettings v-model="formData" />
+      </n-tab-pane>
+
       <!-- 剪切板设置 -->
       <n-tab-pane name="clipboard" tab="剪切板设置">
         <ClipboardSettings v-model="formData" />
@@ -46,6 +51,7 @@ import { useMessage } from 'naive-ui'
 import { useSettingStore } from '../../plugins/store'
 import { setting } from '../../../../typings/setting'
 import GeneralSettings from './tabs/GeneralSettings.vue'
+import ReadingSettings from './tabs/ReadingSettings.vue'
 import ClipboardSettings from './tabs/ClipboardSettings.vue'
 import ResourceSettings from './tabs/ResourceSettings.vue'
 import DownloadSettings from './tabs/DownloadSettings.vue'
@@ -69,9 +75,16 @@ onMounted(async () => {
   const tabFromQuery = route.query.tab as string
   if (
     tabFromQuery &&
-    ['general', 'clipboard', 'resource', 'download', 'database', 'lanService', 'subtitle'].includes(
-      tabFromQuery
-    )
+    [
+      'general',
+      'reading',
+      'clipboard',
+      'resource',
+      'download',
+      'database',
+      'lanService',
+      'subtitle'
+    ].includes(tabFromQuery)
   ) {
     activeTab.value = tabFromQuery
   }

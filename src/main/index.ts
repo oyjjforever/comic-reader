@@ -121,40 +121,12 @@ function getActiveDownloadCount(): number {
 }
 
 /**
- * 关闭行为配置（持久化到 userData 目录）
+ * 关闭行为偏好（已合并到数据库 setting）：
+ * 主进程仅缓存渲染层同步的最新值，供窗口关闭时同步判断
  */
-interface CloseConfig {
-  closeToTray: boolean
-  dontRemind: boolean
-}
-
-function getCloseConfigPath(): string {
-  return path.join(app.getPath('userData'), 'close-config.json')
-}
-
-function readCloseConfig(): CloseConfig {
-  try {
-    const configPath = getCloseConfigPath()
-    if (fs.existsSync(configPath)) {
-      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      return {
-        closeToTray: data.closeToTray ?? true,
-        dontRemind: data.dontRemind ?? false
-      }
-    }
-  } catch (e) {
-    log.warn('[Main] Failed to read close config:', e)
-  }
-  return { closeToTray: true, dontRemind: false }
-}
-
-function writeCloseConfig(config: CloseConfig): void {
-  try {
-    const configPath = getCloseConfigPath()
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
-  } catch (e) {
-    log.warn('[Main] Failed to write close config:', e)
-  }
+let closeSettingCache: { closeToTray: boolean; dontRemind: boolean } = {
+  closeToTray: true,
+  dontRemind: false
 }
 
 function createTray(): void {
@@ -501,18 +473,16 @@ app.whenReady().then(async () => {
     }
   )
 
-  // 关闭配置 IPC
-  ipcMain.handle('close-config:get', () => {
-    return readCloseConfig()
-  })
-
-  ipcMain.handle('close-config:set', (_event, config: CloseConfig) => {
-    writeCloseConfig(config)
-  })
-
-  ipcMain.handle('close-config:reset', () => {
-    writeCloseConfig({ closeToTray: true, dontRemind: false })
-  })
+  // 关闭偏好 IPC：渲染层推送数据库 setting 中的最新值（镜像）
+  ipcMain.on(
+    'close-setting:sync',
+    (_e, setting: { closeToTray?: boolean; dontRemind?: boolean }) => {
+      closeSettingCache = {
+        closeToTray: !!setting?.closeToTray,
+        dontRemind: !!setting?.dontRemind
+      }
+    }
+  )
 
   // ========== 字幕相关 IPC ==========
 
@@ -1313,10 +1283,11 @@ app.on('window-all-closed', () => {
 })
 
 /**
- * 处理窗口关闭行为：根据配置决定是最小化到托盘还是退出
+ * 处理窗口关闭行为：根据关闭偏好决定是最小化到托盘还是退出
+ * （偏好存于数据库 setting，由渲染层通过 close-setting:sync 镜像到主进程）
  */
 function handleWindowClose(): void {
-  const config = readCloseConfig()
+  const config = closeSettingCache
 
   // 用户已选择「最小化到托盘」且不再提醒：直接最小化到托盘即可，
   // 下载任务不受影响，无需再弹任何确认（包括有活跃下载任务时的退出确认）
@@ -1342,18 +1313,11 @@ function handleWindowClose(): void {
   mainWindow.webContents.send('show-close-dialog')
 }
 
-// 接收渲染进程的关闭对话框响应
+// 接收渲染进程的关闭对话框响应（偏好持久化由渲染层写入数据库 setting）
 ipcMain.handle(
   'close-dialog-response',
   (_event, response: { closeToTray: boolean; dontRemind: boolean }) => {
-    const { closeToTray, dontRemind } = response
-
-    // 保存用户选择
-    if (dontRemind) {
-      writeCloseConfig({ closeToTray, dontRemind: true })
-    }
-
-    if (closeToTray) {
+    if (response.closeToTray) {
       mainWindow.hide()
     } else {
       isQuitting = true

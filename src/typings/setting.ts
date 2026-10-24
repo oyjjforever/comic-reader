@@ -52,4 +52,10 @@ export type setting = {
     doublePageMode?: boolean
     // 阅读器底部进度条显示
     showReaderProgress?: boolean
+    // 阅读器自动播放间隔（秒）
+    autoPlayInterval?: number
+    // 关闭时最小化到托盘（原 close-config.json，已合并入库）
+    closeToTray?: boolean
+    // 关闭时不再提醒（原 close-config.json，已合并入库）
+    dontRemind?: boolean
 }

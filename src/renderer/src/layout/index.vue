@@ -282,6 +282,19 @@ const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
 
+// 关闭偏好镜像：数据库 setting 中的 closeToTray/dontRemind 推送给主进程，
+// 供窗口关闭时同步判断（挂载时立即推一次，之后随设置变化推送）
+watch(
+  () => [settingStore.setting.closeToTray, settingStore.setting.dontRemind],
+  () => {
+    window.electron.ipcRenderer.send('close-setting:sync', {
+      closeToTray: settingStore.setting.closeToTray,
+      dontRemind: settingStore.setting.dontRemind
+    })
+  },
+  { immediate: true }
+)
+
 // ===== 站点动态组件管理 =====
 const siteInstances = reactive<Record<string, boolean>>({})
 const activeSite = ref<string>('')
@@ -490,11 +503,18 @@ function onCloseDialogCancel() {
 
 function onCloseDialogTray() {
   closeDialogVisible.value = false
+  // 勾选「不再提醒」时将选择持久化到设置（主进程镜像随上面的 watch 同步更新）
+  if (closeDontRemind.value) {
+    settingStore.setSetting({ ...settingStore.setting, closeToTray: true, dontRemind: true })
+  }
   window.closeConfig.respond({ closeToTray: true, dontRemind: closeDontRemind.value })
 }
 
 function onCloseDialogExit() {
   closeDialogVisible.value = false
+  if (closeDontRemind.value) {
+    settingStore.setSetting({ ...settingStore.setting, closeToTray: false, dontRemind: true })
+  }
   window.closeConfig.respond({ closeToTray: false, dontRemind: closeDontRemind.value })
 }
 

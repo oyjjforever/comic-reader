@@ -50,9 +50,6 @@ const windowManager = {
 
 // 关闭行为配置 IPC 桥接
 const closeConfig = {
-  get: (): Promise<{ closeToTray: boolean; dontRemind: boolean }> => ipcRenderer.invoke('close-config:get'),
-  set: (config: { closeToTray: boolean; dontRemind: boolean }) => ipcRenderer.invoke('close-config:set', config),
-  reset: () => ipcRenderer.invoke('close-config:reset'),
   respond: (response: { closeToTray: boolean; dontRemind: boolean }) => ipcRenderer.invoke('close-dialog-response', response),
   onShowDialog: (callback: () => void) => {
     ipcRenderer.on('show-close-dialog', callback)

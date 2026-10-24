@@ -51,7 +51,7 @@ import imageReader from './type/image.vue'
 import pdfReader from './type/pdf.vue'
 import videoReader from './type/video/index.vue'
 import readerControls from './reader-controls.vue'
-import { showProgressBar, doublePageMode, setShowReaderProgress, setDoublePageMode } from './reader-state'
+import { showProgressBar, doublePageMode, setShowReaderProgress, setDoublePageMode, autoPlayInterval } from './reader-state'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
 
@@ -79,7 +79,6 @@ const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.sv
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
-const AUTO_PLAY_INTERVAL = 3000
 const readerComponent = computed(() => {
   if (IMAGE_EXTENSIONS.includes(currentFile.value.extension)) return imageReader
   else if (currentFile.value.extension === '.pdf') return pdfReader
@@ -286,20 +285,30 @@ const toggleAutoPlay = () => {
 const toggleProgressBar = () => {
   setShowReaderProgress(!showProgressBar.value)
 }
-const startAutoPlay = () => {
-  if (page.index >= page.total - 1) {
-    page.index = 0
-  }
-
-  isAutoPlaying.value = true
+const startAutoPlayTimer = () => {
   autoPlayTimer.value = setInterval(() => {
     if (page.index < page.total - 1) {
       nextPage()
     } else {
       stopAutoPlay()
     }
-  }, AUTO_PLAY_INTERVAL)
+  }, autoPlayInterval.value)
 }
+const startAutoPlay = () => {
+  if (page.index >= page.total - 1) {
+    page.index = 0
+  }
+
+  isAutoPlaying.value = true
+  startAutoPlayTimer()
+}
+// 播放中修改间隔设置立即生效
+watch(autoPlayInterval, () => {
+  if (isAutoPlaying.value && autoPlayTimer.value) {
+    clearInterval(autoPlayTimer.value)
+    startAutoPlayTimer()
+  }
+})
 const stopAutoPlay = () => {
   isAutoPlaying.value = false
   if (autoPlayTimer.value) {

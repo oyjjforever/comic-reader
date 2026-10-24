@@ -51,20 +51,6 @@
       </n-input-number>
     </n-form-item>
 
-    <n-form-item path="doublePageMode" label="漫画双页模式（一屏两页）">
-      <n-switch
-        :value="modelValue.doublePageMode"
-        @update:value="(value) => updateSetting('doublePageMode', value)"
-      />
-    </n-form-item>
-
-    <n-form-item path="showReaderProgress" label="显示阅读器进度条">
-      <n-switch
-        :value="modelValue.showReaderProgress"
-        @update:value="(value) => updateSetting('showReaderProgress', value)"
-      />
-    </n-form-item>
-
     <n-form-item path="enableAuthorUpdateCheck" label="特别关注更新通知">
       <n-switch
         :value="modelValue.enableAuthorUpdateCheck"
@@ -72,17 +58,17 @@
       />
     </n-form-item>
 
-    <n-form-item label="关闭时最小化到托盘">
+    <n-form-item path="closeToTray" label="关闭时最小化到托盘">
       <n-switch
-        :value="closeConfigData.closeToTray"
-        @update:value="(value) => updateCloseConfig('closeToTray', value)"
+        :value="modelValue.closeToTray"
+        @update:value="(value) => updateSetting('closeToTray', value)"
       />
     </n-form-item>
 
-    <n-form-item label="关闭时不再提醒">
+    <n-form-item path="dontRemind" label="关闭时不再提醒">
       <n-switch
-        :value="closeConfigData.dontRemind"
-        @update:value="(value) => updateCloseConfig('dontRemind', value)"
+        :value="modelValue.dontRemind"
+        @update:value="(value) => updateSetting('dontRemind', value)"
       />
     </n-form-item>
 
@@ -93,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, watch, onMounted } from 'vue'
+import { defineProps, defineEmits, watch } from 'vue'
 import { setting } from '../../../../../typings/setting'
 
 const props = defineProps<{
@@ -126,41 +112,4 @@ watch(
     }
   }
 )
-
-// 关闭行为配置
-const closeConfigData = ref<{ closeToTray: boolean; dontRemind: boolean }>({
-  closeToTray: true,
-  dontRemind: false
-})
-
-const loadCloseConfig = async () => {
-  try {
-    const config = await window.closeConfig.get()
-    closeConfigData.value = config
-  } catch (e) {
-    console.error('获取关闭配置失败:', e)
-  }
-}
-
-const updateCloseConfig = async (key: 'closeToTray' | 'dontRemind', value: boolean) => {
-  closeConfigData.value[key] = value
-  try {
-    await window.closeConfig.set({ ...closeConfigData.value })
-  } catch (e) {
-    console.error('保存关闭配置失败:', e)
-  }
-}
-
-const resetCloseConfig = async () => {
-  try {
-    await window.closeConfig.reset()
-    closeConfigData.value = { closeToTray: true, dontRemind: false }
-  } catch (e) {
-    console.error('重置关闭配置失败:', e)
-  }
-}
-
-onMounted(() => {
-  loadCloseConfig()
-})
 </script>
