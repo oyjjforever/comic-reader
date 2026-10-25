@@ -15,7 +15,7 @@ import {
 } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { pathToFileURL } from 'url'
+import { Readable } from 'stream'
 import { spawn, execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '/resources/icon.png?asset'
@@ -62,14 +62,50 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 function registerFanqieProtocol(): void {
-  protocol.handle('fqvideo', (request) => {
+  protocol.handle('fqvideo', async (request) => {
     const encoded = request.url.replace(/^fqvideo:\/\/cache\//, '')
     const filePath = decodeURIComponent(encoded)
     const root = path.resolve(FANQIE_CACHE_DIR())
     if (!path.resolve(filePath).startsWith(root + path.sep)) {
       return new Response('forbidden', { status: 403 })
     }
-    return net.fetch(pathToFileURL(filePath).toString())
+    // 必须支持 Range 请求并带 Content-Type/Length：<video> 的进度条拖动
+    // （seek）依赖 206 分片响应，整文件 200 会被媒体栈判定为不可 seek
+    let size: number
+    try {
+      size = (await fs.promises.stat(filePath)).size
+    } catch {
+      return new Response('not found', { status: 404 })
+    }
+    const baseHeaders: Record<string, string> = {
+      'Content-Type': 'video/mp4',
+      'Accept-Ranges': 'bytes'
+    }
+    const rangeMatch = request.headers.get('range')?.match(/bytes=(\d*)-(\d*)/)
+    if (rangeMatch) {
+      const start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0
+      const end = Math.min(rangeMatch[2] ? parseInt(rangeMatch[2], 10) : size - 1, size - 1)
+      if (start >= size || start > end) {
+        return new Response(null, {
+          status: 416,
+          headers: { 'Content-Range': `bytes */${size}` }
+        })
+      }
+      const nodeStream = fs.createReadStream(filePath, { start, end })
+      return new Response(Readable.toWeb(nodeStream) as ReadableStream, {
+        status: 206,
+        headers: {
+          ...baseHeaders,
+          'Content-Length': String(end - start + 1),
+          'Content-Range': `bytes ${start}-${end}/${size}`
+        }
+      })
+    }
+    const nodeStream = fs.createReadStream(filePath)
+    return new Response(Readable.toWeb(nodeStream) as ReadableStream, {
+      status: 200,
+      headers: { ...baseHeaders, 'Content-Length': String(size) }
+    })
   })
 }
 

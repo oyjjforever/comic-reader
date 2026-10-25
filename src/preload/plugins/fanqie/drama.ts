@@ -6,7 +6,7 @@ import { httpReq, downloadBuffer } from './http';
 import { sha512Buf, aesCbcDecrypt } from './crypto';
 import { pkcs7Unpad } from './crypto';
 import { fetchMobileCatalog } from './catalog';
-import { putDramaEpisode, hasDramaEpisode, getDramaCodec, getDramaPath } from './cache';
+import { putDramaEpisode, hasDramaEpisode, getDramaCodec, getDramaPath, deleteDramaEpisode } from './cache';
 
 /**
  * 短剧 API（自 fq-reader-chrome src/shared/api/drama.ts 移植，
@@ -476,6 +476,11 @@ export function prefetchEpisode(seriesId: string, videoId: string, episodeIndex 
     void ensureEpisodeFile(seriesId, videoId, episodeIndex).catch(() => undefined);
 }
 
+/** 删除单集缓存（播放失败自愈用） */
+export function deleteEpisodeCache(seriesId: string, videoId: string): void {
+    deleteDramaEpisode(seriesId, videoId);
+}
+
 // ---------------------------------------------------------------------------
 // 漫剧首页 feed（fqapp home.rs 两段式：bookmall/tab 开 cell → cell/change 拉流）
 // ---------------------------------------------------------------------------
@@ -682,3 +687,52 @@ export async function fetchManjuFeed(): Promise<DramaSearchResult[]> {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// 相关系列（同作品的其它季）：fqapp series_related（plan/v scene=10）
+// ---------------------------------------------------------------------------
+
+export interface RelatedSeason {
+    bookId: string;
+    title: string;
+    /** 季名（部分响应为空，标题本身带"第X季"后缀） */
+    alias?: string;
+    episodeCount?: number;
+}
+
+/** 取同作品的其它季（filter_ids 排除自身；实测多季作品互查正常，单季作品返回空） */
+export async function fetchRelatedSeasons(seriesId: string): Promise<RelatedSeason[]> {
+    const dev = await mobileApi.ensureDevice();
+    const params: Array<[string, string]> = [
+        ...reading724Params(),
+        ['scene', '10'], ['from', 'series_short_play_info'],
+        ['book_id', seriesId], ['filter_ids', seriesId]
+    ];
+    const filled = params.map(([k, v]) =>
+        [k, k === 'device_id' ? dev.deviceId : k === 'iid' ? dev.iid : v] as [string, string]);
+    const qs = filled.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    const resp = await httpReq('GET', `${FQ_HOST}/reading/bookapi/plan/v?${qs}`,
+        { 'User-Agent': 'com.dragon.read', ...generateSignHeaders(qs, null) });
+    if (resp.body.length === 0) { return []; }
+    const json = JSON.parse(resp.body.toString('utf8')) as unknown;
+    const vds: Array<Record<string, unknown>> = [];
+    collectFeedCells(json, 0, vds);
+    const out: RelatedSeason[] = [];
+    const seen = new Set<string>([seriesId]);
+    for (const cell of vds) {
+        for (const vd of cell.video_data as Array<Record<string, unknown>>) {
+            const bookId = String(vd.series_id_str ?? vd.series_id ?? '');
+            const title = String(vd.title ?? '').replace(/<[^>]+>/g, '');
+            if (!bookId || !title || seen.has(bookId)) { continue; }
+            seen.add(bookId);
+            const epCnt = Number(vd.episode_cnt ?? 0);
+            out.push({
+                bookId,
+                title,
+                alias: String(vd.alias_name ?? '') || undefined,
+                episodeCount: epCnt > 0 ? epCnt : undefined
+            });
+        }
+    }
+    return out;
+}

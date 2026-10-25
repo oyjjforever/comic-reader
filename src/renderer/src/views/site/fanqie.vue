@@ -188,6 +188,19 @@
               </div>
             </div>
           </div>
+          <!-- 季切换（多季系列显示） -->
+          <div v-if="detail.seasons.length > 1" class="fq-detail__seasons">
+            <button
+              v-for="sn in detail.seasons"
+              :key="sn.bookId"
+              class="fq-season"
+              :class="{ 'fq-season--active': sn.bookId === detail.bookId }"
+              :title="sn.title"
+              @click="openSeason(sn)"
+            >
+              {{ seasonLabel(sn) }}
+            </button>
+          </div>
           <div class="fq-detail__eps-title">共 {{ detail.episodes.length }} 集</div>
           <div class="fq-detail__eps">
             <button
@@ -287,11 +300,22 @@ interface ShelfBook {
   coverUrl?: string
   episodeCount?: number
   tagText?: string
-  tagColors?: [string, string]
+  /** JSON 字符串 [from, to]（fanqie_shelf.tag_colors 列） */
+  tagColors?: string
   /** 上次看到第几集（0 起）；时间点（秒） */
   lastEpisodeIndex?: number
   lastTime?: number
+  /** 系列各季（含自身；fanqie_shelf.seasons JSON 解析） */
+  seasons?: SeasonEntry[]
   updatedAt: number
+}
+
+/** 系列中的一季（书架行按系列存储，进度按季记录） */
+interface SeasonEntry {
+  bookId: string
+  title: string
+  lastEpisodeIndex?: number
+  lastTime?: number
 }
 
 interface GridCard {
@@ -370,28 +394,55 @@ const searchResults = ref<GridCard[]>([])
 const latestResults = ref<GridCard[]>([])
 const gridRef = ref<any>(null)
 
-const SHELF_KEY = 'fanqie:shelf'
-const shelf = ref<ShelfBook[]>(loadShelf())
+// 书架存 sqlite 独立表 fanqie_shelf（API 挂 window.fanqie.shelf），shelf 仅作内存镜像
+const shelf = ref<ShelfBook[]>([])
 
-function loadShelf(): ShelfBook[] {
+async function loadShelf() {
   try {
-    const arr = JSON.parse(localStorage.getItem(SHELF_KEY) || '[]')
-    return Array.isArray(arr) ? arr : []
-  } catch {
-    return []
+    const rows = await window.fanqie.shelf.getShelf()
+    shelf.value = rows.map((b) => ({
+      ...b,
+      seasons: b.seasons ? parseSeasons(b.seasons) : undefined
+    }))
+  } catch (e) {
+    console.warn('加载番茄书架失败:', e)
   }
 }
 
-function saveShelf() {
-  localStorage.setItem(SHELF_KEY, JSON.stringify(shelf.value))
+function parseSeasons(raw?: string): SeasonEntry[] | undefined {
+  if (!raw) return undefined
+  try {
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** fanqie_shelf.tag_colors 列（JSON 字符串）→ 渐变色元组 */
+function parseTagColors(raw?: string): [string, string] | undefined {
+  if (!raw) return undefined
+  try {
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) && arr.length >= 2 ? [String(arr[0]), String(arr[1])] : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** 书架行查找：系列任一季命中（书架按系列收藏，主行 bookId 为收藏时的那季） */
+function findShelfRow(seriesId: string): ShelfBook | undefined {
+  return shelf.value.find(
+    (b) => b.bookId === seriesId || b.seasons?.some((s) => s.bookId === seriesId)
+  )
 }
 
 function getShelfBook(bookId: string): ShelfBook | undefined {
-  return shelf.value.find((b) => b.bookId === bookId)
+  return findShelfRow(bookId)
 }
 
 function isInShelf(bookId: string): boolean {
-  return !!getShelfBook(bookId)
+  return !!findShelfRow(bookId)
 }
 
 /** 封面加载失败（签名过期等）：隐藏破图，露出渐变底 */
@@ -411,7 +462,7 @@ const gridItems = computed<GridCard[]>(() => {
     coverUrl: b.coverUrl,
     episodeCount: b.episodeCount,
     tagText: b.tagText,
-    tagColors: b.tagColors,
+    tagColors: parseTagColors(b.tagColors),
     progressText:
       b.lastEpisodeIndex !== undefined
         ? `看到第 ${b.lastEpisodeIndex + 1} 集`
@@ -574,7 +625,9 @@ const detail = reactive({
   tagColors: null as [string, string] | null,
   inShelf: false,
   resumeIndex: 0 as number | undefined,
-  episodes: [] as Array<{ videoId: string; title: string; index: number; cached: boolean }>
+  episodes: [] as Array<{ videoId: string; title: string; index: number; cached: boolean }>,
+  /** 系列各季（含当前；多季时详情面板显示季切换） */
+  seasons: [] as SeasonEntry[]
 })
 
 async function openDetail(card: GridCard) {
@@ -588,13 +641,24 @@ async function openDetail(card: GridCard) {
   detail.tagText = card.tagText || ''
   detail.tagColors = card.tagColors || null
   detail.episodes = []
-  const book = getShelfBook(card.bookId)
+  const book = findShelfRow(card.bookId)
   detail.inShelf = !!book
-  detail.resumeIndex = book?.lastEpisodeIndex
+  // 续看进度优先取该季自己的记录
+  const season = book?.seasons?.find((x) => x.bookId === card.bookId)
+  detail.resumeIndex = season?.lastEpisodeIndex ?? book?.lastEpisodeIndex
+  // 季列表：书架已有则直接用，否则以当前季起步并异步补齐相关季
+  detail.seasons = book?.seasons?.length ? [...book.seasons] : []
+  if (!detail.seasons.length) {
+    detail.seasons = [{ bookId: card.bookId, title: card.title }]
+    void loadRelatedSeasons(card.bookId)
+  }
   try {
     const series = await fanqie.getSeries(card.bookId, card.title)
     if (detail.bookId !== card.bookId) return // 已切换
     detail.title = series.title
+    // 同步当前季标题到季列表
+    const self = detail.seasons.find((x) => x.bookId === card.bookId)
+    if (self) self.title = series.title
     detail.episodes = await Promise.all(
       series.episodes.map(async (ep) => ({
         ...ep,
@@ -608,11 +672,21 @@ async function openDetail(card: GridCard) {
       if (card.abstract) book.abstract = card.abstract
       if (card.tagText) {
         book.tagText = card.tagText
-        book.tagColors = card.tagColors
+        book.tagColors = card.tagColors ? JSON.stringify(card.tagColors) : undefined
       }
       book.title = series.title
       book.episodeCount = series.episodes.length || book.episodeCount
-      saveShelf()
+      window.fanqie.shelf
+        .updateBookInfo(card.bookId, {
+          title: series.title,
+          subtitle: book.subtitle,
+          abstract: card.abstract || book.abstract,
+          coverUrl: card.coverUrl || book.coverUrl,
+          episodeCount: series.episodes.length || book.episodeCount,
+          tagText: card.tagText || book.tagText,
+          tagColors: book.tagColors
+        })
+        .catch(() => undefined)
     }
   } catch (e: any) {
     message.error(e?.message || '获取剧集信息失败')
@@ -626,12 +700,90 @@ function closeDetail() {
   detail.show = false
 }
 
+/** 拉取相关季（同作品其它季）合并进详情季列表；已在书架则同步落库 */
+async function loadRelatedSeasons(seriesId: string) {
+  try {
+    const rel = await fanqie.relatedSeasons(seriesId)
+    if (detail.bookId !== seriesId) return
+    const known = new Set(detail.seasons.map((x) => x.bookId))
+    for (const r of rel) {
+      if (!known.has(r.bookId)) {
+        detail.seasons.push({ bookId: r.bookId, title: r.title })
+      }
+    }
+    // 多季排序：按"第X季"中的序数升序，无序数的排最前
+    detail.seasons.sort((a, b) => seasonOrder(a.title) - seasonOrder(b.title))
+    const book = findShelfRow(seriesId)
+    if (book) {
+      book.seasons = [...detail.seasons]
+      window.fanqie.shelf
+        .updateSeasons(book.bookId, JSON.stringify(book.seasons))
+        .catch(() => undefined)
+    }
+  } catch {
+    /* 相关季获取失败不影响详情展示 */
+  }
+}
+
+const SEASON_RE = /第([一二三四五六七八九十百0-9]+)季/
+const CN_NUM: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 }
+function seasonOrder(title: string): number {
+  const m = title.match(SEASON_RE)
+  if (!m) return 0
+  const raw = m[1]
+  if (/^\d+$/.test(raw)) return Number(raw)
+  // 简单中文数字（十以内 + 十X / X十）
+  if (raw === '十') return 10
+  if (raw.length === 1) return CN_NUM[raw] ?? 0
+  if (raw.length === 2 && raw[0] === '十') return 10 + (CN_NUM[raw[1]] ?? 0)
+  if (raw.length === 2 && raw[1] === '十') return (CN_NUM[raw[0]] ?? 0) * 10
+  return 0
+}
+
+/** 季按钮短标签：优先"第X季"，无则用标题 */
+function seasonLabel(t: SeasonEntry): string {
+  const m = t.title.match(SEASON_RE)
+  return m ? m[0] : t.title
+}
+
+/** 切换季：保留封面/简介等系列级信息，加载该季剧集与续看进度 */
+async function openSeason(season: SeasonEntry) {
+  if (season.bookId === detail.bookId) return
+  detail.loadingInfo = true
+  detail.bookId = season.bookId
+  detail.title = season.title
+  detail.episodes = []
+  detail.resumeIndex = season.lastEpisodeIndex
+  try {
+    const series = await fanqie.getSeries(season.bookId, season.title)
+    if (detail.bookId !== season.bookId) return
+    detail.title = series.title
+    detail.episodes = await Promise.all(
+      series.episodes.map(async (ep) => ({
+        ...ep,
+        cached: await fanqie.hasEpisode(season.bookId, ep.videoId)
+      }))
+    )
+  } catch (e: any) {
+    message.error(e?.message || '获取剧集信息失败')
+  } finally {
+    detail.loadingInfo = false
+  }
+}
+
 function toggleShelf() {
   if (detail.inShelf) {
     shelf.value = shelf.value.filter((b) => b.bookId !== detail.bookId)
+    window.fanqie.shelf.removeBook(detail.bookId).catch(() => undefined)
     message.success('已移出书架')
   } else {
-    shelf.value.unshift({
+    // 收藏系列：季列表 + 各季进度（当前季的进度记入对应季条目）
+    const seasons: SeasonEntry[] = detail.seasons.map((sn) =>
+      sn.bookId === detail.bookId
+        ? { ...sn, lastEpisodeIndex: detail.resumeIndex }
+        : { ...sn }
+    )
+    const book: ShelfBook = {
       bookId: detail.bookId,
       title: detail.title,
       subtitle: detail.subtitle,
@@ -639,14 +791,20 @@ function toggleShelf() {
       coverUrl: detail.coverUrl,
       episodeCount: detail.episodes.length || undefined,
       tagText: detail.tagText || undefined,
-      tagColors: detail.tagColors || undefined,
+      tagColors: detail.tagColors
+        ? JSON.stringify(detail.tagColors)
+        : undefined,
       lastEpisodeIndex: detail.resumeIndex,
+      seasons,
       updatedAt: Date.now()
-    })
+    }
+    shelf.value.unshift(book)
+    window.fanqie.shelf
+      .addBook({ ...book, seasons: JSON.stringify(seasons) })
+      .catch(() => undefined)
     message.success('已加入书架')
   }
   detail.inShelf = !detail.inShelf
-  saveShelf()
 }
 
 // ===== 播放器 =====
@@ -733,18 +891,50 @@ async function playEpisode(index: number, resume: boolean) {
 }
 
 function onEnded() {
+  const finished = player.episodes[player.index]
   if (player.index < player.total - 1) {
     playEpisode(player.index + 1, false)
+    // 看完即删：释放本集缓存（下一集通常已预取，连播不受影响）
+    cleanupWatchedEpisode(finished)
   } else {
     persistProgress(player.index, 0)
     message.info('已看完最后一集')
+    cleanupWatchedEpisode(finished)
     closePlayer()
+  }
+}
+
+/** 看完一集删一集：释放该集缓存文件（重看会重新下载） */
+function cleanupWatchedEpisode(ep?: { videoId: string }) {
+  if (!player.bookId || !ep) return
+  // 单集作品/切回本集时下集仍是同一集，不删
+  const next = player.episodes[player.index]
+  if (next && next.videoId === ep.videoId) return
+  try {
+    fanqie.deleteEpisode(player.bookId, ep.videoId)
+    const hit = detail.episodes.find((e) => e.videoId === ep.videoId)
+    if (hit) hit.cached = false
+    refreshCacheSize()
+  } catch {
+    /* 删除失败不影响播放 */
   }
 }
 
 function onVideoError() {
   player.loading = false
-  player.error = '视频播放出错（本集编码可能不受支持）'
+  player.error = '视频播放出错（本集编码可能不受支持或缓存损坏）'
+  // 自愈：清掉本集缓存，重试播放时会重新下载（可能损坏/不完整，或重新选流）
+  const ep = player.episodes[player.index]
+  if (player.bookId && ep) {
+    try {
+      fanqie.deleteEpisode(player.bookId, ep.videoId)
+      const hit = detail.episodes.find((e) => e.videoId === ep.videoId)
+      if (hit) hit.cached = false
+      message.info('已自动清除本集缓存，可点击"上一集/下一集"切回本集重试重新下载')
+    } catch {
+      /* 清理失败不影响提示 */
+    }
+  }
 }
 
 function onTimeUpdate() {
@@ -755,14 +945,29 @@ function onTimeUpdate() {
   }, 5000)
 }
 
-/** 保存观看进度到书架条目（在书架才记录） */
+/** 保存观看进度到书架条目（在书架才记录）：行级 + 该季条目 */
 function persistProgress(index: number, time?: number) {
-  const book = getShelfBook(player.bookId || detail.bookId)
+  const playingId = player.bookId || detail.bookId
+  const book = findShelfRow(playingId)
   if (!book) return
   book.lastEpisodeIndex = index
   if (time !== undefined) book.lastTime = time
   book.updatedAt = Date.now()
-  saveShelf()
+  // 按季记录（系列收藏模型下进度属于具体季）
+  if (!book.seasons) book.seasons = []
+  let season = book.seasons.find((x) => x.bookId === playingId)
+  if (!season) {
+    season = { bookId: playingId, title: detail.title }
+    book.seasons.push(season)
+  }
+  season.lastEpisodeIndex = index
+  if (time !== undefined) season.lastTime = time
+  window.fanqie.shelf
+    .updateProgress(book.bookId, index, time ?? book.lastTime ?? 0)
+    .catch(() => undefined)
+  window.fanqie.shelf
+    .updateSeasons(book.bookId, JSON.stringify(book.seasons))
+    .catch(() => undefined)
 }
 
 function closePlayer() {
@@ -776,6 +981,7 @@ function closePlayer() {
 }
 
 onMounted(() => {
+  loadShelf()
   refreshDeviceStatus()
   refreshCacheSize()
   // 默认进入"最新"tab，自动加载
@@ -1085,6 +1291,39 @@ onUnmounted(() => {
     gap: 8px;
     padding-bottom: 16px;
   }
+}
+
+.fq-season {
+  padding: 4px 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 12px;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: #ff7043;
+    color: #ff7043;
+  }
+
+  /* 选中态（含其 hover）：hover 的 specificity 更高会盖掉白字，
+     必须显式写出 &--active:hover 保证橙底白字 */
+  &--active,
+  &--active:hover {
+    background: #ff7043;
+    border-color: #ff7043;
+    color: #fff;
+    font-weight: 600;
+  }
+}
+
+.fq-detail__seasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 2px 4px;
 }
 
 .fq-ep {

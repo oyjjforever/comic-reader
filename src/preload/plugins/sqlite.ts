@@ -120,6 +120,28 @@ const createTable = async () => {
         )
     `)
 
+    // 创建番茄短剧书架表
+    db?.exec(`
+        CREATE TABLE IF NOT EXISTS fanqie_shelf (
+            book_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            subtitle TEXT,
+            abstract TEXT,
+            cover_url TEXT,
+            episode_count INTEGER,
+            tag_text TEXT,
+            tag_colors TEXT,
+            last_episode_index INTEGER,
+            last_time REAL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+    `)
+
+    if (!await hasCol('fanqie_shelf', 'seasons')) {
+        db?.exec(`ALTER TABLE fanqie_shelf ADD COLUMN seasons TEXT`)
+    }
+
     // 创建评分表
     db?.exec(`
         CREATE TABLE IF NOT EXISTS ratings (

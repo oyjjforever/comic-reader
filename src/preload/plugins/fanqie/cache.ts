@@ -85,6 +85,16 @@ export function getDramaPath(seriesId: string, videoId: string): string | null {
     return findEpisodeFile(seriesId, videoId);
 }
 
+/** 删除单集缓存（播放失败自愈用：清掉可能的损坏/不完整文件，重试时重新下载） */
+export function deleteDramaEpisode(seriesId: string, videoId: string): void {
+    const file = findEpisodeFile(seriesId, videoId);
+    if (!file) return;
+    try {
+        fs.rmSync(file);
+        if (fs.existsSync(file + '.meta')) fs.rmSync(file + '.meta');
+    } catch { /* 忽略删除失败 */ }
+}
+
 export function getDramaCodec(seriesId: string, videoId: string): string {
     const file = findEpisodeFile(seriesId, videoId);
     if (!file) { return ''; }

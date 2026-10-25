@@ -2,6 +2,7 @@ import { ipcRenderer } from 'electron'
 import fs from 'node:fs'
 import { mobileApi, setKvStore } from './mobileApi'
 import appData from '../appData'
+import fanqieShelf from '../fanqieShelf'
 import {
     searchDramas,
     fetchDramaEpisodes,
@@ -10,6 +11,9 @@ import {
     prefetchEpisode,
     fetchManjuFeed,
     resetManjuFeed,
+    deleteEpisodeCache,
+    fetchRelatedSeasons,
+    type RelatedSeason,
     type DramaSearchResult,
     type DramaEpisode,
     type EpisodeDownloadProgress
@@ -94,6 +98,8 @@ function toPlayUrl(filePath: string): string {
 }
 
 export default {
+    /** 书架（fanqie_shelf 表 CRUD） */
+    shelf: fanqieShelf,
     /** 搜索短剧（offset 翻页，每页 20 条，空数组即到底） */
     search: (query: string, offset = 0): Promise<DramaSearchResult[]> => searchDramas(query, offset),
     /**
@@ -107,6 +113,8 @@ export default {
     getSeries,
     /** 准备某集播放（返回 fqvideo:// 地址） */
     ensureEpisode,
+    /** 相关系列（同作品的其它季，如第一季/第二季；单季返回空数组） */
+    relatedSeasons: (seriesId: string): Promise<RelatedSeason[]> => fetchRelatedSeasons(seriesId),
     /** 预取下一集（后台静默） */
     prefetchEpisode: (seriesId: string, videoId: string, episodeIndex = 0) =>
         { void ensureCacheRoot().then(() => prefetchEpisode(seriesId, videoId, episodeIndex)); },
@@ -117,6 +125,8 @@ export default {
     /** 某集是否已缓存 */
     hasEpisode: (seriesId: string, videoId: string): Promise<boolean> =>
         ensureCacheRoot().then(() => hasDramaEpisode(seriesId, videoId)),
+    /** 删除单集缓存（播放失败自愈用，重试时重新下载） */
+    deleteEpisode: (seriesId: string, videoId: string) => deleteEpisodeCache(seriesId, videoId),
     /** 缓存统计与清理 */
     getCacheSize: (): Promise<number> => Promise.resolve(ensureCacheRoot().then(() => cacheSize())),
     clearCache: (): Promise<void> => Promise.resolve(ensureCacheRoot().then(() => {

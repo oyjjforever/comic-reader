@@ -456,6 +456,57 @@ declare global {
       ) => () => void
     }
     fanqie: {
+        /** 书架（fanqie_shelf 表 CRUD） */
+        shelf: {
+        getShelf: () => Promise<
+          Array<{
+            bookId: string
+            title: string
+            subtitle?: string
+            abstract?: string
+            coverUrl?: string
+            episodeCount?: number
+            tagText?: string
+            /** JSON 字符串 [from, to] */
+            tagColors?: string
+            lastEpisodeIndex?: number
+            lastTime?: number
+            /** 系列各季 JSON：[{bookId,title,lastEpisodeIndex?,lastTime?}] */
+            seasons?: string
+            createdAt: number
+            updatedAt: number
+          }>
+        >
+        addBook: (book: {
+          bookId: string
+          title: string
+          subtitle?: string
+          abstract?: string
+          coverUrl?: string
+          episodeCount?: number
+          tagText?: string
+          tagColors?: string
+          lastEpisodeIndex?: number
+          lastTime?: number
+          seasons?: string
+        }) => Promise<void>
+        removeBook: (bookId: string) => Promise<void>
+        updateSeasons: (bookId: string, seasonsJson: string) => Promise<void>
+        updateProgress: (bookId: string, lastEpisodeIndex: number, lastTime: number) => Promise<void>
+        updateBookInfo: (
+          bookId: string,
+          patch: {
+            title?: string
+            subtitle?: string
+            abstract?: string
+            coverUrl?: string
+            episodeCount?: number
+            tagText?: string
+            tagColors?: string
+          }
+        ) => Promise<void>
+      }
+
       /** 搜索短剧（offset 翻页，每页 20 条，返回 seriesId 与展示信息；空数组即到底） */
       search: (
         query: string,
@@ -510,6 +561,10 @@ declare global {
           total?: number
         }) => void
       ) => Promise<{ url: string; path: string; codec: string }>
+      /** 相关系列（同作品的其它季，如第一季/第二季；单季返回空数组） */
+      relatedSeasons: (seriesId: string) => Promise<
+        Array<{ bookId: string; title: string; alias?: string; episodeCount?: number }>
+      >
       /** 预取下一集（后台静默，失败忽略） */
       prefetchEpisode: (seriesId: string, videoId: string, episodeIndex?: number) => void
       /** 设备状态（registered=false 或 cooldown=true 时 UI 提示重试） */
@@ -522,6 +577,8 @@ declare global {
       resetDevice: () => Promise<void>
       /** 某集是否已缓存 */
       hasEpisode: (seriesId: string, videoId: string) => Promise<boolean>
+      /** 删除单集缓存（播放失败自愈用，重试时重新下载） */
+      deleteEpisode: (seriesId: string, videoId: string) => void
       /** 缓存统计与清理 */
       getCacheSize: () => Promise<number>
       clearCache: () => Promise<void>
