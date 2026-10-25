@@ -42,6 +42,16 @@
         <component :is="readerComponent" :file="currentFile" :next-file="nextFileInPair"></component>
       </div>
     </reader-controls>
+
+    <!-- 缩略图抽屉：挂在根容器（reader-controls 内祖先有 transform 且根节点劫持 wheel，
+         放里面会导致全屏 fixed 失效、面板滚动变翻页） -->
+    <thumbnail-panel
+      v-if="thumbFolderPath && page.total > 1"
+      :folder-path="thumbFolderPath"
+      :folder-name="thumbFolderName"
+      :current-paths="thumbCurrentPaths"
+      @jump="onThumbJump"
+    />
   </div>
 </template>
 
@@ -51,6 +61,7 @@ import imageReader from './type/image.vue'
 import pdfReader from './type/pdf.vue'
 import videoReader from './type/video/index.vue'
 import readerControls from './reader-controls.vue'
+import ThumbnailPanel from '@renderer/components/thumbnail-panel.vue'
 import { showProgressBar, doublePageMode, setShowReaderProgress, setDoublePageMode, autoPlayInterval } from './reader-state'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
@@ -103,6 +114,37 @@ const pageLabel = computed(() => {
   const first = page.index + 1
   return nextFileInPair.value ? `${first}-${first + 1} / ${page.total}` : `${first} / ${page.total}`
 })
+// ===== 缩略图面板（文件夹模式多页作品） =====
+const thumbFolderPath = computed(() => {
+  const raw = props.folderPath || (route.query.folderPath as string) || ''
+  try {
+    return raw ? decodeURIComponent(raw) : ''
+  } catch {
+    return raw
+  }
+})
+// 当前阅读文件（双页模式含配对页，面板同时高亮两张）
+const thumbCurrentPaths = computed(() => {
+  if (doublePageMode.value && isImageReading.value && nextFileInPair.value) {
+    return [currentFile.value?.fullPath, nextFileInPair.value.fullPath].filter(Boolean)
+  }
+  return currentFile.value?.fullPath ? [currentFile.value.fullPath] : []
+})
+
+const thumbFolderName = computed(() => {
+  const p = thumbFolderPath.value.replace(/[\\/]+$/, '')
+  const idx = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'))
+  return idx > 0 ? p.slice(idx + 1) : p || '缩略图'
+})
+
+/** 点击缩略图：跳到该文件所在页 */
+const onThumbJump = (fullPath: string) => {
+  const idx = page.list.findIndex((f: any) => f.fullPath === fullPath)
+  if (idx >= 0) {
+    jumpToPage(pagesPerView.value === 2 ? Math.floor(idx / 2) * 2 : idx)
+  }
+}
+
 const toggleDoublePage = () => {
   setDoublePageMode(!doublePageMode.value)
   // 切换后将当前页重新对齐到双页对的起点
@@ -340,6 +382,7 @@ const goBack = () => {
 
 <style lang="scss" scoped>
 .general-reader {
+  position: relative;
   height: 100%;
   width: 100%;
   .reader-container {
