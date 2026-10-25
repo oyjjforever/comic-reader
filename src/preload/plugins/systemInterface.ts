@@ -26,6 +26,25 @@ async function deleteFolder(folderPath: string): Promise<boolean> {
     }
 }
 
+/** 仅删除空文件夹：先 readdir 校验，rmdir 本身也只允许空目录（双保险） */
+async function deleteFolderIfEmpty(folderPath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const stats = await fs.stat(folderPath);
+        if (!stats.isDirectory()) {
+            throw new Error('路径不是文件夹');
+        }
+        const entries = await fs.readdir(folderPath);
+        if (entries.length > 0) {
+            throw new Error('文件夹不为空，只能删除空文件夹');
+        }
+        await fs.rmdir(folderPath);
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to delete empty folder:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
 async function createFolder(parentPath: string, folderName: string): Promise<{ success: boolean; error?: string }> {
     try {
         const stats = await fs.stat(parentPath);
@@ -92,6 +111,7 @@ export default {
     openExplorer,
     unzip,
     deleteFolder,
+    deleteFolderIfEmpty,
     createFolder,
     movePath
 }

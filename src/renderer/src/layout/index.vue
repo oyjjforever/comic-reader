@@ -356,7 +356,7 @@ const menuItems = [
 // 二级菜单中的路由项（与站点列表用分割线区分）
 const routeMenuConfig = [
   { image: missavImg, name: 'missav', label: 'MISSAV' },
-  { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
+  // { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
   { image: fourkhdImg, name: '4khd', label: '4KHD' },
   { image: fanqieImg, name: 'fanqie', label: '番茄短剧' }
 ]

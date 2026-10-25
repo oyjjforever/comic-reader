@@ -236,13 +236,16 @@
 
     <!-- 移动对话框 -->
     <move-dialog
+      ref="moveDialogRef"
       v-model:show="moveDialogObject.show"
+      :namespace="namespace"
       :resource-paths="resourcePaths"
       :provide-tree="provideTree"
       :items="moveDialogObject.items"
       :invalid-destinations="moveDialogObject.invalidDestinations"
       :moving="moveDialogObject.moving"
       @confirm="handleMoveConfirm"
+      @tree-changed="onMoveDialogTreeChanged"
     />
   </div>
 </template>
@@ -275,7 +278,6 @@ import {
   TagMultiple24Regular,
   NotepadEdit20Regular,
   FolderOpen24Regular,
-  FolderAdd24Regular,
   FolderArrowRight24Regular,
   Delete24Filled,
   Share24Regular,
@@ -1325,6 +1327,7 @@ function deleteFolder(folder: any) {
   window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
     if (success) {
       message.success(`文件夹"${folder.name}"已成功删除`)
+      moveDialogRef.value?.invalidateCache()
       if (currentViewMode.value === 'history') {
         window.browseHistory.deleteBrowseHistory(folder.id)
       } else if (currentViewMode.value === 'downloads') {
@@ -1334,47 +1337,6 @@ function deleteFolder(folder: any) {
       grid.filterRows = grid.filterRows.filter((f) => f.fullPath !== folder.fullPath)
     } else {
       message.error(`删除文件夹"${folder.name}"失败`)
-    }
-  })
-}
-
-// 创建文件夹对话框（在指定目录下创建本地文件夹）
-const showCreateFolderDialog = (parentPath: string) => {
-  const folderName = ref('')
-  dialog.info({
-    title: '创建文件夹',
-    content: () =>
-      h('div', [
-        h(
-          'p',
-          { style: 'margin: 0 0 8px;font-size: 12px;color: #6b7280;word-break: break-all;' },
-          parentPath
-        ),
-        h(NInput, {
-          value: folderName.value,
-          'onUpdate:value': (v: string) => (folderName.value = v),
-          placeholder: '请输入文件夹名称',
-          autofocus: true
-        })
-      ]),
-    positiveText: '创建',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      const name = folderName.value.trim()
-      if (!name) {
-        message.error('文件夹名称不能为空')
-        return false
-      }
-      const res = await window.systemInterface.createFolder(parentPath, name)
-      if (!res.success) {
-        message.error(`创建文件夹失败: ${res.error || '未知错误'}`)
-        return false
-      }
-      message.success(`文件夹"${name}"创建成功`)
-      reloadTreeNodeChildren(parentPath)
-      if (tree.currentKey === parentPath) {
-        fetchGridData(parentPath)
-      }
     }
   })
 }
@@ -1400,6 +1362,16 @@ const reloadTreeNodeChildren = async (folderPath: string) => {
   }
 }
 
+// 移动弹窗关闭时一次性汇报的树结构变化（新建/删除空文件夹）：
+// 直接重建整树；当前目录受影响时同步刷新网格
+const onMoveDialogTreeChanged = (parentPaths: string[]) => {
+  if (!parentPaths.filter(Boolean).length) return
+  fetchTreeData()
+  if (parentPaths.includes(tree.currentKey)) {
+    fetchGridData(tree.currentKey)
+  }
+}
+
 // 获取父目录路径
 const getParentPath = (fullPath: string): string => {
   const p = fullPath.replace(/[\\/]+$/, '')
@@ -1408,6 +1380,7 @@ const getParentPath = (fullPath: string): string => {
 }
 
 // 移动弹窗状态
+const moveDialogRef = ref<any>(null)
 const moveDialogObject = reactive<{
   show: boolean
   items: any[]
@@ -1446,6 +1419,8 @@ const handleMoveConfirm = async (destFolderPath: string) => {
   message.success(`已移动 ${succeeded.length} 个作品到目标文件夹`)
   moveDialogObject.show = false
   toggleMultiSelectMode(false)
+  // 目录结构已变化，失效移动弹窗的全量树缓存（下次打开重扫）
+  moveDialogRef.value?.invalidateCache()
 
   // 刷新树：源目录与目标目录
   const pathsToReload = new Set<string>([destFolderPath])
@@ -1626,15 +1601,6 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
       y: e.y,
       theme: 'mac',
       items: [
-      {
-        label: '创建文件夹',
-        icon: h(NIcon, {
-          component: FolderAdd24Regular
-        }),
-        onClick: () => {
-          showCreateFolderDialog(folder.fullPath)
-        }
-      },
       {
         label: '移动到...',
         icon: h(NIcon, {

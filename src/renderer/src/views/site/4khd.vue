@@ -21,9 +21,7 @@
           @keyup.enter="onSearch"
           @clear="onClearSearch"
         />
-        <n-button size="small" type="primary" :loading="loading" @click="onSearch">
-          搜索
-        </n-button>
+        <n-button size="small" type="primary" :loading="loading" @click="onSearch"> 搜索 </n-button>
       </div>
     </div>
     <!-- 列表 -->
@@ -33,41 +31,41 @@
     <div v-else class="grid-wrap">
       <ResponsiveVirtualGrid
         ref="virtualGridRef"
-      :items="items"
-      :min-item-width="160"
-      :max-item-width="220"
-      :aspect-ratio="0.6"
-      :gap="16"
-      key-field="href"
-      mode="lazy"
-      @scroll="onGridScroll"
-    >
-      <template #default="{ item }">
-        <div
-          class="artwork-item"
-          :class="{ 'artwork-item--downloaded': item.downloaded }"
-          @click="openDetail(item)"
-        >
-          <n-image v-if="item.thumb" :src="item.thumb" :preview-disabled="true" class="cover">
-            <template #error>
-              <img :src="errorImg" class="cover-img" />
-            </template>
-          </n-image>
-          <img v-else :src="errorImg" class="cover-img" />
-          <!-- 悬浮操作 -->
-          <div class="hover-ops">
-            <button @click.stop="openDetail(item)">
-              <n-icon :component="ImageOutline" size="24" />
-            </button>
-            <button @click.stop="onQuickDownload(item)">
-              <n-icon :component="CloudDownload" size="24" />
-            </button>
+        :items="items"
+        :min-item-width="160"
+        :max-item-width="200"
+        :aspect-ratio="0.6"
+        :gap="16"
+        key-field="href"
+        mode="lazy"
+        @scroll="onGridScroll"
+      >
+        <template #default="{ item }">
+          <div
+            class="artwork-item"
+            :class="{ 'artwork-item--downloaded': item.downloaded }"
+            @click="openDetail(item)"
+          >
+            <n-image v-if="item.thumb" :src="item.thumb" :preview-disabled="true" class="cover">
+              <template #error>
+                <img :src="errorImg" class="cover-img" />
+              </template>
+            </n-image>
+            <img v-else :src="errorImg" class="cover-img" />
+            <!-- 悬浮操作 -->
+            <div class="hover-ops">
+              <button @click.stop="openDetail(item)">
+                <n-icon :component="ImageOutline" size="24" />
+              </button>
+              <button @click.stop="onQuickDownload(item)">
+                <n-icon :component="CloudDownload" size="24" />
+              </button>
+            </div>
+            <!-- 标题 -->
+            <div class="artwork-title">{{ item.title }}</div>
           </div>
-          <!-- 标题 -->
-          <div class="artwork-title">{{ item.title }}</div>
-        </div>
-      </template>
-    </ResponsiveVirtualGrid>
+        </template>
+      </ResponsiveVirtualGrid>
     </div>
     <!-- 触底自动加载指示 -->
     <div v-if="items.length && loading" class="load-more">加载中...</div>
@@ -85,13 +83,7 @@
           <template v-else-if="detail">
             <!-- 图片 -->
             <div class="images">
-              <n-image
-                v-for="url in detail.images"
-                :key="url"
-                :src="url"
-                class="images__item"
-                lazy
-              >
+              <n-image v-for="url in detail.images" :key="url" :src="url" class="images__item" lazy>
                 <template #error>
                   <img :src="errorImg" class="cover-img" />
                 </template>
@@ -105,7 +97,10 @@
         <!-- 底部固定下载栏 -->
         <div v-if="detail" class="modal__footer">
           <span class="modal__pageinfo">
-            已加载 {{ detail.images.length }} 张图片（第 {{ detailLoadedPage }}/{{ detailMaxPage }} 页）
+            已加载 {{ detail.images.length }} 张图片（第 {{ detailLoadedPage }}/{{
+              detailMaxPage
+            }}
+            页）
           </span>
           <n-button type="primary" size="small" :loading="detailLoadingMore" @click="onDownload">
             下载（{{ hasMoreDetail ? '全部' : detail.images.length + ' 张' }}）
@@ -256,7 +251,12 @@ function closeDetail() {
 
 // 相册滚动增量加载：读取下一分页并追加
 async function loadMoreDetail() {
-  if (!detailVisible.value || detailLoadingMore.value || !hasMoreDetail.value || !detailHref.value) {
+  if (
+    !detailVisible.value ||
+    detailLoadingMore.value ||
+    !hasMoreDetail.value ||
+    !detailHref.value
+  ) {
     return
   }
   detailLoadingMore.value = true
@@ -265,7 +265,10 @@ async function loadMoreDetail() {
     const r = await fourkhd.fetchDetailPage(detailHref.value, next)
     if (detail.value) {
       const seen = new Set(detail.value.images)
-      detail.value.images = [...detail.value.images, ...(r?.images || []).filter((u: string) => !seen.has(u))]
+      detail.value.images = [
+        ...detail.value.images,
+        ...(r?.images || []).filter((u: string) => !seen.has(u))
+      ]
       detail.value.pagesLoaded = next
     }
     detailLoadedPage.value = next

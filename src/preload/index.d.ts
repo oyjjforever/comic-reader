@@ -32,6 +32,8 @@ declare global {
       openExplorer: (path: string) => void
       unzip: (path: string) => void
       deleteFolder: (folderPath: string) => Promise<boolean>
+      /** 仅删除空文件夹（目录非空时报错，不做递归删除） */
+      deleteFolderIfEmpty: (folderPath: string) => Promise<{ success: boolean; error?: string }>
       createFolder: (
         parentPath: string,
         folderName: string
