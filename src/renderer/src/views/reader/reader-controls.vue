@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-controls" @mousemove="onControlsMouseMove" @wheel.prevent="onWheel">
+  <div class="reader-controls" @mousemove="onControlsMouseMove" @wheel.prevent="onWheel" @click="onWorkAreaClick">
     <!-- 顶部控制栏 -->
     <div
       class="top-controls"
@@ -178,7 +178,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref, provide, onUnmounted, nextTick } from 'vue'
+import { defineComponent, computed, ref, provide, onUnmounted, nextTick, watch } from 'vue'
+import { controlsDisplayMode } from './reader-state'
 
 const THROTTLE_INTERVAL = 100
 let _uidSeq = 0
@@ -224,6 +225,8 @@ export default defineComponent({
   setup(props, { emit }) {
     // 唯一标识，供子组件通过 Teleport 投送按钮到顶部栏
     const uid = `reader-ctrl-${++_uidSeq}`
+    // 控制栏显示方式：'click' 模式下点击作品区域切换显示，'hover' 模式维持原边缘悬停显示
+    const isClickMode = computed(() => controlsDisplayMode.value === 'click')
     // 内部控制显示/隐藏（当父组件未传 showControls 时启用）
     const showControlsInternal = ref(false)
     const AUTO_HIDE_DELAY = 3000
@@ -241,6 +244,8 @@ export default defineComponent({
 
     const resetAutoHideTimer = () => {
       if (isHoveringControls.value) return
+      // 点击模式不自动隐藏，仅再次点击作品区域隐藏
+      if (isClickMode.value) return
       if (autoHideTimer.value) {
         clearTimeout(autoHideTimer.value)
       }
@@ -261,6 +266,8 @@ export default defineComponent({
     const onControlsMouseMove = (ev: MouseEvent) => {
       // 仅在未传入 props.showControls 时，使用内部状态
       if (typeof props.showControls === 'boolean') return
+      // 点击模式下鼠标移动不触发显示，由点击作品区域切换
+      if (isClickMode.value) return
       const target = ev.currentTarget as HTMLElement
       const rect = target.getBoundingClientRect()
       const y = ev.clientY - rect.top
@@ -306,6 +313,28 @@ export default defineComponent({
       isHoveringControls.value = false
       resetAutoHideTimer()
     }
+
+    // ===== 作品区域单击（点击显示模式下切换控制栏） =====
+    // 点击事件落在控制栏（顶栏/进度条）或其内部按钮上时不视为作品区域
+    const isWithinControlBars = (target: EventTarget | null) => {
+      return target instanceof Element && !!target.closest('.top-controls, .bottom-progress, button')
+    }
+    const onWorkAreaClick = (ev: MouseEvent) => {
+      if (typeof props.showControls === 'boolean') return
+      if (!isClickMode.value) return
+      if (isWithinControlBars(ev.target)) return
+      showControlsInternal.value = !showControlsInternal.value
+    }
+
+    // 显示方式切换时复位内部状态，避免残留的定时器/显示状态串模式
+    watch(isClickMode, () => {
+      if (autoHideTimer.value) {
+        clearTimeout(autoHideTimer.value)
+        autoHideTimer.value = null
+      }
+      isHoveringControls.value = false
+      showControlsInternal.value = false
+    })
 
     // 向嵌套子组件共享控制栏显示状态与悬停处理，供其顶部按钮并入本组件统一管理
     provide('reader-controls-ctx', {
@@ -415,7 +444,8 @@ export default defineComponent({
       onPageInputEnter,
 
       onControlsEnter,
-      onControlsLeave
+      onControlsLeave,
+      onWorkAreaClick
     }
   }
 })

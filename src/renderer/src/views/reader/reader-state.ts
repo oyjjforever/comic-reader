@@ -9,6 +9,9 @@ export const showProgressBar = computed(() => settingStore.setting.showReaderPro
 // 漫画双页模式（一屏两页）：由设置页「阅读设置」控制，持久化保存
 export const doublePageMode = computed(() => settingStore.setting.doublePageMode ?? false)
 
+// 控制栏显示方式：'hover' 鼠标移动到边缘显示（自动隐藏），'click' 点击作品区域切换显示（手动隐藏）
+export const controlsDisplayMode = computed(() => settingStore.setting.controlsDisplayMode ?? 'hover')
+
 // 自动播放间隔（毫秒）：设置页存储秒，转换为阅读器使用的毫秒
 export const autoPlayInterval = computed(() => {
   const seconds = Number(settingStore.setting.autoPlayInterval)

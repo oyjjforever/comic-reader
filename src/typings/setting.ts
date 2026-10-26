@@ -52,6 +52,8 @@ export type setting = {
     doublePageMode?: boolean
     // 阅读器底部进度条显示
     showReaderProgress?: boolean
+    // 阅读器控制栏显示方式：'hover' 鼠标移动到边缘显示，'click' 点击作品区域切换显示
+    controlsDisplayMode?: 'hover' | 'click'
     // 阅读器自动播放间隔（秒）
     autoPlayInterval?: number
     // 关闭时最小化到托盘（原 close-config.json，已合并入库）

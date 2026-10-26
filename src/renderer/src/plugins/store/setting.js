@@ -23,6 +23,7 @@ export const defaultSetting = {
   downloadMaxCount: 100, // 最近下载最大条数
   doublePageMode: false, // 漫画双页模式（一屏两页）
   showReaderProgress: true, // 阅读器底部进度条显示
+  controlsDisplayMode: 'click', // 阅读器控制栏显示方式：'hover' 鼠标移动显示，'click' 点击作品区域切换显示
   autoPlayInterval: 3, // 阅读器自动播放间隔（秒）
   closeToTray: true, // 关闭时最小化到托盘（原 close-config.json，已合并入库）
   dontRemind: false // 关闭时不再提醒（原 close-config.json，已合并入库）

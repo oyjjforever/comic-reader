@@ -14,6 +14,18 @@
       />
     </n-form-item>
 
+    <n-form-item path="controlsDisplayMode" label="控制栏显示">
+      <n-radio-group
+        :value="modelValue.controlsDisplayMode ?? 'hover'"
+        @update:value="
+          (value) => updateSetting('controlsDisplayMode', value as setting['controlsDisplayMode'])
+        "
+      >
+        <n-radio value="hover">鼠标移动显示</n-radio>
+        <n-radio value="click">点击作品区域显示</n-radio>
+      </n-radio-group>
+    </n-form-item>
+
     <n-form-item path="autoPlayInterval" label="自动播放间隔">
       <n-input-number
         :value="modelValue.autoPlayInterval ?? 3"

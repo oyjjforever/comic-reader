@@ -208,9 +208,11 @@ onUnmounted(() => {
   window.removeEventListener('mousedown', handleMouseDown)
 })
 const handleMouseDown = (e: MouseEvent) => {
-  if (e.button === 3) {
+  // 鼠标侧键（后退 3 / 前进 4）关闭阅读器，与返回按钮同语义；
+  // 侧键的历史回退手势由主进程 app-command 拦截，不会引起路由回退
+  if (e.button === 3 || e.button === 4) {
     e.preventDefault()
-    emit('close')
+    goBack()
   }
 }
 
