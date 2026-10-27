@@ -103,11 +103,12 @@
             </div>
             <div
               class="wb-site"
+              :class="{ 'wb-attention--active': isAttentioned }"
               v-if="canAttention"
-              @click="onAddSpecialAttention"
-              title="特别关注"
+              @click="onToggleSpecialAttention"
+              :title="isAttentioned ? '取消特别关注' : '特别关注'"
             >
-              <n-icon :component="Star24Regular" size="12" />
+              <n-icon :component="isAttentioned ? Star16Filled : Star16Regular" size="14" />
             </div>
             <div class="wb-site" v-if="isDev" @click="onDebug">
               <n-icon :component="WindowConsole20Regular" size="12" />
@@ -251,7 +252,8 @@ import {
   ArrowDownload16Filled,
   WindowConsole20Regular,
   Cart16Filled,
-  Star24Regular,
+  Star16Regular,
+  Star16Filled,
   PeopleTeam24Regular,
   Search24Regular,
   Globe24Regular,
@@ -324,6 +326,10 @@ const canDownload = computed(
 )
 const canAttention = computed(
   () => !!(activeChildComponent.value && (activeChildComponent.value as any).canAttention)
+)
+// 当前站点页面作者已在特别关注中（星标高亮）
+const isAttentioned = computed(
+  () => !!(activeChildComponent.value && (activeChildComponent.value as any).isAttentioned)
 )
 const isDev = import.meta.env.DEV
 const hasActiveDownloads = computed(() => {
@@ -443,9 +449,15 @@ function isMenuActive(item: any) {
 function onDownload() {
   activeChildComponent.value?.download()
 }
-function onAddSpecialAttention() {
-  ;(activeChildComponent.value as any)?.addSpecialAttention?.()
+function onToggleSpecialAttention() {
+  ;(activeChildComponent.value as any)?.toggleSpecialAttention?.()
 }
+// 切回站点页时刷新收藏高亮（在特别关注视图中的增删不会触发站点内导航事件）
+watch(isSiteRoute, (active) => {
+  if (active) {
+    ;(activeChildComponent.value as any)?.checkAttention?.()
+  }
+})
 // 获取当前活跃站点的 webview
 function getActiveWebview(): any {
   if (activeSite.value && siteRefs.value[activeSite.value]) {
@@ -869,6 +881,13 @@ $background-color: #322f3b;
     }
     .wb-site {
       background: #ccc;
+    }
+    /* 当前页面已加入特别关注：星标金色高亮 */
+    .wb-attention--active {
+      background: #f5a623;
+      i {
+        color: #fff;
+      }
     }
     .queue-entry-wrapper {
       display: flex;

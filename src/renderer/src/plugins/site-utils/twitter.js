@@ -225,6 +225,11 @@ const siteView = {
     }
     return { canDownload, canAttention: author !== 'home', extra: { downloadType } }
   },
+  // 当前页面作者标识：URL 只有 screen_name（收藏记录的 authorName 即 screen_name）
+  getAttentionKey({ getCurrentUrl }) {
+    const author = extractFromUrl(getCurrentUrl(), 'x.com')
+    return author && author !== 'home' ? { authorName: author } : null
+  },
   async download({ extra, getCurrentUrl, tip }) {
     const author = extractFromUrl(getCurrentUrl(), 'x.com')
     if (!author) throw new Error('无法从当前URL解析 screen_name')

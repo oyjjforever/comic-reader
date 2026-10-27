@@ -147,6 +147,12 @@ const siteView = {
       }
     }
   },
+  // 当前页面作者标识：批量页搜索词即收藏时的 authorId/authorName
+  getAttentionKey({ extra }) {
+    return extra.searchQuery
+      ? { authorId: extra.searchQuery, authorName: extra.searchQuery }
+      : null
+  },
   async download({ extra }) {
     if (extra.downloadType === 'one') {
       await downloadArtwork(null, extra.comicId)

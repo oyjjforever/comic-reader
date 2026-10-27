@@ -191,6 +191,13 @@ const siteView = {
       }
     }
   },
+  // 当前页面作者标识：详情页 videoId 即收藏记录的 authorId
+  getAttentionKey({ extra, getCurrentUrl }) {
+    const pageUrl = (getCurrentUrl && getCurrentUrl()) || extra?.pageUrl || ''
+    const pageInfo = extra?.pageInfo || extractPageInfo(pageUrl)
+    const videoId = pageInfo?.videoId
+    return videoId ? { authorId: String(videoId) } : null
+  },
   async download({ extra, getCurrentUrl, tip }) {
     const pageUrl = (getCurrentUrl && getCurrentUrl()) || extra?.pageUrl || ''
     if (!pageUrl) {

@@ -150,6 +150,11 @@ const siteView = {
     const canAttention = !!currentUrl && currentUrl.includes('users')
     return { canDownload, canAttention, extra: { downloadType } }
   },
+  // 当前页面作者标识（用户主页 URL 直接携带数字 ID）
+  getAttentionKey({ getCurrentUrl }) {
+    const userId = extractFromUrl(getCurrentUrl(), 'users')
+    return userId ? { authorId: userId } : null
+  },
   async download({ extra, getCurrentUrl, tip }) {
     if (extra.downloadType === 'artwork') {
       const artworkId = extractFromUrl(getCurrentUrl(), 'artworks')

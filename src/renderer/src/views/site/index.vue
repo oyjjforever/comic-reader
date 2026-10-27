@@ -23,12 +23,21 @@ const url = computed(() => {
 const webviewRef = ref<any>(null)
 const canDownload = ref(false)
 const canAttention = ref(false)
+// 当前页面作者已在特别关注中（星标高亮）
+const isAttentioned = ref(false)
+// 匹配到的特别关注记录 id，供再次点击时取消收藏
+const attentionedId = ref<number | null>(null)
 const extraState = ref<Record<string, any>>({})
 
 function getCurrentUrl(): string {
   const wv = webviewRef.value
   if (!wv) return ''
-  return typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+  try {
+    return typeof wv.getURL === 'function' ? wv.getURL() : wv.src
+  } catch {
+    // webview 挂载后 dom-ready 前调用 getURL 会抛错，此时退回初始 src
+    return wv.src || ''
+  }
 }
 
 function updateCanDownload() {
@@ -43,6 +52,44 @@ function updateCanDownload() {
     canDownload.value = false
     canAttention.value = false
   }
+  checkAttention()
+}
+
+// 当前页面作者是否已加入特别关注：站点配置提供 getAttentionKey 从 URL 解析作者标识，
+// 与 special_attention 表按 authorId 优先、authorName 兜底匹配
+async function checkAttention() {
+  const currentUrl = getCurrentUrl()
+  if (!canAttention.value || !config.value?.getAttentionKey || !currentUrl) {
+    isAttentioned.value = false
+    attentionedId.value = null
+    return
+  }
+  let key: { authorId?: string; authorName?: string } | null = null
+  try {
+    key = config.value.getAttentionKey({ extra: extraState.value, getCurrentUrl })
+  } catch {
+    key = null
+  }
+  if (!key || (!key.authorId && !key.authorName)) {
+    isAttentioned.value = false
+    attentionedId.value = null
+    return
+  }
+  try {
+    const rows = await window.specialAttention.list()
+    const source = props.site
+    const row = rows.find(
+      (r: any) =>
+        r.source === source &&
+        ((key!.authorId && r.authorId === key!.authorId) ||
+          (key!.authorName && r.authorName === key!.authorName))
+    )
+    isAttentioned.value = !!row
+    attentionedId.value = row?.id ?? null
+  } catch {
+    isAttentioned.value = false
+    attentionedId.value = null
+  }
 }
 
 async function download() {
@@ -55,11 +102,19 @@ async function download() {
   }
 }
 
-async function addSpecialAttention() {
+// 星标点击：已收藏则取消，未收藏则走站点配置的添加流程
+async function toggleSpecialAttention() {
   if (!config.value?.addSpecialAttention) return
   const tip = new Tip()
   try {
-    await config.value.addSpecialAttention({ extra: extraState.value, getCurrentUrl, tip })
+    if (isAttentioned.value && attentionedId.value != null) {
+      await window.specialAttention.remove(attentionedId.value)
+      tip.success('已取消特别关注')
+    } else {
+      await config.value.addSpecialAttention({ extra: extraState.value, getCurrentUrl, tip })
+    }
+    // 操作完成后立即刷新高亮状态
+    await checkAttention()
   } catch (e) {
     tip.error(e)
   }
@@ -99,7 +154,9 @@ defineExpose({
   download,
   canDownload,
   canAttention,
-  addSpecialAttention,
+  isAttentioned,
+  checkAttention,
+  toggleSpecialAttention,
   webviewRef
 })
 </script>

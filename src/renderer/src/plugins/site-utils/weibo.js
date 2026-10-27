@@ -204,6 +204,16 @@ const siteView = {
     const canAttention = !!authorId || !!authorName
     return { canDownload, canAttention, extra: { authorIdBySearch } }
   },
+  // 当前页面作者标识：URL 携带 u=数字ID 或 n=昵称，收藏记录按 ID 优先、昵称兜底匹配
+  getAttentionKey({ getCurrentUrl }) {
+    const authorIdBySearch = extractFromUrl(getCurrentUrl(), 'weibo.com')
+    const authorId = ['n', 'u'].includes(authorIdBySearch)
+      ? extractFromUrl(getCurrentUrl(), 'u')
+      : authorIdBySearch.split('?')[0]
+    const authorName = extractFromUrl(getCurrentUrl(), 'n')
+    if (!authorId && !authorName) return null
+    return { authorId: authorId || undefined, authorName: authorName || undefined }
+  },
   async download({ getCurrentUrl, tip }) {
     const authorIdBySearch = extractFromUrl(getCurrentUrl(), 'weibo.com')
     let authorId = ['n', 'u'].includes(authorIdBySearch)
