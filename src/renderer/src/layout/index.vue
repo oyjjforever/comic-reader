@@ -543,7 +543,16 @@ let removeCloseDialogListener: (() => void) | null = null
 let removeDownloadCloseDialogListener: (() => void) | null = null
 
 const isScreenFull = ref(false)
+// 阻断鼠标侧键（后退 3 / 前进 4）的默认历史导航：
+// Chromium 会把未被 preventDefault 的侧键 mouseup 当作浏览器后退/前进执行，
+// 导致 SPA 路由被意外切走。这里在捕获阶段拦截；阅读模式下侧键的动作
+// （关闭阅读器）由 reader 内的 mousedown 处理器负责
+const blockSideButtonNav = (e: MouseEvent) => {
+  if (e.button === 3 || e.button === 4) e.preventDefault()
+}
 onMounted(async () => {
+  window.addEventListener('mouseup', blockSideButtonNav, true)
+  window.addEventListener('auxclick', blockSideButtonNav, true)
   // 渲染进程加载完成后，主动发起请求获取窗口大小
   isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
   // 应用启动时初始化新作品检测和自动备份
@@ -598,6 +607,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('mouseup', blockSideButtonNav, true)
+  window.removeEventListener('auxclick', blockSideButtonNav, true)
   if (sitesHoverTimer) {
     clearTimeout(sitesHoverTimer)
     sitesHoverTimer = null

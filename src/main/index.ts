@@ -231,6 +231,21 @@ function createTray(): void {
   })
 }
 
+/**
+ * 阻断鼠标侧键（浏览器后退/前进）的默认历史导航（app-command 兜底，
+ * 渲染层另有 mouseup/auxclick 捕获拦截）：
+ * 未拦截时 Chromium 会执行一次历史回退/前进，导致 SPA 路由被意外切走。
+ * 侧键在阅读器内的动作（关闭阅读器）由渲染层自行处理。
+ * webview（第三方站点）有独立的 webContents，不受影响，站点内侧键照常后退。
+ */
+function blockSideButtonNavigation(win: BrowserWindow): void {
+  win.webContents.on('app-command', (event, command) => {
+    if (command === 'browser-backward' || command === 'browser-forward') {
+      event.preventDefault()
+    }
+  })
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -258,6 +273,7 @@ function createWindow(): void {
     // 阻止 Electron 创建新窗口
     return { action: 'deny' }
   })
+  blockSideButtonNavigation(mainWindow)
   mainWindow.on('ready-to-show', () => {
     setTimeout(() => {
       mainWindow!.show()
@@ -489,6 +505,7 @@ app.whenReady().then(async () => {
         shell.openExternal(url)
         return { action: 'deny' }
       })
+      blockSideButtonNavigation(newWin)
 
       newWin.on('ready-to-show', () => {
         setTimeout(() => {
