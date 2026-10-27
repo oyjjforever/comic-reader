@@ -239,11 +239,11 @@ function createTray(): void {
  * webview（第三方站点）有独立的 webContents，不受影响，站点内侧键照常后退。
  */
 function blockSideButtonNavigation(win: BrowserWindow): void {
-  win.webContents.on('app-command', (event, command) => {
-    if (command === 'browser-backward' || command === 'browser-forward') {
-      event.preventDefault()
-    }
-  })
+  // win.webContents.on('app-command', (event, command) => {
+  //   if (command === 'browser-backward' || command === 'browser-forward') {
+  //     event.preventDefault()
+  //   }
+  // })
 }
 
 function createWindow(): void {

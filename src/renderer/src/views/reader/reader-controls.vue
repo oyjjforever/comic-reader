@@ -1,5 +1,10 @@
 <template>
-  <div class="reader-controls" @mousemove="onControlsMouseMove" @wheel.prevent="onWheel" @click="onWorkAreaClick">
+  <div
+    class="reader-controls"
+    @mousemove="onControlsMouseMove"
+    @wheel.prevent="onWheel"
+    @click="onWorkAreaClick"
+  >
     <!-- 顶部控制栏 -->
     <div
       class="top-controls"
@@ -22,7 +27,9 @@
 
       <!-- 页码显示（绝对居中） -->
       <div class="page-indicator" @click="enablePageEdit">
-        <template v-if="!isEditingPage">{{ pageLabel || `${currentPage} / ${totalPages}` }}</template>
+        <template v-if="!isEditingPage">{{
+          pageLabel || `${currentPage} / ${totalPages}`
+        }}</template>
         <input
           v-else
           ref="pageInputRef"
@@ -317,7 +324,9 @@ export default defineComponent({
     // ===== 作品区域单击（点击显示模式下切换控制栏） =====
     // 点击事件落在控制栏（顶栏/进度条）或其内部按钮上时不视为作品区域
     const isWithinControlBars = (target: EventTarget | null) => {
-      return target instanceof Element && !!target.closest('.top-controls, .bottom-progress, button')
+      return (
+        target instanceof Element && !!target.closest('.top-controls, .bottom-progress, button')
+      )
     }
     const onWorkAreaClick = (ev: MouseEvent) => {
       if (typeof props.showControls === 'boolean') return
@@ -460,9 +469,9 @@ export default defineComponent({
     @apply absolute top-0 left-0 right-0 flex items-center justify-between p-3 z-10;
     z-index: 100;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
-    transition:
-      opacity 0.3s ease,
-      transform 0.3s ease;
+    // transition:
+    //   opacity 0.3s ease,
+    //   transform 0.3s ease;
 
     &.controls-hidden {
       opacity: 0;
