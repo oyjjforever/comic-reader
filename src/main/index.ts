@@ -231,24 +231,6 @@ function createTray(): void {
   })
 }
 
-/**
- * 将窗口全屏/最大化状态同步给渲染层：
- * 渲染层据此增删 body 上的圆角，避免全屏/最大化时屏幕四角出现透明缺口。
- * 注意：Windows 上 transparent 窗口的 isFullScreen() 恒为 false（透明窗口没有
- * 原生全屏标记，setFullScreen 只是把窗口铺满屏幕），因此必须按事件本身维护
- * 状态，不能在回调里查询 isFullScreen()。
- */
-function attachShapeSync(win: BrowserWindow): void {
-  const send = (edgeToEdge: boolean): void => {
-    if (win.isDestroyed()) return
-    win.webContents.send('window-shape-changed', edgeToEdge)
-  }
-  win.on('enter-full-screen', () => send(true))
-  win.on('maximize', () => send(true))
-  win.on('leave-full-screen', () => send(false))
-  win.on('unmaximize', () => send(false))
-}
-
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -258,8 +240,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     frame: false,
-    // 圆角窗口：窗口本体透明，圆角由渲染层 body 圆角裁剪实现
-    transparent: true,
+    transparent: false,
     titleBarStyle: 'hidden',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -290,7 +271,6 @@ function createWindow(): void {
       handleWindowClose()
     }
   })
-  attachShapeSync(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -438,18 +418,9 @@ app.whenReady().then(async () => {
     })
     return result
   })
-  ipcMain.handle('get-window-size', (event) => {
+  ipcMain.on('get-window-size', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win) return false
-    // transparent 窗口在 Windows 上 isFullScreen() 恒为 false，
-    // 用窗口尺寸是否铺满所在显示器来判断（覆盖全屏状态下刷新页面的场景）
-    const bounds = win.getBounds()
-    const display = screen.getDisplayMatching(bounds).bounds
-    return (
-      win.isFullScreen() ||
-      win.isMaximized() ||
-      (bounds.width >= display.width && bounds.height >= display.height)
-    )
+    return win ? win.isFullScreen() : false
   })
   ipcMain.handle('window-min', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -502,7 +473,7 @@ app.whenReady().then(async () => {
         show: false,
         autoHideMenuBar: true,
         frame: false,
-        transparent: true,
+        transparent: false,
         titleBarStyle: 'hidden',
         title: title,
         webPreferences: {
@@ -518,8 +489,6 @@ app.whenReady().then(async () => {
         shell.openExternal(url)
         return { action: 'deny' }
       })
-
-      attachShapeSync(newWin)
 
       newWin.on('ready-to-show', () => {
         setTimeout(() => {
