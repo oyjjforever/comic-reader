@@ -10,6 +10,7 @@ export const defaultSetting = {
   videoResourcePaths: [], // 多个电影资源路径
   defaultDownloadPath: '',
   enableAuthorUpdateCheck: false,
+  enableUpdateCheck: true, // 启动时检测应用更新
   enableClipboardMonitor: false, // 默认关闭剪切板监听
   clipboardPopupPosition: 'cursor', // 剪切板弹窗位置：'cursor' 跟随鼠标, 'bottom-right' 固定右下角
   autoFillClipboard: true, // 是否自动填入剪切板内容

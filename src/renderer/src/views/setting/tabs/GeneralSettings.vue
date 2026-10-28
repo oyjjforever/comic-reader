@@ -51,6 +51,13 @@
       </n-input-number>
     </n-form-item>
 
+    <n-form-item path="enableUpdateCheck" label="启动时检测应用更新">
+      <n-switch
+        :value="modelValue.enableUpdateCheck ?? true"
+        @update:value="(value) => updateSetting('enableUpdateCheck', value)"
+      />
+    </n-form-item>
+
     <n-form-item path="enableAuthorUpdateCheck" label="特别关注更新通知">
       <n-switch
         :value="modelValue.enableAuthorUpdateCheck"

@@ -25,6 +25,8 @@ export type setting = {
     downloadPathPornhub?: string
     // 是否启用更新检测
     enableAuthorUpdateCheck?: boolean
+    // 启动时检测应用更新
+    enableUpdateCheck?: boolean
     // 是否启用剪切板监听
     enableClipboardMonitor?: boolean
     // 剪切板弹窗位置: 'cursor' 跟随鼠标, 'bottom-right' 固定右下角

@@ -567,8 +567,10 @@ onMounted(async () => {
   window.addEventListener('auxclick', blockSideButtonNav, true)
   // 渲染进程加载完成后，主动发起请求获取窗口大小
   isScreenFull.value = window.electron.ipcRenderer.send('get-window-size')
-  // 应用启动时初始化新作品检测和自动备份
-  window.electron.ipcRenderer.invoke('update:check')
+  // 应用启动时检测应用更新（可在通用设置关闭）
+  if (settingStore.setting.enableUpdateCheck !== false) {
+    window.electron.ipcRenderer.invoke('update:check')
+  }
   // 启动剪切板监听
   window.electron.ipcRenderer.on('clipboard-content-changed', (event, data) => {
     // console.log('剪切板内容已改变', data)
