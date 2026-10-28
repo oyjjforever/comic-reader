@@ -2,7 +2,7 @@
   <div
     class="reader-controls"
     @mousemove="onControlsMouseMove"
-    @wheel.prevent="onWheel"
+    @wheel="onWheel"
     @click="onWorkAreaClick"
   >
     <!-- 顶部控制栏 -->
@@ -204,6 +204,8 @@ export default defineComponent({
     showZoomControls: { type: Boolean, default: false },
     zoomPercent: { type: Number, default: 100 },
     showProgress: { type: Boolean, default: true },
+    // 滚轮放行（上下滚动阅读模式）：为真时不拦截 wheel，让内容区自然滚动
+    wheelPassthrough: { type: Boolean, default: false },
     showRating: { type: Boolean, default: false },
     rating: { type: Number, default: 0 },
     disabledPrev: { type: Boolean, default: undefined },
@@ -290,8 +292,8 @@ export default defineComponent({
       }
     }
     const onWheel = (ev: WheelEvent) => {
-      // 显示控件并根据滚轮方向翻页
-      // showControlsTemporarily()
+      // 上下滚动模式：不拦截滚轮，让内容区自然滚动翻阅
+      if (props.wheelPassthrough) return
       const dy = ev.deltaY
       if (dy === 0) return
       const now = Date.now()

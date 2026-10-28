@@ -9,6 +9,12 @@ export const showProgressBar = computed(() => settingStore.setting.showReaderPro
 // 漫画双页模式（一屏两页）：由设置页「阅读设置」控制，持久化保存
 export const doublePageMode = computed(() => settingStore.setting.doublePageMode ?? false)
 
+// 阅读模式：'page' 左右翻页，'scroll' 上下滚动
+export const readingMode = computed(() => settingStore.setting.readingMode ?? 'page')
+
+// 翻页方向：'normal' 普通模式，'manga' 日漫模式（双页时当前页在右）
+export const pageDirection = computed(() => settingStore.setting.pageDirection ?? 'normal')
+
 // 控制栏显示方式：'hover' 鼠标移动到边缘显示（自动隐藏），'click' 点击作品区域切换显示（手动隐藏）
 export const controlsDisplayMode = computed(() => settingStore.setting.controlsDisplayMode ?? 'hover')
 
@@ -25,4 +31,12 @@ export function setShowReaderProgress(value: boolean) {
 
 export function setDoublePageMode(value: boolean) {
   settingStore.setSetting({ ...settingStore.setting, doublePageMode: value })
+}
+
+export function setReadingMode(value: 'page' | 'scroll') {
+  settingStore.setSetting({ ...settingStore.setting, readingMode: value })
+}
+
+export function setPageDirection(value: 'normal' | 'manga') {
+  settingStore.setSetting({ ...settingStore.setting, pageDirection: value })
 }

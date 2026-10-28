@@ -22,6 +22,8 @@ export const defaultSetting = {
   historyMaxCount: 100, // 浏览历史最大条数
   downloadMaxCount: 100, // 最近下载最大条数
   doublePageMode: false, // 漫画双页模式（一屏两页）
+  readingMode: 'page', // 阅读模式：'page' 左右翻页，'scroll' 上下滚动
+  pageDirection: 'normal', // 翻页方向：'normal' 普通模式，'manga' 日漫模式（双页时当前页在右、下一页在左）
   showReaderProgress: true, // 阅读器底部进度条显示
   controlsDisplayMode: 'click', // 阅读器控制栏显示方式：'hover' 鼠标移动显示，'click' 点击作品区域切换显示
   autoPlayInterval: 3, // 阅读器自动播放间隔（秒）

@@ -1,5 +1,5 @@
 <template>
-  <div class="general-reader">
+  <div class="general-reader" @click="onReaderRootClick">
     <reader-controls
       :current-page="page.index + 1"
       :total-pages="page.total"
@@ -15,6 +15,7 @@
       :has-next="props.hasNext"
       :has-prev="props.hasPrev"
       :page-label="pageLabel"
+      :wheel-passthrough="isImageReading && isScrollMode"
       @back="goBack"
       @toggleFullscreen="toggleFullscreen"
       @toggleAutoPlay="toggleAutoPlay"
@@ -25,23 +26,76 @@
       @progress-input="handleProgressChange"
       @toggleProgress="toggleProgressBar"
     >
-      <!-- 双页模式切换（仅图片阅读时显示） -->
+      <!-- 阅读设置按钮（仅图片阅读时显示）：hover 弹出设置面板 -->
       <template v-if="isImageReading" #right-extra>
         <button
           class="control-button"
-          :class="{ active: doublePageMode }"
-          :title="doublePageMode ? '切换为单页模式' : '切换为双页模式'"
-          @click="toggleDoublePage"
+          :class="{ active: showReaderSettings }"
+          title="阅读设置"
+          @mouseenter="onSettingsButtonEnter"
+          @mouseleave="onSettingsButtonLeave"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 5h8v14H3V5zm10 0h8v14h-8V5z" />
+            <path
+              d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+            />
           </svg>
         </button>
       </template>
       <div class="reader-container">
-        <component :is="readerComponent" :file="currentFile" :next-file="nextFileInPair"></component>
+        <component
+          :is="readerComponent"
+          :file="currentFile"
+          :next-file="nextFileInPair"
+          :list="page.list"
+          @scroll-page="handleScrollPage"
+        ></component>
       </div>
     </reader-controls>
+
+    <!-- 阅读设置面板：顶栏下方浮层，hover 按钮显示，鼠标离开按钮/面板后收起 -->
+    <transition name="reader-settings">
+      <div
+        v-if="showReaderSettings && isImageReading"
+        class="reader-settings"
+        @mouseenter="onSettingsPanelEnter"
+        @mouseleave="onSettingsPanelLeave"
+      >
+        <div class="reader-settings__row">
+          <span class="reader-settings__label">阅读模式</span>
+          <div class="reader-settings__options">
+            <button :class="{ active: !isScrollMode }" @click="onSetReadingMode('page')">
+              左右翻页
+            </button>
+            <button :class="{ active: isScrollMode }" @click="onSetReadingMode('scroll')">
+              上下滚动
+            </button>
+          </div>
+        </div>
+        <div class="reader-settings__row" :class="{ 'row-disabled': isScrollMode }">
+          <span class="reader-settings__label">页面模式</span>
+          <div class="reader-settings__options">
+            <button :class="{ active: !doublePageMode }" @click="onSetDoublePage(false)">
+              单页
+            </button>
+            <button :class="{ active: doublePageMode }" @click="onSetDoublePage(true)">
+              双页
+            </button>
+          </div>
+        </div>
+        <div class="reader-settings__row" :class="{ 'row-disabled': isScrollMode }">
+          <span class="reader-settings__label">翻页方向</span>
+          <div class="reader-settings__options">
+            <button :class="{ active: !isManga }" @click="onSetPageDirection('normal')">
+              普通模式
+            </button>
+            <button :class="{ active: isManga }" @click="onSetPageDirection('manga')">
+              日漫模式
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- 缩略图抽屉：挂在根容器（reader-controls 内祖先有 transform 且根节点劫持 wheel，
          放里面会导致全屏 fixed 失效、面板滚动变翻页） -->
@@ -62,7 +116,17 @@ import pdfReader from './type/pdf.vue'
 import videoReader from './type/video/index.vue'
 import readerControls from './reader-controls.vue'
 import ThumbnailPanel from '@renderer/components/thumbnail-panel.vue'
-import { showProgressBar, doublePageMode, setShowReaderProgress, setDoublePageMode, autoPlayInterval } from './reader-state'
+import {
+  showProgressBar,
+  doublePageMode,
+  setShowReaderProgress,
+  setDoublePageMode,
+  autoPlayInterval,
+  readingMode,
+  setReadingMode,
+  pageDirection,
+  setPageDirection
+} from './reader-state'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
 
@@ -97,10 +161,12 @@ const readerComponent = computed(() => {
   else if (currentFile.value.extension === '.epub') return epubReader
   return imageReader
 })
-// 双页模式：仅图片阅读时生效，一次翻动两页
+// 双页模式：仅图片阅读时生效，一次翻动两页（上下滚动模式下不生效）
 const isImageReading = computed(() => readerComponent.value === imageReader)
+const isScrollMode = computed(() => readingMode.value === 'scroll')
+const isManga = computed(() => pageDirection.value === 'manga')
 const pagesPerView = computed(() =>
-  doublePageMode.value && isImageReading.value ? 2 : 1
+  doublePageMode.value && isImageReading.value && !isScrollMode.value ? 2 : 1
 )
 // 双页模式下与当前页配对显示的下一页（不存在或非图片则为空，如最后一页）
 const nextFileInPair = computed(() => {
@@ -145,10 +211,69 @@ const onThumbJump = (fullPath: string) => {
   }
 }
 
-const toggleDoublePage = () => {
-  setDoublePageMode(!doublePageMode.value)
-  // 切换后将当前页重新对齐到双页对的起点
-  jumpToPage(page.index)
+// ===== 阅读设置面板（仅图片阅读）：hover 触发 =====
+const showReaderSettings = ref(false)
+// 按钮与面板分别记录悬停态，两者都离开后延迟收起（避免经过按钮-面板间空隙时误关）
+const settingsHover = reactive({ button: false, panel: false })
+let settingsHideTimer: ReturnType<typeof setTimeout> | null = null
+
+const updateSettingsPanelVisible = () => {
+  if (settingsHideTimer) {
+    clearTimeout(settingsHideTimer)
+    settingsHideTimer = null
+  }
+  if (settingsHover.button || settingsHover.panel) {
+    showReaderSettings.value = true
+  } else {
+    settingsHideTimer = setTimeout(() => {
+      if (!settingsHover.button && !settingsHover.panel) {
+        showReaderSettings.value = false
+      }
+    }, 150)
+  }
+}
+
+const onSettingsButtonEnter = () => {
+  settingsHover.button = true
+  updateSettingsPanelVisible()
+}
+const onSettingsButtonLeave = () => {
+  settingsHover.button = false
+  updateSettingsPanelVisible()
+}
+const onSettingsPanelEnter = () => {
+  settingsHover.panel = true
+  updateSettingsPanelVisible()
+}
+const onSettingsPanelLeave = () => {
+  settingsHover.panel = false
+  updateSettingsPanelVisible()
+}
+
+// 点击设置面板与顶栏按钮以外的区域时收起面板
+const onReaderRootClick = (ev: MouseEvent) => {
+  if (!showReaderSettings.value) return
+  const t = ev.target as Element
+  if (!t.closest('.reader-settings') && !t.closest('.control-button')) {
+    showReaderSettings.value = false
+    settingsHover.button = false
+    settingsHover.panel = false
+  }
+}
+const onSetReadingMode = (mode: 'page' | 'scroll') => {
+  setReadingMode(mode)
+}
+const onSetPageDirection = (dir: 'normal' | 'manga') => {
+  setPageDirection(dir)
+}
+// 切换双页：开启时将当前页对齐到双页对的起点
+const onSetDoublePage = (value: boolean) => {
+  setDoublePageMode(value)
+  if (value) jumpToPage(page.index)
+}
+// 上下滚动模式：滚动位置反算的当前页
+const handleScrollPage = (index: number) => {
+  jumpToPage(index)
 }
 const isAutoPlaying = ref(false)
 const zoomLevel = ref(1)
@@ -206,6 +331,10 @@ onMounted(() => {
 onUnmounted(() => {
   stopAutoPlay()
   window.removeEventListener('mousedown', handleMouseDown)
+  if (settingsHideTimer) {
+    clearTimeout(settingsHideTimer)
+    settingsHideTimer = null
+  }
 })
 const handleMouseDown = (e: MouseEvent) => {
   // 鼠标侧键（后退 3 / 前进 4）关闭阅读器，与返回按钮同语义；
@@ -392,6 +521,72 @@ const goBack = () => {
     width: 100%;
   }
 
+  /* 阅读设置面板：顶栏下方浮层 */
+  .reader-settings {
+    position: absolute;
+    top: 58px;
+    right: 16px;
+    z-index: 200;
+    width: 272px;
+    padding: 4px 14px;
+    border-radius: 12px;
+    background: rgba(32, 32, 32, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+
+    &__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+
+      & + & {
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      /* 滚动模式下不适用的设置整行禁用 */
+      &.row-disabled {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+    }
+
+    &__label {
+      color: #eee;
+      font-size: 14px;
+    }
+
+    &__options {
+      display: flex;
+      gap: 4px;
+      padding: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+
+      button {
+        padding: 4px 12px;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: #bbb;
+        font-size: 12px;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          color 0.2s;
+
+        &:hover {
+          color: #fff;
+        }
+
+        &.active {
+          background: #fff;
+          color: #222;
+        }
+      }
+    }
+  }
+
   /* 双页切换按钮：投送到 reader-controls 顶栏插槽，插槽内容不吃其 scoped 样式，需自带样式 */
   .control-button {
     @apply flex items-center justify-center w-10 h-10 text-white rounded-lg transition-all duration-200;
@@ -407,5 +602,18 @@ const goBack = () => {
       background: rgba(255, 255, 255, 0.25);
     }
   }
+}
+
+/* 设置面板出入场动画 */
+.reader-settings-enter-active,
+.reader-settings-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.reader-settings-enter-from,
+.reader-settings-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>
