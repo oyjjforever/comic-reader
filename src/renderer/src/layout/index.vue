@@ -209,7 +209,9 @@
         </n-modal>
         <!-- 非 site 路由使用 router-view + keep-alive -->
         <router-view v-slot="{ Component }">
-          <keep-alive include="library,reader,search,specialAttention,actorVideo,yfantasy,fourkhd">
+          <keep-alive
+            include="library,reader,search,specialAttention,actorVideo,yfantasy,fourkhd,fanqie"
+          >
             <component
               v-if="!isSiteRoute"
               ref="nonSiteComponentRef"

@@ -150,14 +150,26 @@ const emit = defineEmits<{
 }>()
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
+const VIDEO_EXTENSIONS = [
+  '.mp4',
+  '.avi',
+  '.mov',
+  '.mkv',
+  '.wmv',
+  '.flv',
+  '.webm',
+  '.m4v',
+  '.ogg',
+  '.ogv'
+]
 
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const readerComponent = computed(() => {
   if (IMAGE_EXTENSIONS.includes(currentFile.value.extension)) return imageReader
+  else if (VIDEO_EXTENSIONS.includes(currentFile.value.extension)) return videoReader
   else if (currentFile.value.extension === '.pdf') return pdfReader
-  else if (currentFile.value.extension === '.mp4') return videoReader
   else if (currentFile.value.extension === '.epub') return epubReader
   return imageReader
 })

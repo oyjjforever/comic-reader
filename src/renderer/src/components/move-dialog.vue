@@ -143,9 +143,14 @@ const emit = defineEmits<{
 const dialog = useDialog()
 const message = useMessage()
 
-// 全量树模块级缓存：同一模块（namespace+资源根）只扫盘一次，
-// 弹窗内新建/删除直接改树对象（引用共享，缓存自动同步）
-const moduleTreeCache = new Map<string, any[]>()
+// 全量树模块级缓存与构建逻辑抽到 utils/full-tree 共享（随机打开也复用同一棵树），
+// 这里只保留弹窗专属的禁选装饰与生命周期处理
+import {
+  buildFullTree as buildSharedFullTree,
+  moduleTreeCache,
+  treeCacheKey,
+  type FullTreeNode
+} from '@renderer/utils/full-tree'
 
 const loading = ref(false)
 // 弹窗内新建/删除涉及的父目录（关闭时一次性汇报，避免逐步刷新外层树）
@@ -179,39 +184,23 @@ const displayNames = computed(() => {
 
 const searchKeyword = ref('')
 
-const cacheKey = computed(
-  () => `${props.namespace}|${rootPaths.value.join('||')}`
-)
+const cacheKey = computed(() => treeCacheKey(props.namespace, rootPaths.value))
+
+// 缓存可能来自未装饰的共享树（如随机打开构建的），命中后统一补一次禁选标记
+const decorateDisabled = (nodes: FullTreeNode[]) => {
+  for (const node of nodes) {
+    node.disabled = isNodeDisabled({ fullPath: node.fullPath })
+    decorateDisabled(node.children || [])
+  }
+}
 
 const buildFullTree = async () => {
   loading.value = true
   try {
-    // 不复用 props.provideTree：书架模式它会过滤"无子目录"的文件夹，
-    // 移动目标树需要显示全部文件夹（含空的最叶节点），固定用不过滤形态
-    const buildNode = async (path: string, name?: string, isRoot = false): Promise<any> => {
-      let children: any[] = []
-      try {
-        children = await window.media.getFolderTree(path, false)
-      } catch {
-        /* 单个分支失败跳过 */
-      }
-      const built = await Promise.all(
-        children.map((c: any) => buildNode(c.fullPath, c.name, false))
-      )
-      return {
-        name: name ?? path,
-        fullPath: path,
-        isRoot,
-        disabled: isNodeDisabled({ fullPath: path }),
-        // 无子目录的节点标记为叶子（不显示展开箭头）
-        isLeaf: built.length === 0,
-        children: built
-      }
-    }
-    fullTree.value = await Promise.all(
-      rootPaths.value.map((p) => buildNode(p, p, true))
-    )
-    moduleTreeCache.set(cacheKey.value, fullTree.value)
+    const tree = await buildSharedFullTree(rootPaths.value)
+    decorateDisabled(tree)
+    fullTree.value = tree
+    moduleTreeCache.set(cacheKey.value, tree)
   } finally {
     loading.value = false
   }
@@ -428,6 +417,7 @@ watch(
       dirtyParents.clear()
       const cached = moduleTreeCache.get(cacheKey.value)
       if (cached) {
+        decorateDisabled(cached)
         fullTree.value = cached
       } else {
         fullTree.value = []

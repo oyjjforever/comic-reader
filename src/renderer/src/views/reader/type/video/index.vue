@@ -10,7 +10,7 @@
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onVideoLoaded"
     >
-      <source :src="`file://${video.fullPath}`" type="video/mp4" />
+      <source v-if="video.fullPath" :src="`file://${video.fullPath}`" type="video/mp4" />
     </video>
 
     <!-- 字幕叠加层 -->

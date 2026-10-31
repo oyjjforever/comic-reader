@@ -8,6 +8,7 @@
       :style="imageTransformStyle"
     >
       <img
+        v-if="file?.fullPath"
         :src="`file://${file.fullPath}`"
         :alt="file.name"
         class="main-image"
@@ -17,7 +18,7 @@
       />
       <!-- 双页模式：与当前页并排显示的下一页 -->
       <img
-        v-if="nextFile"
+        v-if="nextFile?.fullPath"
         :src="`file://${nextFile.fullPath}`"
         :alt="nextFile.name"
         class="main-image pair-image"

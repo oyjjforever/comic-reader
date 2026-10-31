@@ -70,6 +70,19 @@
       <div class="navbar-right">
         <n-button size="small" type="success" @click="refresh">刷新</n-button>
         <n-button
+          size="small"
+          :loading="randomLoading"
+          :disabled="
+            currentViewMode === 'highlights' ||
+            (currentViewMode !== 'folders' && grid.filterRows.length === 0)
+          "
+          title="随机打开一部作品；本地目录视图下从整个资源库抽取"
+          @click="emit('randomOpen')"
+        >
+          <template #icon><n-icon :component="DiceOutline" /></template>
+          随机
+        </n-button>
+        <n-button
           v-if="['favorites', 'history', 'downloads'].includes(currentViewMode)"
           size="small"
           type="error"
@@ -262,7 +275,8 @@ import ContextMenu from '@imengyu/vue3-context-menu'
 import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
-  Folder as FolderIcon
+  Folder as FolderIcon,
+  DiceOutline
 } from '@vicons/ionicons5'
 import {
   ArrowSortDownLines24Regular,
@@ -312,6 +326,8 @@ interface ResourceBrowserProps {
   enableHighlights?: boolean
   // 文件夹模块是否同时列出目录下的单独图片文件（书架用，支持单图封面与阅读）
   includeImageFiles?: boolean
+  // 随机池扫描中（随机按钮 loading）
+  randomLoading?: boolean
 }
 
 const props = withDefaults(defineProps<ResourceBrowserProps>(), {
@@ -328,11 +344,13 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
   aspectRatio: 0.75,
   gridGap: 10,
   namespace: 'default',
-  enableHighlights: false
+  enableHighlights: false,
+  randomLoading: false
 })
 
 const message = useMessage()
 const dialog = useDialog()
+const emit = defineEmits<{ randomOpen: [] }>()
 const router = useRouter()
 const settingStore = useSettingStore()
 const _isSidebarHidden = ref(false)
@@ -1719,7 +1737,9 @@ defineExpose({
   selectedCards: () => selectedCards.value,
   toggleMultiSelectMode,
   // 暴露当前网格数据
-  getFilterRows: () => grid.filterRows
+  getFilterRows: () => grid.filterRows,
+  // 当前视图模式（随机池范围判定用）
+  getViewMode: () => currentViewMode.value
 })
 </script>
 
