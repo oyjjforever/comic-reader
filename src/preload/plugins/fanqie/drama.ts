@@ -341,6 +341,34 @@ export interface DramaSearchResult {
     tagColors?: [string, string];
 }
 
+// ---------------------------------------------------------------------------
+// 漫剧判定（fqapp _isManjuItem 移植）：上游把漫剧混在短剧 tab（tab_type=11）里，
+// 客户端按结构化元数据分离 —— genre=205，或 tag_info / cover_tag_info_list /
+// book_type_name / type 文本为 漫剧/动态漫/动态漫画。标题与简介不算证据。
+// ---------------------------------------------------------------------------
+
+const MANJU_TAG_TEXTS = new Set(['漫剧', '动态漫', '动态漫画']);
+
+function manjuTagTextHit(value: unknown): boolean {
+    if (Array.isArray(value)) { return value.some(manjuTagTextHit); }
+    if (value && typeof value === 'object') { return manjuTagTextHit((value as Record<string, unknown>).text); }
+    return typeof value === 'string' && MANJU_TAG_TEXTS.has(value.trim());
+}
+
+export function isManjuItem(
+    item: Record<string, unknown>,
+    vd?: Record<string, unknown>
+): boolean {
+    for (const o of [item, vd]) {
+        if (!o) { continue; }
+        if (o.genre === 205 || String(o.genre ?? '') === '205') { return true; }
+        if (manjuTagTextHit(o.tag_info) || manjuTagTextHit(o.cover_tag_info_list)) { return true; }
+        if (MANJU_TAG_TEXTS.has(String(o.book_type_name ?? '').trim())) { return true; }
+        if (MANJU_TAG_TEXTS.has(String(o.type ?? '').trim())) { return true; }
+    }
+    return false;
+}
+
 /**
  * 阅读版搜索（v0.9.15+ 接口形态）：tab_type=11 短剧 Tab。
  * 响应结构：顶层 search_tabs[]（不在 data 下），短剧条目 data[] 内嵌 video_data[0].series_id。
@@ -348,7 +376,34 @@ export interface DramaSearchResult {
  * 翻页：offset 递增（每页 count=20），返回空数组即到底。
  * sortBy（如 publish_time）：附加分类排序参数走"分类流"形态（实测与默认推荐流排序不同）。
  */
-export async function searchDramas(query: string, offset = 0, sortBy?: string): Promise<DramaSearchResult[]> {
+export async function searchDramas(
+    query: string,
+    offset = 0,
+    sortBy?: string,
+    opts: { manjuOnly?: boolean } = {}
+): Promise<DramaSearchResult[]> {
+    // manjuOnly：漫剧占比不稳定，整页被过滤完时自动向后追页（offset 仍按原始
+    // 每页 20 对齐，调用方游标 +20 不变），连追 3 页无漫剧或到底则返回已得结果
+    if (opts.manjuOnly) {
+        let cursor = offset;
+        for (let i = 0; i < 4; i++) {
+            const page = await searchDramasOnce(query, cursor, sortBy, true);
+            if (page.length > 0 || !rawPageHadMore) { return page; }
+            cursor += 20;
+        }
+        return [];
+    }
+    return searchDramasOnce(query, offset, sortBy, false);
+}
+
+let rawPageHadMore = false;
+
+async function searchDramasOnce(
+    query: string,
+    offset: number,
+    sortBy: string | undefined,
+    manjuOnly: boolean
+): Promise<DramaSearchResult[]> {
     const dev = await mobileApi.ensureDevice();
     const rawUrl =
         'https://api5-normal-sinfonlineb.fqnovel.com/reading/bookapi/search/tab/v' +
@@ -375,6 +430,7 @@ export async function searchDramas(query: string, offset = 0, sortBy?: string): 
         search_tabs?: Array<{ tab_name?: string; tab_type?: unknown; title?: unknown; data?: unknown }>;
     };
     const tabs = (json.search_tabs ?? []) as Array<{ tab_type?: unknown; title?: unknown; data?: unknown }>;
+    rawPageHadMore = tabs.some((tab) => Array.isArray(tab.data) && tab.data.length > 0);
     const out = new Map<string, DramaSearchResult>();
     for (const tab of tabs) {
         const t = Number(tab.tab_type);
@@ -385,6 +441,8 @@ export async function searchDramas(query: string, offset = 0, sortBy?: string): 
             const vd = Array.isArray(item.video_data)
                 ? (item.video_data as Array<Record<string, unknown>>)[0]
                 : undefined;
+            // 漫剧模式：跳过无结构化漫剧标记的条目（短剧/真人剧）
+            if (manjuOnly && !isManjuItem(item, vd)) { continue; }
             const bookId = String((vd && (vd.series_id_str ?? vd.pseries_id ?? vd.series_id)) ?? item.book_id ?? '');
             if (!bookId || out.has(bookId)) { continue; }
             const hl = (item.search_high_light as { title?: { text?: string } } | undefined)?.title?.text;

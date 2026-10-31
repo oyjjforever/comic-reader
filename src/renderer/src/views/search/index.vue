@@ -166,8 +166,7 @@ const typeOptions = [
   { label: '全部', value: 'all' },
   { label: 'JM', value: 'jmtt' },
   { label: 'Pixiv', value: 'pixiv' },
-  { label: 'Picaman', value: 'picaman' },
-  { label: '番茄短剧', value: 'fanqie' }
+  { label: 'Picaman', value: 'picaman' }
 ]
 
 // 搜索表单状态
@@ -258,7 +257,7 @@ const getSearchKeywords = (): string[] => {
 
 // 获取当前需要搜索的站点列表
 const getTypesToSearch = () => {
-  return searchType.value === 'all' ? ['jmtt', 'pixiv', 'picaman', 'fanqie'] : [searchType.value]
+  return searchType.value === 'all' ? ['jmtt', 'pixiv', 'picaman'] : [searchType.value]
 }
 const onSearch = () => {
   currentPage.value = 1

@@ -10,7 +10,7 @@
       <div class="fq-topbar__right">
         <n-input
           v-model:value="keyword"
-          placeholder="搜索短剧名称..."
+          placeholder="搜索漫剧名称..."
           size="small"
           clearable
           style="width: 260px"
@@ -524,7 +524,7 @@ async function onSearch() {
     const list = (await fanqie.search(kw, 0)) as SearchRow[]
     searchResults.value = []
     appendResults(list)
-    if (!list.length) message.info('未找到相关短剧')
+    if (!list.length) message.info('未找到相关漫剧')
   } catch (e: any) {
     message.error(e?.message || '搜索失败')
     refreshDeviceStatus()
