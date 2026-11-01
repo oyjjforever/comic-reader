@@ -1,5 +1,23 @@
 <template>
   <n-form :model="modelValue">
+    <!-- 站点显示设置 -->
+    <n-form-item label="站点显示" :show-feedback="false">
+      <div class="site-visibility">
+        <div class="site-visibility__grid">
+          <div v-for="site in siteList" :key="site.key" class="site-visibility__item">
+            <img :src="site.image" width="20" height="20" />
+            <span class="site-visibility__label">{{ site.label }}</span>
+            <n-switch
+              :value="!isHidden(site.key)"
+              size="small"
+              @update:value="(value) => toggleSite(site.key, value)"
+            />
+          </div>
+        </div>
+        <span class="site-visibility__tip">关闭后，站点将从左侧「站点」悬浮菜单中隐藏</span>
+      </div>
+    </n-form-item>
+
     <n-form-item path="defaultDownloadPath" label="默认下载路径">
       <n-input-group>
         <n-input
@@ -132,6 +150,16 @@
 import { ref, defineProps, defineEmits } from 'vue'
 import { useMessage } from 'naive-ui'
 import { setting } from '../../../../../typings/setting'
+import jmttImg from '@renderer/assets/jmtt.jpg'
+import pixivImg from '@renderer/assets/pixiv.jpg'
+import twitterImg from '@renderer/assets/twitter.jpg'
+import weiboImg from '@renderer/assets/weibo.ico'
+import picamanImg from '@renderer/assets/picaman.ico'
+import pornhubImg from '@renderer/assets/pornhub.ico'
+import fourkhdImg from '@renderer/assets/4khd.png'
+import huangguoImg from '@renderer/assets/huangguo.png'
+import fanqieImg from '@renderer/assets/fanqie.png'
+import missavImg from '@renderer/assets/missav.png'
 
 const props = defineProps<{
   modelValue: setting
@@ -141,6 +169,34 @@ const emit = defineEmits(['update:modelValue'])
 
 const message = useMessage()
 const showMore = ref(false)
+
+// 站点列表（与左侧「站点」悬浮菜单保持一致，key 对应路由/站点标识）
+const siteList = [
+  { image: missavImg, key: 'missav', label: 'MISSAV' },
+  { image: fourkhdImg, key: '4khd', label: '4KHD' },
+  { image: fanqieImg, key: 'fanqie', label: '番茄短剧' },
+  { image: jmttImg, key: 'jmtt', label: 'JMTT' },
+  { image: pixivImg, key: 'pixiv', label: 'Pixiv' },
+  { image: twitterImg, key: 'twitter', label: 'Twitter' },
+  { image: weiboImg, key: 'weibo', label: '微博' },
+  { image: picamanImg, key: 'picaman', label: 'Picaman' },
+  { image: huangguoImg, key: 'huangguo', label: '黄果剧场' },
+  { image: pornhubImg, key: 'pornhub', label: 'Pornhub' }
+]
+
+const isHidden = (key: string) => {
+  return (props.modelValue.hiddenSites || []).includes(key)
+}
+
+const toggleSite = (key: string, visible: boolean) => {
+  const hidden = new Set(props.modelValue.hiddenSites || [])
+  if (visible) {
+    hidden.delete(key)
+  } else {
+    hidden.add(key)
+  }
+  updateSetting('hiddenSites', [...hidden])
+}
 
 const updateSetting = (key: keyof setting, value: any) => {
   const newSetting = { ...props.modelValue }
@@ -165,5 +221,38 @@ const selectResourcePath = async (key: keyof setting) => {
 <style lang="scss" scoped>
 .more-toggle {
   margin: 10px 0;
+}
+
+.site-visibility {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+
+  .site-visibility__grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+    width: 100%;
+  }
+
+  .site-visibility__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 150px;
+  }
+
+  .site-visibility__label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.site-visibility__tip {
+  font-size: 12px;
+  color: #999;
 }
 </style>

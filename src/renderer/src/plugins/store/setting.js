@@ -9,6 +9,7 @@ export const defaultSetting = {
   resourcePaths: [], // 多个漫画书资源路径
   videoResourcePaths: [], // 多个电影资源路径
   defaultDownloadPath: '',
+  hiddenSites: [], // 隐藏的站点列表（站点悬浮菜单中不显示）
   enableAuthorUpdateCheck: false,
   enableUpdateCheck: true, // 启动时检测应用更新
   enableClipboardMonitor: false, // 默认关闭剪切板监听

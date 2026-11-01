@@ -14,6 +14,8 @@ export type setting = {
     videoResourcePaths: string[]
     // 默认下载路径（可选）
     defaultDownloadPath?: string
+    // 隐藏的站点列表（站点悬浮菜单中不显示，键为站点标识）
+    hiddenSites?: string[]
     // 站点专属下载路径（可选）
     downloadPathJmtt?: string
     downloadPathPixiv?: string

@@ -37,7 +37,7 @@
       <!-- 站点二级菜单（悬浮） -->
       <transition name="sites-flyout">
         <div
-          v-if="sitesMenuVisible"
+          v-if="sitesMenuVisible && (routeMenuConfig.length > 0 || sitesConfig.length > 0)"
           class="sites-submenu"
           @mouseenter="onSitesSubmenuHover(true)"
           @mouseleave="onSitesSubmenuHover(false)"
@@ -53,7 +53,10 @@
             <img v-if="item.image" :src="item.image" width="24" height="24" />
             <span>{{ item.label }}</span>
           </div>
-          <div class="sites-submenu__divider"></div>
+          <div
+            v-if="routeMenuConfig.length > 0 && sitesConfig.length > 0"
+            class="sites-submenu__divider"
+          ></div>
           <div
             v-for="(site, idx) in sitesConfig"
             :key="site.site"
@@ -361,24 +364,31 @@ const menuItems = [
   { icon: Globe24Regular, name: 'sites' }
 ]
 
-// 二级菜单中的路由项（与站点列表用分割线区分）
-const routeMenuConfig = [
-  { image: missavImg, name: 'missav', label: 'MISSAV' },
-  // { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
-  { image: fourkhdImg, name: '4khd', label: '4KHD' },
-  { image: fanqieImg, name: 'fanqie', label: '番茄短剧' }
-]
+// 隐藏的站点（站点设置中关闭显示的站点键）
+const hiddenSites = computed<string[]>(() => settingStore.setting.hiddenSites || [])
 
-// 站点列表配置（二级菜单）
-const sitesConfig = [
-  { image: jmttImg, site: 'jmtt', label: 'JMTT' },
-  { image: pixivImg, site: 'pixiv', label: 'Pixiv' },
-  { image: twitterImg, site: 'twitter', label: 'Twitter' },
-  { image: weiboImg, site: 'weibo', label: '微博' },
-  { image: picamanImg, site: 'picaman', label: 'Picaman' },
-  { image: huangguoImg, site: 'huangguo', label: '黄果剧场' },
-  { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
-]
+// 二级菜单中的路由项（与站点列表用分割线区分），按站点显示设置过滤
+const routeMenuConfig = computed(() =>
+  [
+    { image: missavImg, name: 'missav', label: 'MISSAV' },
+    // { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
+    { image: fourkhdImg, name: '4khd', label: '4KHD' },
+    { image: fanqieImg, name: 'fanqie', label: '番茄短剧' }
+  ].filter((item) => !hiddenSites.value.includes(item.name))
+)
+
+// 站点列表配置（二级菜单），按站点显示设置过滤
+const sitesConfig = computed(() =>
+  [
+    { image: jmttImg, site: 'jmtt', label: 'JMTT' },
+    { image: pixivImg, site: 'pixiv', label: 'Pixiv' },
+    { image: twitterImg, site: 'twitter', label: 'Twitter' },
+    { image: weiboImg, site: 'weibo', label: '微博' },
+    { image: picamanImg, site: 'picaman', label: 'Picaman' },
+    { image: huangguoImg, site: 'huangguo', label: '黄果剧场' },
+    { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
+  ].filter((site) => !hiddenSites.value.includes(site.site))
+)
 
 const sitesMenuVisible = ref(false)
 const sitesHovering = ref({ trigger: false, submenu: false })

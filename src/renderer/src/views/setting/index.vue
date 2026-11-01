@@ -21,9 +21,9 @@
         <ResourceSettings v-model="formData" />
       </n-tab-pane>
 
-      <!-- 下载设置 -->
-      <n-tab-pane name="download" tab="下载设置">
-        <DownloadSettings v-model="formData" />
+      <!-- 站点设置 -->
+      <n-tab-pane name="site" tab="站点设置">
+        <SiteSettings v-model="formData" />
       </n-tab-pane>
 
       <!-- 数据库设置 -->
@@ -54,7 +54,7 @@ import GeneralSettings from './tabs/GeneralSettings.vue'
 import ReadingSettings from './tabs/ReadingSettings.vue'
 import ClipboardSettings from './tabs/ClipboardSettings.vue'
 import ResourceSettings from './tabs/ResourceSettings.vue'
-import DownloadSettings from './tabs/DownloadSettings.vue'
+import SiteSettings from './tabs/SiteSettings.vue'
 import DatabaseSettings from './tabs/DatabaseSettings.vue'
 import LanServiceSettings from './tabs/LanServiceSettings.vue'
 import SubtitleSettings from './tabs/SubtitleSettings.vue'
@@ -80,7 +80,7 @@ onMounted(async () => {
       'reading',
       'clipboard',
       'resource',
-      'download',
+      'site',
       'database',
       'lanService',
       'subtitle'
