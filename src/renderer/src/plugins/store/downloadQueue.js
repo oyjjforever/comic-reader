@@ -166,6 +166,97 @@ async function isPathExists(path, task) {
     throw new Error(`${path} 已存在`)
   }
 }
+
+// 本地作品移动：逐作品 movePath + 关联记录路径迁移；支持作品间暂停/取消，重试幂等（已移过的跳过计成功）
+async function runLocalMove(task) {
+  const { items, destFolderPath } = task.payload
+  // 任务级字节进度：sizeTotal 为全部作品大小和，sizeDone 为已完成作品大小 + 当前作品已复制字节
+  const sizeTotal = items.reduce((s, i) => s + (i.size || 0), 0)
+  let passedSize = 0
+  updateTask(task, {
+    status: 'running',
+    errorMessage: undefined,
+    progress: { success: 0, fail: 0, total: items.length, sizeDone: 0, sizeTotal }
+  })
+  let success = 0,
+    fail = 0
+  const succeededItems = []
+  for (const item of items) {
+    if (task._cancel) break
+    await waitWhilePaused(task)
+    // 当前作品字节进度折算进总进度：value = (已完成作品数 + 当前作品复制比例) / 总数
+    const onProgress = (p) => {
+      const frac = p.totalBytes > 0 ? Math.min(1, p.bytes / p.totalBytes) : 0
+      const value = Math.floor(((success + fail + frac) / items.length) * 100)
+      updateTask(task, {
+        progress: {
+          value,
+          success,
+          fail,
+          total: items.length,
+          sizeDone: passedSize + p.bytes,
+          sizeTotal
+        }
+      })
+    }
+    try {
+      const res = await window.systemInterface.movePath(item.fullPath, destFolderPath, onProgress)
+      if (!res.success) throw new Error(res.error)
+      success++
+      passedSize += item.size || 0
+      succeededItems.push(item)
+      // 文件已到位，同步迁移收藏/评分/历史等关联记录（失败不影响移动，仅记日志）
+      try {
+        await window.pathMigration.migrateByMove(item.fullPath, destFolderPath)
+      } catch (e) {
+        console.warn(`迁移关联记录失败: ${item.fullPath}`, e)
+      }
+    } catch (e) {
+      // 幂等重试：源已不在且目标已有同名项，说明之前已移动过
+      const name = item.fullPath.split(/[\\/]/).pop()
+      const [srcExists, destExists] = await Promise.all([
+        file.pathExists(item.fullPath),
+        file.pathExists(`${destFolderPath}\\${name}`)
+      ])
+      if (!srcExists && destExists) {
+        success++
+        passedSize += item.size || 0
+        succeededItems.push(item)
+      } else {
+        fail++
+        item.error = e?.message || String(e)
+      }
+    }
+    updateTask(task, {
+      progress: { success, fail, total: items.length, sizeDone: passedSize, sizeTotal }
+    })
+  }
+  if (task._cancel) {
+    updateTask(task, { status: 'canceled' })
+  } else if (fail === 0) {
+    updateTask(task, {
+      status: 'success',
+      localFilePath: destFolderPath,
+      progress: {
+        value: 100,
+        success,
+        fail,
+        total: items.length,
+        sizeDone: sizeTotal,
+        sizeTotal
+      }
+    })
+  } else if (success === 0) {
+    updateTask(task, { status: 'error', errorMessage: items.find((i) => i.error)?.error })
+  } else {
+    updateTask(task, {
+      status: 'error',
+      errorMessage: `${fail}/${items.length} 个作品移动失败`,
+      localFilePath: destFolderPath
+    })
+  }
+  task.onFinish?.(succeededItems, fail)
+}
 async function runJmtt(task) {
   const { chapter, comicInfo, baseDir } = task.payload
   try {
@@ -738,9 +829,14 @@ async function executeTask(task) {
     case 'huangguo':
       await runHuangguo(task)
       break
+    case 'local-move':
+      await runLocalMove(task)
+      break
     default:
       updateTask(task, { status: 'error' })
   }
+  // 本地移动不是下载，不记入下载历史
+  if (task.site === 'local-move') return
   try {
     await window.downloadHistory.addDownloadHistory(task.localFilePath, task.type || 'book')
   } catch (error) {

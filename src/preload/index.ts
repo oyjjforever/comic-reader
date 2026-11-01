@@ -28,6 +28,7 @@ import huangguo from './plugins/downloader/huangguo'
 import fanqie from './plugins/fanqie'
 import pornhub from './plugins/downloader/pornhub'
 import rating from './plugins/rating'
+import pathMigration from './plugins/path-migration'
 
 // 剪切板 IPC 桥接
 const clipboard = {
@@ -106,6 +107,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('fanqie', fanqie)
     contextBridge.exposeInMainWorld('pornhub', pornhub)
     contextBridge.exposeInMainWorld('rating', rating)
+    contextBridge.exposeInMainWorld('pathMigration', pathMigration)
   } catch (error) {
     console.error(error)
   }

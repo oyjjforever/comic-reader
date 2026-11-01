@@ -40,8 +40,12 @@ declare global {
       ) => Promise<{ success: boolean; error?: string }>
       movePath: (
         srcPath: string,
-        destFolderPath: string
+        destFolderPath: string,
+        /** 跨盘移动（复制）时的字节级进度回调，约 100ms 节流一次 */
+        onProgress?: (p: { bytes: number; totalBytes: number }) => void
       ) => Promise<{ success: boolean; error?: string }>
+      /** 递归统计路径列表的文件数与总大小（文件计 1，目录计其下所有文件） */
+      countFiles: (paths: string[]) => Promise<{ count: number; size: number }>
     }
     media: {
       getFolderTree: (dirPath: string, noLeaf: boolean) => Promise<FolderInfo[]>
@@ -90,6 +94,27 @@ declare global {
       getAllRatings: (module: string) => Promise<Record<string, number>>
       setRating: (fullPath: string, module: string, rating: number) => Promise<void>
       deleteRating: (fullPath: string, module: string) => Promise<void>
+    }
+    /** 作品移动后按路径引用的关联记录迁移（收藏/评分/标签/历史/精彩片段/封面缓存） */
+    pathMigration: {
+      countAffected: (srcPath: string) => Promise<{
+        favorites: number
+        ratings: number
+        folderTags: number
+        browseHistory: number
+        downloadHistory: number
+        videoBookmarks: number
+        videoCovers: number
+      }>
+      migrateByMove: (srcPath: string, destFolderPath: string) => Promise<{
+        favorites: number
+        ratings: number
+        folderTags: number
+        browseHistory: number
+        downloadHistory: number
+        videoBookmarks: number
+        videoCovers: number
+      }>
     }
     tag: {
       getTags: (order?: string, namespace?: string) => Promise<any[]>

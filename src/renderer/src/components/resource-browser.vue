@@ -302,6 +302,7 @@ import { debounce } from 'lodash'
 import { ref, reactive, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@renderer/plugins/store'
+import { queue } from '@renderer/plugins/store/downloadQueue'
 import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { extractShareKeyword, normalizeForMatch } from '@renderer/utils/share-match'
 
@@ -1411,39 +1412,92 @@ const moveDialogObject = reactive<{
   moving: false
 })
 
-// 确认移动：将作品移动到目标文件夹
-const handleMoveConfirm = async (destFolderPath: string) => {
-  const items = moveDialogObject.items
-  if (!items.length) return
-  moveDialogObject.moving = true
-  const results: Array<{ item: any; res: { success: boolean; error?: string } }> = []
-  for (const item of items) {
-    const res = await window.systemInterface.movePath(item.fullPath, destFolderPath)
-    results.push({ item, res })
-  }
-  moveDialogObject.moving = false
+// 路径迁移影响项的展示标签（与 path-migration 服务返回的字段对应）
+const AFFECTED_LABELS = [
+  ['favorites', '收藏'],
+  ['ratings', '评分'],
+  ['folderTags', '文件夹标签'],
+  ['browseHistory', '浏览历史'],
+  ['downloadHistory', '下载历史'],
+  ['videoBookmarks', '精彩片段'],
+  ['videoCovers', '视频封面缓存']
+] as const
 
-  const failed = results.filter((r) => !r.res.success)
-  const succeeded = results.filter((r) => r.res.success)
-  if (failed.length) {
-    message.error(
-      `部分作品移动失败：${failed[0].item.name}（${failed[0].res.error}）${
-        failed.length > 1 ? ` 等 ${failed.length} 项` : ''
-      }`
-    )
-  }
-  if (!succeeded.length) return
+type AffectedSummary = Awaited<ReturnType<typeof window.pathMigration.countAffected>>
 
-  message.success(`已移动 ${succeeded.length} 个作品到目标文件夹`)
-  moveDialogObject.show = false
-  toggleMultiSelectMode(false)
+// 移动确认弹窗：总是弹出，展示移动作品数、文件总数与目标位置；有关联记录时附上分表条数
+const confirmPathMigration = (
+  summary: AffectedSummary,
+  itemCount: number,
+  fileCount: number,
+  destFolderPath: string
+): Promise<boolean> => {
+  const entries = AFFECTED_LABELS.filter(([key]) => summary[key] > 0)
+  const total = entries.reduce((sum, [key]) => sum + summary[key], 0)
+  // 全是单文件（无文件夹）时直接说文件数，否则标注作品内文件总数
+  const moveLine = `即将移动 ${fileCount === itemCount ? itemCount : fileCount} 个文件到：`
+  return new Promise((resolve) => {
+    dialog.info({
+      title: '确认移动',
+      content: () =>
+        h('div', [
+          h('p', moveLine),
+          h(
+            'p',
+            {
+              title: destFolderPath,
+              style:
+                'margin: 4px 0 8px;padding: 6px 10px;background: #f5f5f5;border-radius: 6px;font-size: 12px;color: #374151;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;'
+            },
+            destFolderPath
+          ),
+          ...(total > 0
+            ? [
+                h('p', `检测到 ${total} 条记录引用了这些作品的路径，移动后将自动改为新位置：`),
+                h(
+                  'ul',
+                  { style: 'margin: 8px 0;padding-left: 20px;' },
+                  entries.map(([key, label]) => h('li', `${label} ${summary[key]} 条`))
+                ),
+                h(
+                  'p',
+                  { style: 'color: #6b7280;font-size: 12px;' },
+                  '记录本身不会丢失，仅更新其中的路径。'
+                )
+              ]
+            : [])
+        ]),
+      positiveText: '移动',
+      negativeText: '取消',
+      onPositiveClick: () => resolve(true),
+      onNegativeClick: () => resolve(false),
+      onClose: () => resolve(false)
+    })
+  })
+}
+
+// 后台移动任务完成后：刷新树/网格并提示结果（含部分失败场景）
+const onMoveTaskFinished = (
+  succeeded: Array<{ fullPath: string; name: string }>,
+  failCount: number,
+  destFolderPath: string
+) => {
+  if (succeeded.length) {
+    message.success(`已移动 ${succeeded.length} 个作品到目标文件夹`)
+    if (failCount > 0) message.error(`${failCount} 个作品移动失败，详情见任务队列`)
+  } else if (failCount > 0) {
+    message.error('移动失败，详情见任务队列')
+  } else {
+    return // 未移动任何作品即取消
+  }
+
   // 目录结构已变化，失效移动弹窗的全量树缓存（下次打开重扫）
   moveDialogRef.value?.invalidateCache()
 
   // 刷新树：源目录与目标目录
   const pathsToReload = new Set<string>([destFolderPath])
-  succeeded.forEach((r) => {
-    const parent = getParentPath(r.item.fullPath)
+  succeeded.forEach((item) => {
+    const parent = getParentPath(item.fullPath)
     if (parent) pathsToReload.add(parent)
   })
   pathsToReload.forEach((p) => reloadTreeNodeChildren(p))
@@ -1451,7 +1505,7 @@ const handleMoveConfirm = async (destFolderPath: string) => {
   // 刷新网格
   if (currentViewMode.value === 'folders') {
     // 若当前正在浏览的目录被移动，切换到其父目录（或第一个资源根路径）
-    const movedPaths = new Set(succeeded.map((r) => r.item.fullPath))
+    const movedPaths = new Set(succeeded.map((item) => item.fullPath))
     if (movedPaths.has(tree.currentKey)) {
       const fallback =
         getParentPath(tree.currentKey) ||
@@ -1462,9 +1516,57 @@ const handleMoveConfirm = async (destFolderPath: string) => {
     }
     fetchGridData(tree.currentKey)
   } else {
-    const movedPaths = new Set(succeeded.map((r) => r.item.fullPath))
+    const movedPaths = new Set(succeeded.map((item) => item.fullPath))
     grid.rows = grid.rows.filter((f) => !movedPaths.has(f.fullPath))
     grid.filterRows = grid.filterRows.filter((f) => !movedPaths.has(f.fullPath))
+  }
+}
+
+// 确认移动：将移动任务加入后台队列执行（任务面板显示进度），完成后同步迁移收藏/评分等关联记录
+const handleMoveConfirm = async (destFolderPath: string) => {
+  const items = moveDialogObject.items
+  if (!items.length) return
+  moveDialogObject.moving = true
+  try {
+    // 预统计：关联记录条数（弹窗明细用）+ 逐作品递归文件数与大小（弹窗展示规模，size 供任务面板累计已移动字节）
+    const [stats, itemFileStats] = await Promise.all([
+      Promise.all(items.map((item) => window.pathMigration.countAffected(item.fullPath))),
+      Promise.all(items.map((item) => window.systemInterface.countFiles([item.fullPath])))
+    ])
+    const fileCount = itemFileStats.reduce((sum, r) => sum + r.count, 0)
+    const emptySummary = () =>
+      Object.fromEntries(AFFECTED_LABELS.map(([key]) => [key, 0])) as AffectedSummary
+    const summary = stats.reduce((acc, cur) => {
+      for (const [key] of AFFECTED_LABELS) acc[key] += cur[key]
+      return acc
+    }, emptySummary())
+    // 总是弹窗确认：展示移动文件数与目标位置，有关联记录时附上分表条数
+    moveDialogObject.moving = false
+    const confirmed = await confirmPathMigration(summary, items.length, fileCount, destFolderPath)
+    if (!confirmed) return
+
+    // 加入后台任务队列：逐作品移动并迁移关联记录，任务面板显示进度
+    queue.addTask({
+      site: 'local-move',
+      title: '[文件移动] ' + (items.length > 1 ? `移动 ${items.length} 个作品` : items[0].name),
+      type: props.namespace,
+      payload: {
+        items: items.map((item, i) => ({
+          fullPath: item.fullPath,
+          name: item.name,
+          size: itemFileStats[i].size
+        })),
+        destFolderPath
+      },
+      onFinish: (succeeded: Array<{ fullPath: string; name: string }>, failCount: number) =>
+        onMoveTaskFinished(succeeded, failCount, destFolderPath)
+    })
+    message.info('已加入任务队列')
+
+    moveDialogObject.show = false
+    toggleMultiSelectMode(false)
+  } finally {
+    moveDialogObject.moving = false
   }
 }
 // 分享：使用文件名在各站点搜索作品，列出候选结果供用户选择后复制到剪切板
@@ -1494,7 +1596,8 @@ const scoreMatch = (title: string, keyword: string): number => {
   const la = a.toLowerCase()
   const lb = b.toLowerCase()
   if (la === lb) return 900
-  if (la.includes(lb) || lb.includes(la)) return 500 + Math.min(la.length, lb.length) / Math.max(la.length, lb.length) * 100
+  if (la.includes(lb) || lb.includes(la))
+    return 500 + (Math.min(la.length, lb.length) / Math.max(la.length, lb.length)) * 100
   // Dice 系数：基于二元字符组的相似度
   const bigrams = (s: string) => {
     const set = new Map<string, number>()
@@ -1619,22 +1722,22 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
       y: e.y,
       theme: 'mac',
       items: [
-      {
-        label: '移动到...',
-        icon: h(NIcon, {
-          component: FolderArrowRight24Regular
-        }),
-        onClick: () => {
-          moveDialogObject.items = [folder]
-          moveDialogObject.invalidDestinations = [folder.fullPath]
-          moveDialogObject.show = true
-        }
-      },
-      {
-        label: isFolderTagged ? '取消收藏' : '添加到收藏',
-        icon: h(NIcon, {
-          component: isFolderTagged ? BookmarkOff24Filled : BookmarkAdd24Regular
-        }),
+        {
+          label: '移动到...',
+          icon: h(NIcon, {
+            component: FolderArrowRight24Regular
+          }),
+          onClick: () => {
+            moveDialogObject.items = [folder]
+            moveDialogObject.invalidDestinations = [folder.fullPath]
+            moveDialogObject.show = true
+          }
+        },
+        {
+          label: isFolderTagged ? '取消收藏' : '添加到收藏',
+          icon: h(NIcon, {
+            component: isFolderTagged ? BookmarkOff24Filled : BookmarkAdd24Regular
+          }),
           onClick: async () => {
             try {
               if (isFolderTagged) {

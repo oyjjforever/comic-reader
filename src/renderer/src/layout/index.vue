@@ -185,11 +185,11 @@
             </div>
           </template>
         </n-modal>
-        <!-- 有下载任务时的关闭二次确认对话框 -->
+        <!-- 有后台任务（下载/移动）时的关闭二次确认对话框 -->
         <n-modal
           v-model:show="downloadCloseDialogVisible"
           preset="card"
-          title="下载任务进行中"
+          title="后台任务进行中"
           :closable="false"
           :close-on-esc="false"
           :mask-closable="false"
@@ -198,9 +198,9 @@
         >
           <div class="close-dialog-content">
             <p class="close-dialog-message">
-              当前有 {{ activeDownloadCount }} 个下载任务正在进行，退出程序将中断下载。
+              当前有 {{ activeDownloadCount }} 个后台任务正在进行，退出程序将中断任务。
             </p>
-            <p class="close-dialog-detail">选择"最小化到托盘"可在后台继续下载。</p>
+            <p class="close-dialog-detail">选择"最小化到托盘"可在后台继续执行。</p>
           </div>
           <template #footer>
             <div class="close-dialog-actions">

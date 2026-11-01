@@ -1,5 +1,6 @@
 import { exec } from 'child_process'
 import fs from 'fs/promises'
+import { createReadStream, createWriteStream } from 'fs'
 import path from 'path'
 import FileUtils from './file'
 
@@ -68,7 +69,90 @@ async function createFolder(parentPath: string, folderName: string): Promise<{ s
     }
 }
 
-async function movePath(srcPath: string, destFolderPath: string): Promise<{ success: boolean; error?: string }> {
+interface CopyProgress {
+    bytes: number
+    totalBytes: number
+}
+
+/**
+ * 流式复制（兼容单文件/目录），跨盘移动时用于上报字节级进度
+ * 进度回调按 ~100ms 节流
+ */
+async function copyWithProgress(
+    srcPath: string,
+    destPath: string,
+    onProgress?: (p: CopyProgress) => void
+): Promise<void> {
+    const stat = await fs.stat(srcPath);
+    const files: Array<{ src: string; dest: string; size: number }> = [];
+    if (stat.isFile()) {
+        files.push({ src: srcPath, dest: destPath, size: stat.size });
+    } else {
+        const walk = async (dir: string, rel: string): Promise<void> => {
+            const entries = await fs.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const src = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    await walk(src, rel ? path.join(rel, entry.name) : entry.name);
+                } else if (entry.isFile()) {
+                    const fileStat = await fs.stat(src);
+                    files.push({ src, dest: path.join(destPath, rel, entry.name), size: fileStat.size });
+                }
+            }
+        };
+        await walk(srcPath, '');
+    }
+
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+    let copiedBytes = 0;
+    let lastReport = 0;
+    const report = (force = false) => {
+        if (!onProgress) return;
+        const now = Date.now();
+        if (force || now - lastReport >= 100) {
+            lastReport = now;
+            onProgress({ bytes: copiedBytes, totalBytes });
+        }
+    };
+
+    for (const file of files) {
+        await fs.mkdir(path.dirname(file.dest), { recursive: true });
+        await new Promise<void>((resolve, reject) => {
+            const rs = createReadStream(file.src);
+            const ws = createWriteStream(file.dest);
+            let settled = false;
+            const fail = (err: Error) => {
+                if (!settled) {
+                    settled = true;
+                    rs.destroy();
+                    ws.destroy();
+                    reject(err);
+                }
+            };
+            rs.on('data', (chunk: string | Buffer) => {
+                copiedBytes += chunk.length;
+                report();
+            });
+            rs.on('error', fail);
+            ws.on('error', fail);
+            ws.on('close', () => {
+                if (!settled) {
+                    settled = true;
+                    resolve();
+                }
+            });
+            rs.pipe(ws);
+        });
+        report(true);
+    }
+    report(true);
+}
+
+async function movePath(
+    srcPath: string,
+    destFolderPath: string,
+    onProgress?: (p: CopyProgress) => void
+): Promise<{ success: boolean; error?: string }> {
     try {
         const destStats = await fs.stat(destFolderPath);
         if (!destStats.isDirectory()) {
@@ -90,11 +174,13 @@ async function movePath(srcPath: string, destFolderPath: string): Promise<{ succ
             throw new Error(`目标位置已存在同名项: ${baseName}`);
         }
         try {
+            // 同盘 rename 瞬时完成，无进度可报
             await fs.rename(srcPath, destPath);
+            onProgress?.({ bytes: 1, totalBytes: 1 });
         } catch (err: any) {
             if (err.code === 'EXDEV') {
-                // 跨盘移动：先复制再删除源
-                await fs.cp(srcPath, destPath, { recursive: true });
+                // 跨盘移动：流式复制（带字节级进度）后删除源
+                await copyWithProgress(srcPath, destPath, onProgress);
                 await fs.rm(srcPath, { recursive: true, force: true });
             } else {
                 throw err;
@@ -107,11 +193,50 @@ async function movePath(srcPath: string, destFolderPath: string): Promise<{ succ
     }
 }
 
+/** 递归统计路径列表的文件数与总大小（文件本身计 1，目录计其下所有文件；不统计空目录本身） */
+async function countFiles(paths: string[]): Promise<{ count: number; size: number }> {
+    let count = 0;
+    let size = 0;
+    const walk = async (p: string): Promise<void> => {
+        let stat;
+        try {
+            stat = await fs.stat(p);
+        } catch {
+            return; // 路径不可访问时跳过
+        }
+        if (!stat.isDirectory()) {
+            count++;
+            size += stat.size;
+            return;
+        }
+        const entries = await fs.readdir(p, { withFileTypes: true });
+        await Promise.all(
+            entries.map(async (entry) => {
+                const child = path.join(p, entry.name);
+                if (entry.isDirectory()) {
+                    await walk(child);
+                } else {
+                    count++;
+                    try {
+                        const childStat = await fs.stat(child);
+                        size += childStat.size;
+                    } catch {
+                        // 无法 stat 的文件只计数不计大小
+                    }
+                }
+            })
+        );
+    };
+    await Promise.all(paths.map((p) => walk(p)));
+    return { count, size };
+}
+
 export default {
     openExplorer,
     unzip,
     deleteFolder,
     deleteFolderIfEmpty,
     createFolder,
-    movePath
+    movePath,
+    countFiles
 }

@@ -133,7 +133,9 @@ import {
   deleteCover,
   clearAllCovers,
   getCoverDir,
-  getCoverDirSize
+  getCoverDirSize,
+  existsCoverBatch,
+  renameCoverByPaths
 } from './services/video-cover'
 import {
   transcodeVideo,
@@ -882,6 +884,16 @@ app.whenReady().then(async () => {
       coverDir: getCoverDir(),
       size: getCoverDirSize()
     }
+  })
+
+  // IPC: 批量检查封面缓存是否存在（作品移动前的路径迁移预统计）
+  ipcMain.handle('videoCover:existsBatch', (_event, videoPaths: string[]) => {
+    return existsCoverBatch(videoPaths)
+  })
+
+  // IPC: 批量按路径迁移封面缓存（作品移动后同步缓存文件名）
+  ipcMain.handle('videoCover:renameByPaths', (_event, pairs: Array<[string, string]>) => {
+    return renameCoverByPaths(pairs)
   })
 
   // ========== 视频转码修复 IPC（修复异常 GOP 导致的播放掉帧抖动） ==========

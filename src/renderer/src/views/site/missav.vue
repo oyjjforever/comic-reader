@@ -495,7 +495,7 @@ const videos = ref<VideoItem[]>([])
 const videoLoading = ref(false)
 const page = ref(1)
 const hasMore = ref(false)
-const sort = ref('views')
+const sort = ref('released_at')
 const videoListRef = ref<any>(null)
 
 const btDialog = reactive({

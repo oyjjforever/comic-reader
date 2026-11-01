@@ -3,7 +3,7 @@
     <n-drawer-content>
       <template #header>
         <div class="drawer-header">
-          <span>下载队列</span>
+          <span>任务队列</span>
           <n-button size="tiny" quaternary @click="onClearFinished">清除已完成</n-button>
         </div>
       </template>
@@ -23,7 +23,13 @@
             <div class="task-item">
               <div class="task-main">
                 <div class="title">
-                  <img :src="siteIcon(t.site)" class="site-icon" />
+                  <img v-if="siteIcon(t.site)" :src="siteIcon(t.site)" class="site-icon" />
+                  <n-icon
+                    v-else
+                    :component="FolderArrowRight24Regular"
+                    size="20"
+                    class="site-icon-fallback"
+                  />
                   <n-ellipsis class="name" style="max-width: 250px">
                     {{ t.title }}
                   </n-ellipsis>
@@ -32,7 +38,7 @@
                     :bordered="false"
                     :type="statusType(t.status)"
                     class="status-tag"
-                    >{{ statusLabel(t.status) }}</n-tag
+                    >{{ statusLabel(t.status, t) }}</n-tag
                   >
                 </div>
               </div>
@@ -111,6 +117,19 @@
                   <div style="color: red">{{ t.progress.fail || 0 }}</div>
                   /
                   <div>{{ t.progress.total || 0 }}</div>
+                  <div
+                    v-if="
+                      t.site === 'local-move' &&
+                      ['running', 'paused'].includes(t.status) &&
+                      t.progress.value !== undefined
+                    "
+                    class="move-percent"
+                  >
+                    <span v-if="t.progress.sizeTotal > 0" class="move-size">
+                      {{ formatFileSize(t.progress.sizeDone || 0) }} /
+                      {{ formatFileSize(t.progress.sizeTotal) }}
+                    </span>
+                  </div>
                 </template>
                 <div v-if="t.status === 'error' && t.errorMessage" class="error-msg">
                   {{ t.errorMessage }}
@@ -131,7 +150,9 @@
 import VirtualGrid from './virtual-grid.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 
-function statusLabel(s: string) {
+function statusLabel(s: string, t?: any) {
+  // 本地移动任务运行中显示"移动中"
+  if (t?.site === 'local-move' && s === 'running') return '移动中'
   const map: Record<string, string> = {
     pending: '队列中',
     running: '下载中',
@@ -167,9 +188,19 @@ import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import fourkhdImg from '@renderer/assets/4khd.png'
-import { PauseOutline, PlayOutline, CloseCircleOutline, TrashOutline, RefreshOutline } from '@vicons/ionicons5'
+import {
+  PauseOutline,
+  PlayOutline,
+  CloseCircleOutline,
+  TrashOutline,
+  RefreshOutline
+} from '@vicons/ionicons5'
+import { FolderArrowRight24Regular } from '@vicons/fluent'
+import { formatFileSize } from '@renderer/utils/format'
 
-function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
+function siteIcon(site: string): string | undefined {
+  // 本地移动等非站点任务无图标，模板回退为通用图标
+  if (site === 'local-move') return undefined
   if (site === 'jmtt') return jmttImg
   if (site === 'pixiv') return pixivImg
   if (site === 'twitter') return twitterImg
@@ -179,6 +210,7 @@ function siteIcon(site: 'jmtt' | 'pixiv' | 'twitter') {
   if (site === 'yfantasy') return yfantasyImg
   if (site === '4khd') return fourkhdImg
   if (site === 'pornhub') return pornhubImg
+  return undefined
 }
 
 function calcPercent(t: any) {
@@ -267,6 +299,10 @@ function onOpenLocalFile(path) {
   border-radius: 4px;
   object-fit: cover;
 }
+.site-icon-fallback {
+  flex-shrink: 0;
+  color: #6b7280;
+}
 .name {
   font-weight: 700;
   width: 100%;
@@ -319,6 +355,16 @@ function onOpenLocalFile(path) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.move-percent {
+  margin-left: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.move-size {
+  margin-left: 6px;
+  color: #6b7280;
+  font-weight: 400;
 }
 .n-drawer-header__main {
   width: 100%;

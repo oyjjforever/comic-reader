@@ -88,6 +88,36 @@ export function saveCoverFromDataUrl(videoPath: string, dataUrl: string): string
 }
 
 /**
+ * 批量检查哪些视频路径已有封面缓存
+ * @returns 存在缓存的视频路径列表
+ */
+export function existsCoverBatch(videoPaths: string[]): string[] {
+  return videoPaths.filter((p) => fs.existsSync(getCoverPath(p)))
+}
+
+/**
+ * 批量按路径迁移封面缓存（作品移动后调用）：md5(旧路径).jpg 重命名为 md5(新路径).jpg
+ * @returns 实际迁移的文件数
+ */
+export function renameCoverByPaths(pairs: Array<[string, string]>): number {
+  let count = 0
+  for (const [oldPath, newPath] of pairs) {
+    try {
+      const src = getCoverPath(oldPath)
+      if (!fs.existsSync(src)) continue
+      fs.renameSync(src, getCoverPath(newPath))
+      count++
+    } catch (err: any) {
+      log.warn(`[VideoCover] 迁移封面失败 (${oldPath} -> ${newPath}): ${err?.message}`)
+    }
+  }
+  if (count > 0) {
+    log.info(`[VideoCover] 已按路径迁移 ${count} 个封面缓存`)
+  }
+  return count
+}
+
+/**
  * 删除封面缓存
  */
 export function deleteCover(videoPath: string): boolean {
