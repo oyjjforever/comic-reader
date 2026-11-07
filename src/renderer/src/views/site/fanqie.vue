@@ -10,7 +10,7 @@
       <div class="fq-topbar__right">
         <n-input
           v-model:value="keyword"
-          placeholder="搜索漫剧名称..."
+          placeholder="搜索短剧/漫剧名称..."
           size="small"
           clearable
           style="width: 260px"
@@ -92,7 +92,12 @@
                 >
                   {{ item.tagText }}
                 </div>
-                <div v-if="item.subtitle" class="fq-card__badge">{{ item.subtitle }}</div>
+                <!-- <div v-if="item.subtitle" class="fq-card__badge">{{ item.subtitle }}</div> -->
+                <!-- 进度条幅：看到第X季第Y集居左，共N季居右 -->
+                <div v-if="item.progressText" class="fq-card__badge fq-card__badge--progress">
+                  <span>{{ item.progressText.right }}</span>
+                  <span>{{ item.progressText.left }}</span>
+                </div>
                 <n-icon
                   v-if="isInShelf(item.bookId)"
                   class="fq-card__shelf-mark"
@@ -307,6 +312,8 @@ interface ShelfBook {
   lastTime?: number
   /** 系列各季（含自身；fanqie_shelf.seasons JSON 解析） */
   seasons?: SeasonEntry[]
+  /** 最后观看的季 bookId（继续播放定位用） */
+  lastSeasonId?: string
   updatedAt: number
 }
 
@@ -325,7 +332,7 @@ interface GridCard {
   abstract?: string
   coverUrl?: string
   episodeCount?: number
-  progressText?: string
+  progressText?: { left: string; right: string }
   tagText?: string
   tagColors?: [string, string]
 }
@@ -419,6 +426,23 @@ function parseSeasons(raw?: string): SeasonEntry[] | undefined {
   }
 }
 
+/** 书架卡片进度文案：左=共N季（单季为全N集），右=看到第X季第Y集 */
+function shelfProgressText(b: ShelfBook): { left: string; right: string } {
+  const seasons = b.seasons?.length ? b.seasons : null
+  const lastSeasonId = b.lastSeasonId || b.bookId
+  const season = seasons?.find((x) => x.bookId === lastSeasonId)
+  const epIdx = season?.lastEpisodeIndex ?? b.lastEpisodeIndex
+  if (seasons && seasons.length > 1) {
+    const left = `共${seasons.length}季`
+    if (epIdx === undefined) return { left, right: '' }
+    const order = seasons.findIndex((x) => x.bookId === lastSeasonId) + 1
+    const seasonLabel = order > 0 ? `第${order}季` : seasons[0]?.title ?? ''
+    return { left, right: `看到 ${seasonLabel}第${epIdx + 1}集` }
+  }
+  const left = b.episodeCount ? `全${b.episodeCount}集` : ''
+  return { left, right: epIdx !== undefined ? `看到 第${epIdx + 1}集` : '' }
+}
+
 /** fanqie_shelf.tag_colors 列（JSON 字符串）→ 渐变色元组 */
 function parseTagColors(raw?: string): [string, string] | undefined {
   if (!raw) return undefined
@@ -463,12 +487,7 @@ const gridItems = computed<GridCard[]>(() => {
     episodeCount: b.episodeCount,
     tagText: b.tagText,
     tagColors: parseTagColors(b.tagColors),
-    progressText:
-      b.lastEpisodeIndex !== undefined
-        ? `看到第 ${b.lastEpisodeIndex + 1} 集`
-        : b.episodeCount
-          ? `全 ${b.episodeCount} 集`
-          : ''
+    progressText: shelfProgressText(b)
   }))
 })
 
@@ -524,7 +543,7 @@ async function onSearch() {
     const list = (await fanqie.search(kw, 0)) as SearchRow[]
     searchResults.value = []
     appendResults(list)
-    if (!list.length) message.info('未找到相关漫剧')
+    if (!list.length) message.info('未找到相关短剧/漫剧')
   } catch (e: any) {
     message.error(e?.message || '搜索失败')
     refreshDeviceStatus()
@@ -599,7 +618,11 @@ function onGridScroll() {
   if (!stats) return
   const { start, end } = stats.visibleRange
   const visibleSpan = end - start + 1
-  if (end >= gridItems.value.length - Math.ceil(visibleSpan / 2) && hasMore.value && !loadingMore.value) {
+  if (
+    end >= gridItems.value.length - Math.ceil(visibleSpan / 2) &&
+    hasMore.value &&
+    !loadingMore.value
+  ) {
     loadMore()
   }
 }
@@ -633,7 +656,10 @@ const detail = reactive({
 async function openDetail(card: GridCard) {
   detail.show = true
   detail.loadingInfo = true
-  detail.bookId = card.bookId
+  const book = findShelfRow(card.bookId)
+  // 打开定位到最后观看的季（无记录则当前卡片的季）
+  const openSeasonId = book?.lastSeasonId || card.bookId
+  detail.bookId = openSeasonId
   detail.title = card.title
   detail.subtitle = card.subtitle || ''
   detail.abstract = card.abstract || ''
@@ -641,10 +667,9 @@ async function openDetail(card: GridCard) {
   detail.tagText = card.tagText || ''
   detail.tagColors = card.tagColors || null
   detail.episodes = []
-  const book = findShelfRow(card.bookId)
   detail.inShelf = !!book
   // 续看进度优先取该季自己的记录
-  const season = book?.seasons?.find((x) => x.bookId === card.bookId)
+  const season = book?.seasons?.find((x) => x.bookId === openSeasonId)
   detail.resumeIndex = season?.lastEpisodeIndex ?? book?.lastEpisodeIndex
   // 季列表：书架已有则直接用，否则以当前季起步并异步补齐相关季
   detail.seasons = book?.seasons?.length ? [...book.seasons] : []
@@ -653,16 +678,16 @@ async function openDetail(card: GridCard) {
     void loadRelatedSeasons(card.bookId)
   }
   try {
-    const series = await fanqie.getSeries(card.bookId, card.title)
-    if (detail.bookId !== card.bookId) return // 已切换
+    const series = await fanqie.getSeries(openSeasonId, card.title)
+    if (detail.bookId !== openSeasonId) return // 已切换
     detail.title = series.title
     // 同步当前季标题到季列表
-    const self = detail.seasons.find((x) => x.bookId === card.bookId)
+    const self = detail.seasons.find((x) => x.bookId === openSeasonId)
     if (self) self.title = series.title
     detail.episodes = await Promise.all(
       series.episodes.map(async (ep) => ({
         ...ep,
-        cached: await fanqie.hasEpisode(card.bookId, ep.videoId)
+        cached: await fanqie.hasEpisode(openSeasonId, ep.videoId)
       }))
     )
     // 已在书架：用本次拿到的封面/简介/标题回写书架条目（封面签名 URL 过期后自愈）
@@ -726,7 +751,18 @@ async function loadRelatedSeasons(seriesId: string) {
 }
 
 const SEASON_RE = /第([一二三四五六七八九十百0-9]+)季/
-const CN_NUM: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 }
+const CN_NUM: Record<string, number> = {
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+  十: 10
+}
 function seasonOrder(title: string): number {
   const m = title.match(SEASON_RE)
   if (!m) return 0
@@ -779,9 +815,7 @@ function toggleShelf() {
   } else {
     // 收藏系列：季列表 + 各季进度（当前季的进度记入对应季条目）
     const seasons: SeasonEntry[] = detail.seasons.map((sn) =>
-      sn.bookId === detail.bookId
-        ? { ...sn, lastEpisodeIndex: detail.resumeIndex }
-        : { ...sn }
+      sn.bookId === detail.bookId ? { ...sn, lastEpisodeIndex: detail.resumeIndex } : { ...sn }
     )
     const book: ShelfBook = {
       bookId: detail.bookId,
@@ -791,16 +825,14 @@ function toggleShelf() {
       coverUrl: detail.coverUrl,
       episodeCount: detail.episodes.length || undefined,
       tagText: detail.tagText || undefined,
-      tagColors: detail.tagColors
-        ? JSON.stringify(detail.tagColors)
-        : undefined,
+      tagColors: detail.tagColors ? JSON.stringify(detail.tagColors) : undefined,
       lastEpisodeIndex: detail.resumeIndex,
       seasons,
       updatedAt: Date.now()
     }
     shelf.value.unshift(book)
     window.fanqie.shelf
-      .addBook({ ...book, seasons: JSON.stringify(seasons) })
+      .addBook({ ...book, seasons: JSON.stringify(seasons), lastSeasonId: detail.bookId })
       .catch(() => undefined)
     message.success('已加入书架')
   }
@@ -945,12 +977,13 @@ function onTimeUpdate() {
   }, 5000)
 }
 
-/** 保存观看进度到书架条目（在书架才记录）：行级 + 该季条目 */
+/** 保存观看进度到书架条目（在书架才记录）：行级 + 该季条目 + 最后观看季 */
 function persistProgress(index: number, time?: number) {
   const playingId = player.bookId || detail.bookId
   const book = findShelfRow(playingId)
   if (!book) return
   book.lastEpisodeIndex = index
+  book.lastSeasonId = playingId
   if (time !== undefined) book.lastTime = time
   book.updatedAt = Date.now()
   // 按季记录（系列收藏模型下进度属于具体季）
@@ -963,7 +996,7 @@ function persistProgress(index: number, time?: number) {
   season.lastEpisodeIndex = index
   if (time !== undefined) season.lastTime = time
   window.fanqie.shelf
-    .updateProgress(book.bookId, index, time ?? book.lastTime ?? 0)
+    .updateProgress(book.bookId, index, time ?? book.lastTime ?? 0, playingId)
     .catch(() => undefined)
   window.fanqie.shelf
     .updateSeasons(book.bookId, JSON.stringify(book.seasons))
@@ -1135,13 +1168,40 @@ onUnmounted(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 2px 6px;
-    font-size: 11px;
+    padding: 3px 6px;
+    font-size: 12px;
     color: #fff;
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    /* 进度条幅形态：共N季居左、看到第X季第Y集居右 */
+    &--progress {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+
+  &__progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 6px 4px;
+    font-size: 11px;
+    color: #fff;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
   }
 
   &__shelf-mark {

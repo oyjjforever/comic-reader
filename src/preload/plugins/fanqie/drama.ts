@@ -341,34 +341,6 @@ export interface DramaSearchResult {
     tagColors?: [string, string];
 }
 
-// ---------------------------------------------------------------------------
-// 漫剧判定（fqapp _isManjuItem 移植）：上游把漫剧混在短剧 tab（tab_type=11）里，
-// 客户端按结构化元数据分离 —— genre=205，或 tag_info / cover_tag_info_list /
-// book_type_name / type 文本为 漫剧/动态漫/动态漫画。标题与简介不算证据。
-// ---------------------------------------------------------------------------
-
-const MANJU_TAG_TEXTS = new Set(['漫剧', '动态漫', '动态漫画']);
-
-function manjuTagTextHit(value: unknown): boolean {
-    if (Array.isArray(value)) { return value.some(manjuTagTextHit); }
-    if (value && typeof value === 'object') { return manjuTagTextHit((value as Record<string, unknown>).text); }
-    return typeof value === 'string' && MANJU_TAG_TEXTS.has(value.trim());
-}
-
-export function isManjuItem(
-    item: Record<string, unknown>,
-    vd?: Record<string, unknown>
-): boolean {
-    for (const o of [item, vd]) {
-        if (!o) { continue; }
-        if (o.genre === 205 || String(o.genre ?? '') === '205') { return true; }
-        if (manjuTagTextHit(o.tag_info) || manjuTagTextHit(o.cover_tag_info_list)) { return true; }
-        if (MANJU_TAG_TEXTS.has(String(o.book_type_name ?? '').trim())) { return true; }
-        if (MANJU_TAG_TEXTS.has(String(o.type ?? '').trim())) { return true; }
-    }
-    return false;
-}
-
 /**
  * 阅读版搜索（v0.9.15+ 接口形态）：tab_type=11 短剧 Tab。
  * 响应结构：顶层 search_tabs[]（不在 data 下），短剧条目 data[] 内嵌 video_data[0].series_id。
@@ -379,36 +351,88 @@ export function isManjuItem(
 export async function searchDramas(
     query: string,
     offset = 0,
-    sortBy?: string,
-    opts: { manjuOnly?: boolean } = {}
+    sortBy?: string
 ): Promise<DramaSearchResult[]> {
-    // manjuOnly：漫剧占比不稳定，整页被过滤完时自动向后追页（offset 仍按原始
-    // 每页 20 对齐，调用方游标 +20 不变），连追 3 页无漫剧或到底则返回已得结果
-    if (opts.manjuOnly) {
-        let cursor = offset;
-        for (let i = 0; i < 4; i++) {
-            const page = await searchDramasOnce(query, cursor, sortBy, true);
-            if (page.length > 0 || !rawPageHadMore) { return page; }
-            cursor += 20;
-        }
-        return [];
+    // 直接按综合 tab（tab_type=1）搜索，客户端过滤出视频内容（短剧+漫剧，
+    // 排除小说/听书等书籍条目）。综合 tab 的漫剧标记可靠（短剧 tab 会把部分
+    // 漫剧角标替换成运营角标导致漏召回），且聚合卡一卡多剧信息完整。
+    // 整页被过滤完（如搜小说名全是书籍）时自动向后追页，offset 按原始 20 对齐。
+    let cursor = offset;
+    for (let i = 0; i < 4; i++) {
+        const page = await searchDramasOnce(query, cursor, sortBy, 1);
+        if (page.list.length > 0 || !page.hadMore) { return page.list; }
+        cursor += 20;
     }
-    return searchDramasOnce(query, offset, sortBy, false);
+    return [];
 }
 
-let rawPageHadMore = false;
+/** 单条搜索结果解析入表（聚合卡子项级）：视频过滤 + 各展示字段提取 */
+function pushSearchItem(
+    out: Map<string, DramaSearchResult>,
+    item: Record<string, unknown>,
+    vd: Record<string, unknown> | undefined
+): void {
+    // 只要视频内容（短剧/漫剧）：必须有 video_data 子项且带 seriesId
+    // （书籍/听书条目是 book_data 形态，子项为 undefined 直接跳过）
+    if (!vd) { return; }
+    // seriesId 字符串形态优先（数字形态经 JSON double 会丢精度）
+    const bookId = String(
+        (vd && (vd.series_id_str ?? vd.pseries_id ?? vd.series_id)) ??
+        (item as { book_id?: unknown }).book_id ??
+        ''
+    );
+    if (!bookId || out.has(bookId)) { return; }
+    const hl = (item.search_high_light as { title?: { text?: string } } | undefined)?.title?.text;
+    // title 兜底链：高亮 → 子项 title（两种 tab 形态）→ item.title
+    const title = String(hl ?? vd?.title ?? item.title ?? '').replace(/<[^>]+>/g, '');
+    if (!title) { return; }
+    const subBits: string[] = [];
+    const alias = String(vd?.alias_name ?? '').trim();
+    const subTitle = String(vd?.sub_title ?? '').trim();
+    if (alias && alias !== title) { subBits.push(alias); }
+    if (subTitle) { subBits.push(subTitle); }
+    const epCnt = Number(
+        vd?.episode_cnt ??
+        (vd?.video_detail as { episode_cnt?: unknown } | undefined)?.episode_cnt ?? 0
+    );
+    if (epCnt > 0 && !subTitle.includes('集')) { subBits.push(`全${epCnt}集`); }
+    // 封面：子项 cover 是带 x-signature 的直链（长效签名，任意 UA 可访问）
+    const coverUrl = String(vd?.cover ?? vd?.horiz_cover ?? '') || '';
+    // 完整简介优先（video_detail.series_intro / video_desc），兜底 abstract
+    const intro = String(
+        (vd?.video_detail as { series_intro?: string } | undefined)?.series_intro ??
+        vd?.video_desc ??
+        ''
+    ) || (item.abstract ? String(item.abstract).slice(0, 200) : '');
+    const sTag = vd?.tag_info as { text?: unknown; bg_color?: unknown } | undefined;
+    const sTagText = sTag && typeof sTag.text === 'string' ? sTag.text : '';
+    const sBgc = Array.isArray(sTag?.bg_color) ? (sTag!.bg_color as unknown[]) : [];
+    out.set(bookId, {
+        bookId,
+        title,
+        subtitle: subBits.join(' · '),
+        abstract: intro,
+        category: sTagText === '漫剧' || sTagText === '动态漫' || sTagText === '动态漫画' ? '漫剧' : '短剧',
+        coverUrl,
+        episodeCount: epCnt > 0 ? epCnt : undefined,
+        tagText: sTagText || undefined,
+        tagColors: sBgc.length >= 2 && typeof sBgc[0] === 'string' && typeof sBgc[1] === 'string'
+            ? [sBgc[0] as string, sBgc[1] as string]
+            : undefined
+    });
+}
 
 async function searchDramasOnce(
     query: string,
     offset: number,
     sortBy: string | undefined,
-    manjuOnly: boolean
-): Promise<DramaSearchResult[]> {
+    tabType: number
+): Promise<{ list: DramaSearchResult[]; hadMore: boolean }> {
     const dev = await mobileApi.ensureDevice();
     const rawUrl =
         'https://api5-normal-sinfonlineb.fqnovel.com/reading/bookapi/search/tab/v' +
         `?bookshelf_search_plan=4&offset=${offset}&user_is_login=1&bookstore_tab=2&passback=0&query=${encodeURIComponent(query)}` +
-        '&count=20&search_source=1&clicked_content=search_history&use_lynx=false&use_correct=true&tab_type=11' +
+        `&count=20&search_source=1&clicked_content=search_history&use_lynx=false&use_correct=true&tab_type=${tabType}` +
         '&tab_name=store&pad_column_cover=0&is_first_enter_search=false&iid={install_id}&device_id={device_id}' +
         '&ac=wifi&channel=xiaomi_1967_64&aid=1967&app_name=novelapp&version_code=65132&version_name=6.5.1.32' +
         '&device_platform=android&os=android&ssmix=a&device_type=FRD-AL10&device_brand=honor&language=zh' +
@@ -430,56 +454,25 @@ async function searchDramasOnce(
         search_tabs?: Array<{ tab_name?: string; tab_type?: unknown; title?: unknown; data?: unknown }>;
     };
     const tabs = (json.search_tabs ?? []) as Array<{ tab_type?: unknown; title?: unknown; data?: unknown }>;
-    rawPageHadMore = tabs.some((tab) => Array.isArray(tab.data) && tab.data.length > 0);
+    const hadMore = tabs.some((tab) => Array.isArray(tab.data) && tab.data.length > 0);
     const out = new Map<string, DramaSearchResult>();
     for (const tab of tabs) {
         const t = Number(tab.tab_type);
-        if (Number.isFinite(t) && t > 0 && t !== 11) { continue; }
+        if (Number.isFinite(t) && t > 0 && t !== tabType) { continue; }
         if (!Number.isFinite(t) && String(tab.title ?? '') !== '短剧') { continue; }
         const list = Array.isArray(tab.data) ? (tab.data as Array<Record<string, unknown>>) : [];
         for (const item of list) {
-            const vd = Array.isArray(item.video_data)
-                ? (item.video_data as Array<Record<string, unknown>>)[0]
-                : undefined;
-            // 漫剧模式：跳过无结构化漫剧标记的条目（短剧/真人剧）
-            if (manjuOnly && !isManjuItem(item, vd)) { continue; }
-            const bookId = String((vd && (vd.series_id_str ?? vd.pseries_id ?? vd.series_id)) ?? item.book_id ?? '');
-            if (!bookId || out.has(bookId)) { continue; }
-            const hl = (item.search_high_light as { title?: { text?: string } } | undefined)?.title?.text;
-            const title = String(hl ?? vd?.title ?? '').replace(/<[^>]+>/g, '');
-            if (!title) { continue; }
-            const subBits: string[] = [];
-            const alias = String(vd?.alias_name ?? '').trim();
-            const subTitle = String(vd?.sub_title ?? '').trim();
-            if (alias && alias !== title) { subBits.push(alias); }
-            if (subTitle) { subBits.push(subTitle); }
-            const epCnt = Number(vd?.episode_cnt ?? 0);
-            if (epCnt > 0 && !subTitle.includes('集')) { subBits.push(`全${epCnt}集`); }
-            // 封面：video_data[0].cover 是带 x-signature 的直链（长效签名，任意 UA 可访问）
-            const coverUrl = String(vd?.cover ?? vd?.horiz_cover ?? '') || '';
-            // 完整简介优先（video_detail.series_intro），兜底 abstract
-            const intro = String(
-                (vd?.video_detail as { series_intro?: string } | undefined)?.series_intro ?? ''
-            ) || (item.abstract ? String(item.abstract).slice(0, 200) : '');
-            const sTag = vd?.tag_info as { text?: unknown; bg_color?: unknown } | undefined;
-            const sTagText = sTag && typeof sTag.text === 'string' ? sTag.text : '';
-            const sBgc = Array.isArray(sTag?.bg_color) ? (sTag!.bg_color as unknown[]) : [];
-            out.set(bookId, {
-                bookId,
-                title,
-                subtitle: subBits.join(' · '),
-                abstract: intro,
-                category: '短剧',
-                coverUrl,
-                episodeCount: epCnt > 0 ? epCnt : undefined,
-                tagText: sTagText || undefined,
-                tagColors: sBgc.length >= 2 && typeof sBgc[0] === 'string' && typeof sBgc[1] === 'string'
-                    ? [sBgc[0] as string, sBgc[1] as string]
-                    : undefined
-            });
+            // 综合 tab 的条目是聚合卡（video_data 一卡多剧），短剧 tab 每卡一剧；
+            // 统一遍历全部子项（fqapp parseSearchTabs 同款）
+            const vds = Array.isArray(item.video_data)
+                ? (item.video_data as Array<Record<string, unknown>>)
+                : [undefined];
+            for (const vd of vds) {
+                pushSearchItem(out, item, vd);
+            }
         }
     }
-    return Array.from(out.values());
+    return { list: Array.from(out.values()), hadMore };
 }
 
 // ---------------------------------------------------------------------------

@@ -498,6 +498,8 @@ declare global {
             lastTime?: number
             /** 系列各季 JSON：[{bookId,title,lastEpisodeIndex?,lastTime?}] */
             seasons?: string
+            /** 最后观看的季 bookId */
+            lastSeasonId?: string
             createdAt: number
             updatedAt: number
           }>
@@ -514,10 +516,16 @@ declare global {
           lastEpisodeIndex?: number
           lastTime?: number
           seasons?: string
+          lastSeasonId?: string
         }) => Promise<void>
         removeBook: (bookId: string) => Promise<void>
         updateSeasons: (bookId: string, seasonsJson: string) => Promise<void>
-        updateProgress: (bookId: string, lastEpisodeIndex: number, lastTime: number) => Promise<void>
+        updateProgress: (
+        bookId: string,
+        lastEpisodeIndex: number,
+        lastTime: number,
+        lastSeasonId?: string
+      ) => Promise<void>
         updateBookInfo: (
           bookId: string,
           patch: {
@@ -532,7 +540,7 @@ declare global {
         ) => Promise<void>
       }
 
-      /** 搜索短剧（offset 翻页，每页 20 条，返回 seriesId 与展示信息；空数组即到底） */
+      /** 搜索（综合 tab，过滤出短剧+漫剧视频内容；offset 翻页，空数组即到底） */
       search: (
         query: string,
         offset?: number

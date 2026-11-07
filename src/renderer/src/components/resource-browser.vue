@@ -176,6 +176,25 @@
         </aside>
 
         <section class="content-area">
+          <!-- 最近下载的筛选 tag：全部 / 未读（未读 = 不在同模块浏览历史中） -->
+          <div v-if="currentViewMode === 'downloads'" class="view-filter-bar">
+            <n-tag
+              size="small"
+              checkable
+              :checked="downloadFilter === 'all'"
+              @update:checked="setDownloadFilter('all')"
+            >
+              全部
+            </n-tag>
+            <n-tag
+              size="small"
+              checkable
+              :checked="downloadFilter === 'unread'"
+              @update:checked="setDownloadFilter('unread')"
+            >
+              未读{{ unreadDownloadCount > 0 ? ` ${unreadDownloadCount}` : '' }}
+            </n-tag>
+          </div>
           <div v-if="isLoading" class="loading-overlay">
             <n-spin size="large">
               <template #description> 正在加载... </template>
@@ -388,6 +407,18 @@ const grid = reactive<{ rows: FolderInfo[]; filterRows: FolderInfo[] }>({
 })
 const search = reactive<{ keyword: string; sort: string }>({ keyword: '', sort: 'rating_desc' })
 
+// 最近下载视图的未读筛选：未读 = 下载记录不在同模块浏览历史中
+const downloadFilter = ref<'all' | 'unread'>('all')
+const readPathsInDownloads = ref<Set<string>>(new Set())
+const unreadDownloadCount = computed(
+  () => grid.rows.filter((folder) => !readPathsInDownloads.value.has(folder.fullPath)).length
+)
+const setDownloadFilter = (filter: 'all' | 'unread') => {
+  if (downloadFilter.value === filter) return
+  downloadFilter.value = filter
+  query()
+}
+
 // 评分映射：fullPath -> rating（用于按评分排序）
 const ratingsMap = ref<Record<string, number>>({})
 const loadRatings = async () => {
@@ -475,6 +506,11 @@ const query = async (keyword?: string) => {
     if (kw) {
       const _kw = kw.toLowerCase()
       list = list.filter((folder) => folder.name?.toLowerCase().includes(_kw))
+    }
+
+    // 最近下载视图的未读筛选：剔除浏览历史中已有的作品
+    if (currentViewMode.value === 'downloads' && downloadFilter.value === 'unread') {
+      list = list.filter((folder) => !readPathsInDownloads.value.has(folder.fullPath))
     }
 
     const sortFn = SORT_FNS[search.sort]
@@ -714,7 +750,14 @@ const getDownloadHistory = async () => {
       settingStore.setting.downloadMaxCount || 100,
       props.namespace
     )
-    grid.filterRows = grid.rows = await buildHistoryFolders(records, { useCoverAsPath: true })
+    // 并行构建下载列表与已读路径集合（取全量浏览历史，limit 传大数）
+    const [folders, browseRecords] = await Promise.all([
+      buildHistoryFolders(records, { useCoverAsPath: true }),
+      window.browseHistory.getBrowseHistory(1000000, props.namespace)
+    ])
+    readPathsInDownloads.value = new Set(browseRecords.map((r) => r.fullPath))
+    grid.rows = folders
+    await query()
   } catch (error: any) {
     message.error(`获取下载历史失败: ${error.message}`)
   }
@@ -1962,6 +2005,16 @@ defineExpose({
     flex: 1 1 0%;
     overflow: hidden;
     position: relative;
+  }
+
+  /* 最近下载视图的筛选 tag 栏 */
+  .view-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
   }
 
   .empty-state {

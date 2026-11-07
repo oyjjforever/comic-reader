@@ -141,6 +141,9 @@ const createTable = async () => {
     if (!await hasCol('fanqie_shelf', 'seasons')) {
         db?.exec(`ALTER TABLE fanqie_shelf ADD COLUMN seasons TEXT`)
     }
+    if (!await hasCol('fanqie_shelf', 'last_season_id')) {
+        db?.exec(`ALTER TABLE fanqie_shelf ADD COLUMN last_season_id TEXT`)
+    }
 
     // 创建评分表
     db?.exec(`

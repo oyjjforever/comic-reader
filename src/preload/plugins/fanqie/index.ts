@@ -100,9 +100,9 @@ function toPlayUrl(filePath: string): string {
 export default {
     /** 书架（fanqie_shelf 表 CRUD） */
     shelf: fanqieShelf,
-    /** 搜索漫剧（offset 翻页，每页 20 条原始条目过滤漫剧，空数组即到底） */
+    /** 搜索（综合 tab，过滤出短剧+漫剧视频内容；offset 翻页每页 20 条，空数组即到底） */
     search: (query: string, offset = 0): Promise<DramaSearchResult[]> =>
-        searchDramas(query, offset, undefined, { manjuOnly: true }),
+        searchDramas(query, offset),
     /**
      * 漫剧首页 feed（"值得一看的漫剧"，fqapp 两段式）：内部维护 cell/session/游标，
      * 首次调用拉第一页，后续调用自动翻页，到底返回空数组。重新开始前先 resetLatest。

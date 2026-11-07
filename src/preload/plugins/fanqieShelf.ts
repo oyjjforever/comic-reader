@@ -22,6 +22,8 @@ export interface FanqieShelfBook {
     lastTime?: number
     /** 系列各季 JSON：[{bookId,title,lastEpisodeIndex?,lastTime?}]（含主行自身） */
     seasons?: string
+    /** 最后观看的季 bookId（继续播放定位用） */
+    lastSeasonId?: string
     createdAt: number
     updatedAt: number
 }
@@ -51,6 +53,7 @@ function rowToBook(row: Record<string, unknown>): FanqieShelfBook {
                 : Number(row.last_episode_index),
         lastTime: row.last_time === null || row.last_time === undefined ? undefined : Number(row.last_time),
         seasons: (row.seasons as string) || undefined,
+        lastSeasonId: (row.last_season_id as string) || undefined,
         createdAt: Number(row.created_at ?? 0),
         updatedAt: Number(row.updated_at ?? 0)
     }
@@ -70,8 +73,8 @@ const addBook = async (book: Omit<FanqieShelfBook, 'createdAt' | 'updatedAt'>): 
     const conn = await getDb()
     const now = Date.now()
     await conn.run(
-        `INSERT INTO fanqie_shelf (book_id, title, subtitle, abstract, cover_url, episode_count, tag_text, tag_colors, last_episode_index, last_time, seasons, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO fanqie_shelf (book_id, title, subtitle, abstract, cover_url, episode_count, tag_text, tag_colors, last_episode_index, last_time, seasons, last_season_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(book_id) DO UPDATE SET
             title = excluded.title,
             subtitle = excluded.subtitle,
@@ -81,6 +84,7 @@ const addBook = async (book: Omit<FanqieShelfBook, 'createdAt' | 'updatedAt'>): 
             tag_text = excluded.tag_text,
             tag_colors = excluded.tag_colors,
             seasons = COALESCE(excluded.seasons, seasons),
+            last_season_id = COALESCE(excluded.last_season_id, last_season_id),
             updated_at = excluded.updated_at`,
         book.bookId,
         book.title,
@@ -93,6 +97,7 @@ const addBook = async (book: Omit<FanqieShelfBook, 'createdAt' | 'updatedAt'>): 
         book.lastEpisodeIndex ?? null,
         book.lastTime ?? null,
         book.seasons ?? null,
+        book.lastSeasonId ?? book.bookId,
         now,
         now
     )
@@ -115,20 +120,32 @@ const removeBook = async (bookId: string): Promise<void> => {
     await conn.run('DELETE FROM fanqie_shelf WHERE book_id = ?', bookId)
 }
 
-/** 更新观看进度 */
+/** 更新观看进度（lastSeasonId = 本次播放的季，继续播放定位用） */
 const updateProgress = async (
     bookId: string,
     lastEpisodeIndex: number,
-    lastTime: number
+    lastTime: number,
+    lastSeasonId?: string
 ): Promise<void> => {
     const conn = await getDb()
-    await conn.run(
-        'UPDATE fanqie_shelf SET last_episode_index = ?, last_time = ?, updated_at = ? WHERE book_id = ?',
-        lastEpisodeIndex,
-        lastTime,
-        Date.now(),
-        bookId
-    )
+    if (lastSeasonId) {
+        await conn.run(
+            'UPDATE fanqie_shelf SET last_episode_index = ?, last_time = ?, last_season_id = ?, updated_at = ? WHERE book_id = ?',
+            lastEpisodeIndex,
+            lastTime,
+            lastSeasonId,
+            Date.now(),
+            bookId
+        )
+    } else {
+        await conn.run(
+            'UPDATE fanqie_shelf SET last_episode_index = ?, last_time = ?, updated_at = ? WHERE book_id = ?',
+            lastEpisodeIndex,
+            lastTime,
+            Date.now(),
+            bookId
+        )
+    }
 }
 
 /** 更新展示信息（封面/简介等自愈回写） */
