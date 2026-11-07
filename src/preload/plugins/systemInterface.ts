@@ -231,6 +231,38 @@ async function countFiles(paths: string[]): Promise<{ count: number; size: numbe
     return { count, size };
 }
 
+/** 重命名（同目录改名，文件与目录通用），返回新路径 */
+async function renamePath(
+    srcPath: string,
+    newName: string
+): Promise<{ success: boolean; newPath?: string; error?: string }> {
+    try {
+        const trimmed = newName.trim();
+        if (!trimmed) {
+            throw new Error('名称不能为空');
+        }
+        // 与 createFolder 相同的 Windows 非法字符校验
+        if (/[\\/:*?"<>|]/.test(trimmed)) {
+            throw new Error('名称包含非法字符 \\ / : * ? " < > |');
+        }
+        const old = srcPath.replace(/[\\/]+$/, '');
+        const destPath = path.join(path.dirname(old), trimmed);
+        if (destPath === old) {
+            throw new Error('名称未变化');
+        }
+        const exists = await fs.stat(destPath).then(() => true, () => false);
+        if (exists) {
+            throw new Error(`目标位置已存在同名项: ${trimmed}`);
+        }
+        // 同目录改名不会跨盘，rename 原子完成
+        await fs.rename(old, destPath);
+        return { success: true, newPath: destPath };
+    } catch (error) {
+        console.error('Failed to rename:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
 export default {
     openExplorer,
     unzip,
@@ -238,5 +270,6 @@ export default {
     deleteFolderIfEmpty,
     createFolder,
     movePath,
+    renamePath,
     countFiles
 }

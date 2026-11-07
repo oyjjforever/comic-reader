@@ -44,6 +44,11 @@ declare global {
         /** 跨盘移动（复制）时的字节级进度回调，约 100ms 节流一次 */
         onProgress?: (p: { bytes: number; totalBytes: number }) => void
       ) => Promise<{ success: boolean; error?: string }>
+      /** 重命名（同目录改名，文件与目录通用），成功时返回新路径 */
+      renamePath: (
+        srcPath: string,
+        newName: string
+      ) => Promise<{ success: boolean; newPath?: string; error?: string }>
       /** 递归统计路径列表的文件数与总大小（文件计 1，目录计其下所有文件） */
       countFiles: (paths: string[]) => Promise<{ count: number; size: number }>
     }
@@ -107,6 +112,16 @@ declare global {
         videoCovers: number
       }>
       migrateByMove: (srcPath: string, destFolderPath: string) => Promise<{
+        favorites: number
+        ratings: number
+        folderTags: number
+        browseHistory: number
+        downloadHistory: number
+        videoBookmarks: number
+        videoCovers: number
+      }>
+      /** 重命名后同步关联记录（同目录改 basename） */
+      migrateByRename: (srcPath: string, newName: string) => Promise<{
         favorites: number
         ratings: number
         folderTags: number

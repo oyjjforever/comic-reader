@@ -314,7 +314,8 @@ import {
   FolderArrowRight24Regular,
   Delete24Filled,
   Share24Regular,
-  Copy24Regular
+  Copy24Regular,
+  Rename20Regular
 } from '@vicons/fluent'
 import { NButton, NIcon, NButtonGroup, NSpin, NInput, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
@@ -1299,6 +1300,15 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
         }
       },
       {
+        label: '重命名',
+        icon: h(NIcon, {
+          component: Rename20Regular
+        }),
+        // 多选模式下不显示（重命名是单项操作）
+        hidden: isMultiSelectMode.value,
+        onClick: () => openRenameDialog(folder, () => onCardRenamed(folder))
+      },
+      {
         label: '在文件管理器中打开',
         icon: h(NIcon, {
           component: FolderOpen24Regular
@@ -1439,6 +1449,90 @@ const getParentPath = (fullPath: string): string => {
   const p = fullPath.replace(/[\\/]+$/, '')
   const idx = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'))
   return idx > 0 ? p.slice(0, idx) : ''
+}
+
+// 重命名弹窗：改名（文件与目录通用）并同步迁移关联记录，完成后携带新名回调刷新
+const openRenameDialog = (item: { fullPath: string; name: string }, onRenamed: (newName: string) => void) => {
+  const newName = ref(item.name || '')
+  dialog.create({
+    title: '重命名',
+    content: () =>
+      h('div', { style: 'display: flex;flex-direction: column;gap: 8px;' }, [
+        h(
+          'p',
+          { style: 'color: #6b7280;font-size: 12px;margin: 0;' },
+          `${getParentPath(item.fullPath) || item.fullPath}${getParentPath(item.fullPath) ? ' 下' : ''}`
+        ),
+        h(NInput, {
+          value: newName.value,
+          'onUpdate:value': (v: string) => (newName.value = v),
+          placeholder: '输入新名称',
+          autofocus: true,
+          onKeydown: (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+              // naive dialog 无内置回车确认，代点主按钮
+              ;(e.target as HTMLElement)
+                ?.closest('.n-modal')
+                ?.querySelector<HTMLButtonElement>('.n-dialog__action .n-button--primary-type')
+                ?.click()
+            }
+          }
+        })
+      ]),
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const name = newName.value.trim()
+      if (!name) {
+        message.error('名称不能为空')
+        return false
+      }
+      if (name === item.name) return true
+      const res = await window.systemInterface.renamePath(item.fullPath, name)
+      if (!res.success) {
+        message.error(`重命名失败: ${res.error}`)
+        return false
+      }
+      // 文件已改名，同步迁移收藏/评分/历史等关联记录（失败不影响改名结果，仅提示）
+      try {
+        await window.pathMigration.migrateByRename(item.fullPath, name)
+      } catch (error) {
+        console.warn(`迁移关联记录失败: ${item.fullPath}`, error)
+        message.warning('已重命名，但关联记录迁移失败，收藏/评分引用的仍是旧路径')
+      }
+      message.success('已重命名')
+      moveDialogRef.value?.invalidateCache()
+      onRenamed(name)
+      return true
+    }
+  })
+}
+
+// 卡片（作品）重命名后的刷新：目录视图刷新当前目录，其余视图整体重载（行内路径已变）
+const onCardRenamed = (item: { fullPath: string; name: string }) => {
+  const parent = getParentPath(item.fullPath)
+  if (parent) reloadTreeNodeChildren(parent)
+  if (currentViewMode.value === 'folders') {
+    fetchGridData(tree.currentKey)
+  } else {
+    refresh()
+  }
+}
+
+// 树节点重命名后的刷新：父节点重建子树；当前浏览目录是被改名节点或其子孙时跟随切换到新路径
+const onTreeNodeRenamed = (node: { fullPath: string }, newName: string) => {
+  const parent = getParentPath(node.fullPath)
+  if (parent) reloadTreeNodeChildren(parent)
+  const oldKey = node.fullPath.replace(/[\\/]+$/, '')
+  const cur = tree.currentKey?.replace(/[\\/]+$/, '')
+  if (currentViewMode.value === 'folders' && cur && parent) {
+    const norm = (p: string) => p.replaceAll('\\', '/').toLowerCase()
+    if (norm(cur) === norm(oldKey) || norm(cur).startsWith(norm(oldKey) + '/')) {
+      tree.currentKey =
+        parent + (tree.currentKey.includes('\\') ? '\\' : '/') + newName + tree.currentKey.slice(oldKey.length)
+    }
+  }
+  if (currentViewMode.value === 'folders') fetchGridData(tree.currentKey)
 }
 
 // 移动弹窗状态
@@ -1775,6 +1869,15 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
             moveDialogObject.invalidDestinations = [folder.fullPath]
             moveDialogObject.show = true
           }
+        },
+        {
+          label: '重命名',
+          icon: h(NIcon, {
+            component: Rename20Regular
+          }),
+          // 根节点是设置里的资源路径，改名会导致配置失配
+          hidden: folder.isRoot,
+          onClick: () => openRenameDialog(folder, (newName) => onTreeNodeRenamed(folder, newName))
         },
         {
           label: isFolderTagged ? '取消收藏' : '添加到收藏',

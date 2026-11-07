@@ -128,21 +128,15 @@ const countAffected = async (srcPath: string): Promise<AffectedSummary> => {
 }
 
 /**
- * 移动完成后将关联记录从 srcPath 改写到 destFolderPath 下的新位置
- * （新路径拼法与 systemInterface.movePath 一致：path.join(destFolderPath, basename(srcPath))），
- * 返回各表实际迁移条数
+ * 路径迁移内核：将 srcPath（含子孙路径）的关联记录改写到 newFullPath 前缀下
+ * （按记录原有前缀的分隔符风格输出，避免混合风格路径），返回各表实际迁移条数
  */
-const migrateByMove = async (
-    srcPath: string,
-    destFolderPath: string
-): Promise<AffectedSummary> => {
+const migratePaths = async (srcPath: string, newFullPath: string): Promise<AffectedSummary> => {
     const d = await getDb()
     const old = trimSep(srcPath)
     const normOld = normalize(old)
-    // 新路径拼法与 systemInterface.movePath 一致；按记录原有前缀的分隔符风格输出，避免迁移后出现混合风格路径
-    const joined = path.join(trimSep(destFolderPath), path.basename(old))
-    const newPrefixFs = joined
-    const newPrefixFwd = joined.replaceAll('\\', '/')
+    const newPrefixFs = newFullPath
+    const newPrefixFwd = newFullPath.replaceAll('\\', '/')
     const prefixFor = (raw: string) =>
         raw.slice(0, old.length).includes('\\') ? newPrefixFs : newPrefixFwd
 
@@ -186,7 +180,22 @@ const migrateByMove = async (
     return summary
 }
 
+/**
+ * 移动完成后将关联记录从 srcPath 改写到 destFolderPath 下的新位置
+ * （新路径拼法与 systemInterface.movePath 一致：path.join(destFolderPath, basename(srcPath))），
+ * 返回各表实际迁移条数
+ */
+const migrateByMove = (srcPath: string, destFolderPath: string): Promise<AffectedSummary> =>
+    migratePaths(srcPath, path.join(trimSep(destFolderPath), path.basename(trimSep(srcPath))))
+
+/**
+ * 重命名后同步关联记录：同目录改 basename（新路径拼法与 systemInterface.renamePath 一致）
+ */
+const migrateByRename = (srcPath: string, newName: string): Promise<AffectedSummary> =>
+    migratePaths(srcPath, path.join(path.dirname(trimSep(srcPath)), newName.trim()))
+
 export default {
     countAffected,
-    migrateByMove
+    migrateByMove,
+    migrateByRename
 }
