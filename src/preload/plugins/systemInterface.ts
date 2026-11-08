@@ -13,16 +13,14 @@ function unzip(path: string) {
     exec(`7z x ${path} -o${FileUtils}`);
 }
 
+/** 删除作品：文件与目录通用（rm -rf 语义，递归删除目录、直接删除文件） */
 async function deleteFolder(folderPath: string): Promise<boolean> {
     try {
-        const stats = await fs.stat(folderPath);
-        if (!stats.isDirectory()) {
-            throw new Error('Path is not a directory');
-        }
+        // fs.rm 对文件与目录均适用，无需区分类型（视频作品是单文件）
         await fs.rm(folderPath, { recursive: true, force: true });
         return true;
     } catch (error) {
-        console.error('Failed to delete folder:', error);
+        console.error('Failed to delete:', error);
         return false;
     }
 }

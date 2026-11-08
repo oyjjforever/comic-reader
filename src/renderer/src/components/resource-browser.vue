@@ -90,7 +90,7 @@
         >
           清空
         </n-button>
-        <n-dropdown trigger="click" :options="sortOptions" @select="onSort">
+        <n-dropdown trigger="click" :options="visibleSortOptions" @select="onSort">
           <n-button size="small">
             <template #icon><n-icon :component="ArrowSortDownLines24Regular" /></template>
             排序
@@ -374,6 +374,12 @@ const dialog = useDialog()
 const emit = defineEmits<{ randomOpen: [] }>()
 const router = useRouter()
 const settingStore = useSettingStore()
+// 浏览历史/最近下载视图不提供评分排序（这两类视图保持最近优先的默认顺序）
+const visibleSortOptions = computed(() =>
+  ['history', 'downloads'].includes(currentViewMode.value)
+    ? props.sortOptions.filter((o) => !o.key.startsWith('rating'))
+    : props.sortOptions
+)
 const _isSidebarHidden = ref(false)
 const initialViewMode = settingStore.setting.defaultViewMode || 'favorites'
 const currentViewMode = ref<'folders' | 'favorites' | 'history' | 'downloads' | 'highlights'>(
@@ -514,8 +520,10 @@ const query = async (keyword?: string) => {
       list = list.filter((folder) => !readPathsInDownloads.value.has(folder.fullPath))
     }
 
+    // 浏览历史/最近下载不按评分排序（保持数据库的最近优先顺序），其余视图正常
+    const isHistoryLike = ['history', 'downloads'].includes(currentViewMode.value)
     const sortFn = SORT_FNS[search.sort]
-    if (sortFn) list.sort(sortFn)
+    if (sortFn && !(isHistoryLike && search.sort.startsWith('rating'))) list.sort(sortFn)
     grid.filterRows = list
   } catch (e) {
     console.error('查询失败', e)
@@ -1372,7 +1380,7 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
                 h(
                   'p',
                   { style: 'color: #e74c3c;font-weight: bold' },
-                  '此操作不可撤销，系统本地文件夹将被永久删除。'
+                  '此操作不可撤销，对应的本地文件/文件夹将被永久删除。'
                 )
               ])
             },
@@ -1398,7 +1406,7 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
 function deleteFolder(folder: any) {
   window.systemInterface.deleteFolder(folder.fullPath).then((success: boolean) => {
     if (success) {
-      message.success(`文件夹"${folder.name}"已成功删除`)
+      message.success(`"${folder.name}"已成功删除`)
       moveDialogRef.value?.invalidateCache()
       if (currentViewMode.value === 'history') {
         window.browseHistory.deleteBrowseHistory(folder.id)
@@ -1408,7 +1416,7 @@ function deleteFolder(folder: any) {
       grid.rows = grid.rows.filter((f) => f.fullPath !== folder.fullPath)
       grid.filterRows = grid.filterRows.filter((f) => f.fullPath !== folder.fullPath)
     } else {
-      message.error(`删除文件夹"${folder.name}"失败`)
+      message.error(`删除"${folder.name}"失败`)
     }
   })
 }
