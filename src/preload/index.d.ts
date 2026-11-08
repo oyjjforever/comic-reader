@@ -165,7 +165,7 @@ declare global {
     specialAttention: {
       init: () => Promise<void>
       add: (entry: {
-        source: 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo'
+        source: 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo' | 'pornhub'
         authorId: string
         authorName?: string
         extra?: any
@@ -188,7 +188,7 @@ declare global {
       list: () => Promise<
         Array<{
           id?: number
-          source: 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo'
+          source: 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo' | 'pornhub'
           authorId: string
           authorName?: string | null
           extra?: any | null

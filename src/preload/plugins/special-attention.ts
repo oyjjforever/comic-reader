@@ -2,9 +2,10 @@ import sqlite from './sqlite'
 import sqlite3 from 'sqlite3'
 import { Database } from 'sqlite'
 
+type SpecialAttentionSource = 'pixiv' | 'jmtt' | 'twitter' | 'weibo' | 'huangguo' | 'pornhub'
 type SpecialAttentionRecord = {
   id?: number
-  source: 'pixiv' | 'jmtt' | 'twitter'
+  source: SpecialAttentionSource
   author_id: string
   author_name?: string | null
   extra?: string | null
@@ -88,7 +89,7 @@ async function init() {
   }
 }
 
-async function add(entry: { source: 'pixiv' | 'jmtt' | 'twitter'; authorId: string; authorName?: string; extra?: any; latestWorkTime?: number; latestWorkId?: string; ignoredWorkIds?: string[]; localWorkId?: string; localWorkName?: string }) {
+async function add(entry: { source: SpecialAttentionSource; authorId: string; authorName?: string; extra?: any; latestWorkTime?: number; latestWorkId?: string; ignoredWorkIds?: string[]; localWorkId?: string; localWorkName?: string }) {
   await init()
   const _db = await ensureDb()
   const createdAt = Date.now()
