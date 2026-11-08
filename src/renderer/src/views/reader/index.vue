@@ -125,7 +125,8 @@ import {
   readingMode,
   setReadingMode,
   pageDirection,
-  setPageDirection
+  setPageDirection,
+  imageZoom
 } from './reader-state'
 import { useMessage } from 'naive-ui'
 import { reactive } from 'vue'
@@ -288,7 +289,8 @@ const handleScrollPage = (index: number) => {
   jumpToPage(index)
 }
 const isAutoPlaying = ref(false)
-const zoomLevel = ref(1)
+// 缩放倍率：与图片阅读器共享（Ctrl+滚轮调整）
+const zoomLevel = imageZoom
 const page = reactive({
   list: [] as any[],
   index: 0,

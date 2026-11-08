@@ -294,6 +294,8 @@ export default defineComponent({
     const onWheel = (ev: WheelEvent) => {
       // 上下滚动模式：不拦截滚轮，让内容区自然滚动翻阅
       if (props.wheelPassthrough) return
+      // Ctrl+滚轮是图片缩放（由图片阅读器处理），不翻页
+      if (ev.ctrlKey) return
       const dy = ev.deltaY
       if (dy === 0) return
       const now = Date.now()

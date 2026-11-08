@@ -1,11 +1,16 @@
 <template>
-  <div class="image-reader">
+  <div class="image-reader" @wheel="onWheel">
     <!-- 左右翻页模式 -->
     <div
       v-if="!isScrollMode"
       class="image-wrapper"
-      :class="{ 'manga-order': isMangaDouble }"
+      :class="{ 'manga-order': isMangaDouble, 'is-zoomed': imageZoom > 1, 'is-panning': isPanning }"
       :style="imageTransformStyle"
+      @pointerdown="onPanStart"
+      @pointermove="onPanMove"
+      @pointerup="onPanEnd"
+      @pointercancel="onPanEnd"
+      @dblclick="onDblClick"
     >
       <img
         v-if="file?.fullPath"
@@ -28,23 +33,26 @@
     </div>
     <!-- 上下滚动模式：占位骨架常驻（虚拟化），仅视口附近挂载真实图片 -->
     <div v-else ref="scrollRef" class="scroll-container" @scroll="onScroll">
-      <div
-        v-for="(f, i) in list || []"
-        :key="f.fullPath"
-        class="scroll-item"
-        :data-index="i"
-        :style="{ height: heightFor(i) + 'px' }"
-      >
-        <img
-          v-if="isRendered(i)"
-          :src="`file://${f.fullPath}`"
-          :alt="f.name"
-          class="scroll-image"
-          decoding="async"
-          @load="onImageLoad(i, $event)"
-          @dragstart.prevent
-          @error="onImageError"
-        />
+      <!-- 缩放层：宽度按倍率放大，容器水平方向可滚动 -->
+      <div class="scroll-scale-sizer" :style="{ width: `${imageZoom * 100}%` }">
+        <div
+          v-for="(f, i) in list || []"
+          :key="f.fullPath"
+          class="scroll-item"
+          :data-index="i"
+          :style="{ height: heightFor(i) + 'px' }"
+        >
+          <img
+            v-if="isRendered(i)"
+            :src="`file://${f.fullPath}`"
+            :alt="f.name"
+            class="scroll-image"
+            decoding="async"
+            @load="onImageLoad(i, $event)"
+            @dragstart.prevent
+            @error="onImageError"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -53,7 +61,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import type { FileInfo } from '@/typings/file'
-import { readingMode, pageDirection } from '../reader-state'
+import { readingMode, pageDirection, imageZoom } from '../reader-state'
 
 // Props
 const props = defineProps<{
@@ -73,10 +81,84 @@ const isScrollMode = computed(() => readingMode.value === 'scroll')
 const isMangaDouble = computed(() => pageDirection.value === 'manga' && !!props.nextFile)
 
 const onImageError = () => {}
+
+// ===== Ctrl+滚轮缩放 =====
+// 翻页模式：transform 缩放 + 放大后拖拽平移；滚动模式：内容宽度按倍率放大（水平可滚动，垂直照常）
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 4
+const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z))
+
+// 翻页模式的平移偏移（仅缩放 > 1 时生效）
+const panX = ref(0)
+const panY = ref(0)
+const isPanning = ref(false)
+let dragStart: { x: number; y: number; px: number; py: number } | null = null
+
 const imageTransformStyle = computed(() => ({
-  transform: `scale(1)`,
-  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+  transform: `translate(${panX.value}px, ${panY.value}px) scale(${imageZoom.value})`,
+  // 拖拽平移时关掉过渡，避免跟手延迟
+  transition: isPanning.value ? 'none' : 'transform 0.15s ease-out'
 }))
+
+const onWheel = (e: WheelEvent) => {
+  if (!e.ctrlKey) return
+  // 阻止 Chromium 的 Ctrl+滚轮页面缩放
+  e.preventDefault()
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
+  const next = clampZoom(imageZoom.value * factor)
+  if (isScrollMode.value) {
+    const el = scrollRef.value
+    const prev = imageZoom.value
+    imageZoom.value = next
+    if (el && next !== prev) {
+      // 高度更新在渲染后生效，等一帧再按视口中心锚点修正滚动位置
+      nextTick(() => {
+        const k = next / prev
+        el.scrollTop = (el.scrollTop + el.clientHeight / 2) * k - el.clientHeight / 2
+        el.scrollLeft = (el.scrollLeft + el.clientWidth / 2) * k - el.clientWidth / 2
+      })
+    }
+  } else {
+    imageZoom.value = next
+    if (next <= 1) {
+      panX.value = 0
+      panY.value = 0
+    }
+  }
+}
+
+// 放大后拖拽平移（翻页模式）
+const onPanStart = (e: PointerEvent) => {
+  if (isScrollMode.value || imageZoom.value <= 1 || e.button !== 0) return
+  dragStart = { x: e.clientX, y: e.clientY, px: panX.value, py: panY.value }
+  isPanning.value = true
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+}
+const onPanMove = (e: PointerEvent) => {
+  if (!dragStart) return
+  panX.value = dragStart.px + (e.clientX - dragStart.x)
+  panY.value = dragStart.py + (e.clientY - dragStart.y)
+}
+const onPanEnd = (e: PointerEvent) => {
+  if (!dragStart) return
+  dragStart = null
+  isPanning.value = false
+  try {
+    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+  } catch {
+    /* 指针已释放 */
+  }
+}
+
+// 双击：原始大小 ↔ 2 倍（放大后双击复位并居中）
+const onDblClick = () => {
+  if (isScrollMode.value) return
+  imageZoom.value = imageZoom.value === 1 ? 2 : 1
+  if (imageZoom.value === 1) {
+    panX.value = 0
+    panY.value = 0
+  }
+}
 
 // ===== 上下滚动模式（窗口化虚拟渲染） =====
 // 全部页以固定高度占位 div 常驻（高度 = 宽高比 × 容器宽），仅视口附近（±1 屏）挂载 <img>，
@@ -106,7 +188,8 @@ let pinning = false
 
 const heightFor = (i: number): number => {
   const ratio = loadedRatios.value[i] ?? learnedRatio.value ?? DEFAULT_RATIO
-  return Math.max(1, Math.round(ratio * Math.max(1, containerWidth.value)))
+  // 占位高度基于缩放后的内容宽度（滚动模式 Ctrl+滚轮缩放）
+  return Math.max(1, Math.round(ratio * Math.max(1, containerWidth.value) * imageZoom.value))
 }
 
 const isRendered = (i: number): boolean => {
@@ -281,6 +364,18 @@ watch(
   }
 )
 
+// 换作品（列表引用变化）时重置缩放
+watch(
+  () => props.list,
+  (newList, oldList) => {
+    if (newList !== oldList) {
+      imageZoom.value = 1
+      panX.value = 0
+      panY.value = 0
+    }
+  }
+)
+
 // 翻页模式下外部翻页后切回滚动模式 / 滚动模式下外部跳页，都跟随定位
 watch(
   () => props.file?.fullPath,
@@ -320,6 +415,15 @@ onUnmounted(() => {
     &.manga-order {
       flex-direction: row-reverse;
     }
+
+    /* 放大后可拖拽平移 */
+    &.is-zoomed {
+      cursor: grab;
+
+      &.is-panning {
+        cursor: grabbing;
+      }
+    }
   }
 
   .main-image {
@@ -339,7 +443,14 @@ onUnmounted(() => {
   /* 上下滚动模式 */
   .scroll-container {
     @apply w-full h-full overflow-y-auto;
+    /* 缩放 > 1 时水平方向随内容滚动 */
+    overflow-x: auto;
     scrollbar-width: thin;
+
+    /* 缩放层：宽度按倍率放大，承载虚拟化占位 */
+    .scroll-scale-sizer {
+      min-width: 100%;
+    }
 
     .scroll-item {
       position: relative;

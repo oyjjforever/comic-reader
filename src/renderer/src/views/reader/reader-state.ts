@@ -1,7 +1,10 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import pinia, { useSettingStore } from '@renderer/plugins/store'
 
 const settingStore = useSettingStore(pinia)
+
+// 图片缩放倍率（阅读器内 Ctrl+滚轮调整）：会话内状态不持久化，切换作品时由阅读器重置
+export const imageZoom = ref(1)
 
 // 阅读器进度条显示开关：由设置页「阅读设置」控制，持久化保存
 export const showProgressBar = computed(() => settingStore.setting.showReaderProgress ?? true)
