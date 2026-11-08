@@ -69,19 +69,33 @@
       </div>
       <div class="navbar-right">
         <n-button size="small" type="success" @click="refresh">刷新</n-button>
-        <n-button
-          size="small"
-          :loading="randomLoading"
-          :disabled="
-            currentViewMode === 'highlights' ||
-            (currentViewMode !== 'folders' && grid.filterRows.length === 0)
-          "
-          title="随机打开一部作品；本地目录视图下从整个资源库抽取"
-          @click="emit('randomOpen')"
-        >
-          <template #icon><n-icon :component="DiceOutline" /></template>
-          随机
-        </n-button>
+        <!-- 随机：主按钮=全范围随机；下拉=收藏内/本页内随机 -->
+        <n-button-group size="small">
+          <n-button
+            size="small"
+            :loading="randomLoading"
+            :disabled="currentViewMode === 'highlights'"
+            title="全范围随机（收藏/本页内随机见下拉箭头）"
+            @click="emit('randomOpen', 'all')"
+          >
+            <template #icon><n-icon :component="DiceOutline" /></template>
+            随机
+          </n-button>
+          <n-dropdown
+            trigger="click"
+            :options="randomScopeOptions"
+            @select="(key: string) => emit('randomOpen', key as RandomScope)"
+          >
+            <n-button
+              size="small"
+              :disabled="currentViewMode === 'highlights' || randomLoading"
+              class="random-scope-trigger"
+              title="选择随机范围"
+            >
+              <n-icon :component="ChevronDown" size="14" />
+            </n-button>
+          </n-dropdown>
+        </n-button-group>
         <n-button
           v-if="['favorites', 'history', 'downloads'].includes(currentViewMode)"
           size="small"
@@ -110,17 +124,17 @@
       <template v-else>
         <aside class="sidebar" :class="{ 'sidebar-hidden': isSidebarHidden }">
           <div class="sidebar-content">
-            <!-- 文件夹树视图 -->
+            <!-- 文件夹树视图（treeKey 作 key：收藏分组内节点与原树同路径，用 bm: 前缀避免重复 key） -->
             <n-tree
               v-if="currentViewMode === 'folders'"
               :data="tree.data"
               :node-props="nodeProps"
               :on-load="handleTreeLoad"
-              key-field="fullPath"
+              key-field="treeKey"
               label-field="name"
               block-line
               class="folder-tree"
-              :default-expanded-keys="resourcePaths"
+              :default-expanded-keys="defaultExpandedTreeKeys"
               :render-label="renderTreeNode"
               :indent="20"
             />
@@ -295,7 +309,8 @@ import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
   Folder as FolderIcon,
-  DiceOutline
+  DiceOutline,
+  ChevronDown
 } from '@vicons/ionicons5'
 import {
   ArrowSortDownLines24Regular,
@@ -325,6 +340,7 @@ import { useSettingStore } from '@renderer/plugins/store'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { extractShareKeyword, normalizeForMatch } from '@renderer/utils/share-match'
+import type { RandomScope } from '@renderer/composables/use-media-open'
 
 interface ResourceBrowserProps {
   resourcePaths: string[]
@@ -362,7 +378,7 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
   ],
   minItemWidth: 160,
   maxItemWidth: 250,
-  aspectRatio: 0.75,
+  aspectRatio: 0.85,
   gridGap: 10,
   namespace: 'default',
   enableHighlights: false,
@@ -371,7 +387,13 @@ const props = withDefaults(defineProps<ResourceBrowserProps>(), {
 
 const message = useMessage()
 const dialog = useDialog()
-const emit = defineEmits<{ randomOpen: [] }>()
+const emit = defineEmits<{ randomOpen: [scope: RandomScope] }>()
+
+// 随机范围下拉：收藏内随机（收藏表）；本页内随机（当前网格，空列表时禁用）
+const randomScopeOptions = computed(() => [
+  { label: '收藏内随机', key: 'favorites' },
+  { label: '本页内随机', key: 'page', disabled: grid.filterRows.length === 0 }
+])
 const router = useRouter()
 const settingStore = useSettingStore()
 // 浏览历史/最近下载视图不提供评分排序（这两类视图保持最近优先的默认顺序）
@@ -615,6 +637,8 @@ const handleClearData = () => {
 const nodeProps = ({ option }: { option: any }) => {
   return {
     onClick(e: MouseEvent) {
+      // 收藏分组是虚拟节点，点击只做展开/折叠，不进入目录
+      if (option.fullPath === BOOKMARK_GROUP_KEY) return
       // 检查点击的是否是展开/折叠图标区域
       const target = e.target as HTMLElement
       const isExpandIcon = target.closest('.n-tree-node-switcher')
@@ -630,6 +654,8 @@ const nodeProps = ({ option }: { option: any }) => {
     },
     onContextmenu(e: MouseEvent) {
       e.preventDefault()
+      // 收藏分组根节点无右键菜单
+      if (option.fullPath === BOOKMARK_GROUP_KEY) return
       handleFolderContextMenu(e, option)
     }
   }
@@ -648,7 +674,11 @@ const renderTreeNode = ({ option }: { option: any }) => {
     },
     [
       isRoot
-        ? h(NIcon, { component: FolderIcon, class: 'root-folder-icon', size: 16 })
+        ? h(NIcon, {
+            component: option.isBookmarkGroup ? BookmarkIcon : FolderIcon,
+            class: option.isBookmarkGroup ? 'bookmark-icon' : 'root-folder-icon',
+            size: 16
+          })
         : option.isBookmarked
           ? h(NIcon, { component: BookmarkIcon, class: 'bookmark-icon', size: 16 })
           : null,
@@ -676,11 +706,9 @@ const handleTreeLoad = async (node: any) => {
       })
     )
 
-    // 已收藏的节点排在最前面
-    const sortByBookmarked = (nodes: any[]) =>
-      nodes.sort((a, b) => Number(!!b.isBookmarked) - Number(!!a.isBookmarked))
-
-    node.children = sortByBookmarked(res)
+    // 收藏节点不再在树内置顶（统一进顶部分组），仅保留书签图标状态
+    assignTreeKeys(res)
+    node.children = res
   } catch (error: any) {
     message.error(`加载子节点失败: ${error.message}`)
   }
@@ -1111,6 +1139,17 @@ const handleScroll = (event: Event) => {
   }
 }
 
+// 递归补 treeKey（n-tree 的 key-field；收藏分组内的同路径节点由调用方加前缀避免重复 key）
+const assignTreeKeys = (nodes: any[], prefix = '') => {
+  for (const node of nodes) {
+    node.treeKey = prefix + node.fullPath
+    if (Array.isArray(node.children)) assignTreeKeys(node.children, prefix)
+  }
+}
+
+// 默认展开各资源根（treeKey 与根路径一致）
+const defaultExpandedTreeKeys = computed(() => props.resourcePaths.filter(Boolean))
+
 // 加载树（支持多个根路径）
 const fetchTreeData = async () => {
   if (!props.resourcePaths || props.resourcePaths.length === 0) return
@@ -1133,13 +1172,13 @@ const fetchTreeData = async () => {
             })
           )
 
+          assignTreeKeys(treeData)
           return {
             name: path,
             fullPath: path,
+            treeKey: path,
             isRoot: true,
-            children: [...treeData].sort(
-              (a, b) => Number(!!b.isBookmarked) - Number(!!a.isBookmarked)
-            )
+            children: treeData
           }
         } catch (error: any) {
           console.warn(`Failed to load tree for path ${path}:`, error)
@@ -1147,6 +1186,7 @@ const fetchTreeData = async () => {
           return {
             name: path,
             fullPath: path,
+            treeKey: path,
             isRoot: true,
             children: []
           }
@@ -1155,8 +1195,51 @@ const fetchTreeData = async () => {
     )
 
     tree.data = rootNodes
+    // 收藏分组置顶（所有资源树上方）
+    loadBookmarkGroup()
   } catch (error: any) {
     message.error(`获取文件夹失败: ${error.message}`)
+  }
+}
+
+// 收藏分组：虚拟根节点汇总全部文件夹标签，显示在所有资源树上方
+const BOOKMARK_GROUP_KEY = '__bookmarked_group__'
+const loadBookmarkGroup = async () => {
+  try {
+    const folderTags = (await window.tag.getFolderTags(undefined, props.namespace)) || []
+    const children = folderTags
+      .filter((t: any) => t.folderPath)
+      .map((t: any) => ({
+        name: String(t.folderPath).split(/[\\/]/).pop() || t.folderPath,
+        fullPath: t.folderPath,
+        // 分组内节点与原树同路径，key 加前缀避免 n-tree 重复 key
+        treeKey: `bm:${t.folderPath}`,
+        // treemate 规则：无 children 且未显式 isLeaf:false 的节点算叶子（不渲染箭头）；
+        // 显式声明非叶子才会显示展开按钮并在展开时触发 on-load 懒加载
+        isLeaf: false,
+        isBookmarked: true
+      }))
+
+    const index = tree.data.findIndex((n) => n.fullPath === BOOKMARK_GROUP_KEY)
+    if (children.length === 0) {
+      // 无收藏时移除分组节点
+      if (index > -1) tree.data.splice(index, 1)
+      return
+    }
+    if (index > -1) {
+      tree.data[index].children = children
+    } else {
+      tree.data.unshift({
+        name: '已收藏',
+        fullPath: BOOKMARK_GROUP_KEY,
+        treeKey: BOOKMARK_GROUP_KEY,
+        isRoot: true,
+        isBookmarkGroup: true,
+        children
+      })
+    }
+  } catch (error) {
+    console.warn('加载收藏分组失败:', error)
   }
 }
 
@@ -1436,7 +1519,9 @@ const reloadTreeNodeChildren = async (folderPath: string) => {
   const node = findNode(tree.data)
   if (!node) return
   try {
-    node.children = await props.provideTree(folderPath)
+    const children = await props.provideTree(folderPath)
+    assignTreeKeys(children)
+    node.children = children
   } catch (error) {
     console.warn(`刷新树节点失败: ${folderPath}`, error)
   }
@@ -1460,7 +1545,10 @@ const getParentPath = (fullPath: string): string => {
 }
 
 // 重命名弹窗：改名（文件与目录通用）并同步迁移关联记录，完成后携带新名回调刷新
-const openRenameDialog = (item: { fullPath: string; name: string }, onRenamed: (newName: string) => void) => {
+const openRenameDialog = (
+  item: { fullPath: string; name: string },
+  onRenamed: (newName: string) => void
+) => {
   const newName = ref(item.name || '')
   dialog.create({
     title: '重命名',
@@ -1531,13 +1619,18 @@ const onCardRenamed = (item: { fullPath: string; name: string }) => {
 const onTreeNodeRenamed = (node: { fullPath: string }, newName: string) => {
   const parent = getParentPath(node.fullPath)
   if (parent) reloadTreeNodeChildren(parent)
+  // 被改名的可能是收藏分组里的节点，重建分组取最新路径
+  loadBookmarkGroup()
   const oldKey = node.fullPath.replace(/[\\/]+$/, '')
   const cur = tree.currentKey?.replace(/[\\/]+$/, '')
   if (currentViewMode.value === 'folders' && cur && parent) {
     const norm = (p: string) => p.replaceAll('\\', '/').toLowerCase()
     if (norm(cur) === norm(oldKey) || norm(cur).startsWith(norm(oldKey) + '/')) {
       tree.currentKey =
-        parent + (tree.currentKey.includes('\\') ? '\\' : '/') + newName + tree.currentKey.slice(oldKey.length)
+        parent +
+        (tree.currentKey.includes('\\') ? '\\' : '/') +
+        newName +
+        tree.currentKey.slice(oldKey.length)
     }
   }
   if (currentViewMode.value === 'folders') fetchGridData(tree.currentKey)
@@ -1638,6 +1731,9 @@ const onMoveTaskFinished = (
 
   // 目录结构已变化，失效移动弹窗的全量树缓存（下次打开重扫）
   moveDialogRef.value?.invalidateCache()
+
+  // 移动会改写收藏标签路径，重建顶部分组
+  loadBookmarkGroup()
 
   // 刷新树：源目录与目标目录
   const pathsToReload = new Set<string>([destFolderPath])
@@ -1900,16 +1996,18 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
                 if (tag && tag.id) {
                   await window.tag.deleteTag(tag.id)
                   message.success('已取消收藏为标签')
-                  // 更新节点状态
+                  // 更新节点状态并同步顶部分组
                   updateNodeBookmarkStatus(folder.fullPath, false)
+                  loadBookmarkGroup()
                 }
               } else {
                 // 收藏为标签
                 const folderName = folder.name || folder.label || '未命名文件夹'
                 await window.tag.addFolderTag(folderName, folder.fullPath, props.namespace)
                 message.success('已收藏为标签')
-                // 更新节点状态
+                // 更新节点状态并同步顶部分组
                 updateNodeBookmarkStatus(folder.fullPath, true)
+                loadBookmarkGroup()
               }
             } catch (error: any) {
               message.error(`操作失败: ${error.message || error}`)

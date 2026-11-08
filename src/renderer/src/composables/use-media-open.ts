@@ -2,11 +2,16 @@ import { ref, computed } from 'vue'
 import { useMessage } from 'naive-ui'
 import type { MediaItem } from '@/typings/media'
 
+/** 随机范围：all=全库游走 favorites=收藏内 page=当前网格 */
+export type RandomScope = 'all' | 'favorites' | 'page'
+
 interface MediaOpenOptions {
   /** 当前网格过滤后的列表（用于上/下一篇定位） */
   getList: () => MediaItem[]
-  /** 随机抽一部作品（如两级目录游走）；不提供时从 getList() 里随机 */
+  /** 全范围随机（如两级目录游走）；不提供时从 getList() 里随机 */
   getRandomItem?: () => Promise<MediaItem | null>
+  /** 收藏内随机；不提供时收藏范围为空 */
+  getRandomFavoriteItem?: () => Promise<MediaItem | null>
 }
 
 /**
@@ -23,7 +28,9 @@ export function useMediaOpen(options: MediaOpenOptions) {
 
   // ===== 随机模式 =====
   // 随机打开后进入随机模式：上一篇/下一篇不再沿网格顺序，而是各自重新随机抽一部
+  // randomScope 记录本次随机打开的范围，上/下一篇在同一范围内重新抽取
   const isRandomMode = ref(false)
+  const randomScope = ref<RandomScope>('all')
   /** 随机抽取进行中（防重入） */
   const randomLoading = ref(false)
 
@@ -37,12 +44,17 @@ export function useMediaOpen(options: MediaOpenOptions) {
   }
 
   async function drawRandomItem(): Promise<MediaItem | null> {
+    if (randomScope.value === 'page') return pickFrom(options.getList())
+    if (randomScope.value === 'favorites') {
+      return options.getRandomFavoriteItem ? await options.getRandomFavoriteItem() : null
+    }
     if (options.getRandomItem) return await options.getRandomItem()
     return pickFrom(options.getList())
   }
 
-  async function openRandomMedia() {
+  async function openRandomMedia(scope: RandomScope = 'all') {
     if (randomLoading.value) return
+    randomScope.value = scope
     randomLoading.value = true
     try {
       const item = await drawRandomItem()

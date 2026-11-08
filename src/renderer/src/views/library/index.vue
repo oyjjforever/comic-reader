@@ -162,17 +162,25 @@ const randomWalkItem = async (): Promise<MediaItem | null> => {
   return result
 }
 
-const provideRandomItem = async (): Promise<MediaItem | null> => {
-  const viewMode = resourceBrowserRef.value?.getViewMode?.()
-  if (['favorites', 'history', 'downloads'].includes(viewMode)) {
-    const gridList = (resourceBrowserRef.value?.getFilterRows() || [])
-      .map((folder: FolderInfo) => toMediaItem(folder))
-      .filter((i) => !i.state)
-    if (gridList.length > 0) {
-      return gridList[Math.floor(Math.random() * gridList.length)]
+const provideRandomItem = randomWalkItem
+
+// 收藏内随机：从收藏表随机挑一条并取详情，路径失效（已被移动/删除）时换一条重试
+const randomFavoriteItem = async (): Promise<MediaItem | null> => {
+  const favorites = await window.favorite.getFavorites('id DESC', mode.value)
+  if (!favorites || favorites.length === 0) return null
+  for (let attempt = 0; attempt < Math.min(5, favorites.length); attempt++) {
+    const fav = favorites[Math.floor(Math.random() * favorites.length)]
+    try {
+      const info =
+        mode.value === 'video'
+          ? await window.media.getFileInfo(fav.fullPath)
+          : await window.media.getFolderInfo(fav.fullPath)
+      if (info) return toMediaItem({ ...info, isBookmarked: true })
+    } catch {
+      /* 详情获取失败（路径可能已失效），换一条 */
     }
   }
-  return randomWalkItem()
+  return null
 }
 
 // ===== 打开分发 + 阅读器 overlay 状态 =====
@@ -193,7 +201,8 @@ const {
     (resourceBrowserRef.value?.getFilterRows() || []).map((folder: FolderInfo) =>
       toMediaItem(folder)
     ),
-  getRandomItem: provideRandomItem
+  getRandomItem: provideRandomItem,
+  getRandomFavoriteItem: randomFavoriteItem
 })
 </script>
 

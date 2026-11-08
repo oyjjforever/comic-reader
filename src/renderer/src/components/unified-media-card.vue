@@ -235,7 +235,7 @@ onUnmounted(() => {
   flex-direction: column;
 
   &:hover {
-    transform: translateY(-4px);
+    // transform: translateY(-4px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
 
     .cover-image {
@@ -346,20 +346,37 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-/* 信息展示区 */
+/* 信息展示区：悬停时底部浮层淡入（渐变遮罩保证浅色封面下文字可读） */
 .info-section {
-  height: 70px;
-  padding: 16px;
-  background: white;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 26px 12px 10px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.38) 62%,
+    transparent 100%
+  );
   border-radius: 0 0 12px 12px;
-  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.media-card:hover .info-section,
+.media-card:focus-visible .info-section {
+  opacity: 1;
 }
 
 /* 媒体标题 */
 .media-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -396,7 +413,6 @@ onUnmounted(() => {
   }
 
   .info-section {
-    padding: 12px;
     border-radius: 0 0 8px 8px;
   }
 
@@ -415,7 +431,6 @@ onUnmounted(() => {
   }
 
   .info-section {
-    padding: 10px;
     border-radius: 0 0 6px 6px;
   }
 }
