@@ -1183,12 +1183,9 @@ const handleScroll = (event: Event) => {
 }
 
 // 数据/视图切换后重新绑定并判定（grid-view 随 loading/视图重建，滚动容器会换新元素）
-watch(
-  [() => grid.filterRows, isLoading, currentViewMode],
-  () => {
-    nextTick(bindGridScroller)
-  }
-)
+watch([() => grid.filterRows, isLoading, currentViewMode], () => {
+  nextTick(bindGridScroller)
+})
 
 onMounted(bindGridScroller)
 
@@ -2160,16 +2157,16 @@ defineExpose({
    首行半圆贴边，行间 5px 错位；x=0 与 x=20 各画一份圆保证平铺接缝处合成整圆。
    以画布底色实心圆点叠加在内容边缘（配合 backdrop 模糊）模拟「蛀空」——
    不用 CSS mask（多层遮罩在 Blink 下渲染不稳），显隐与模糊条同机制 */
-$dot-circles: 'M1.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z'
-  + ' M11.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z'
-  + ' M-2.6 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z'
-  + ' M7.4 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z'
-  + ' M17.4 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z'
-  + ' M3.3 17.5a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0-3.4 0z'
-  + ' M13.3 17.5a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0-3.4 0z'
-  + ' M-0.9 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z'
-  + ' M9.1 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z'
-  + ' M19.1 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z';
+$dot-circles: 'M1.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z' +
+  ' M11.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z' +
+  ' M-2.6 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z' +
+  ' M7.4 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z' +
+  ' M17.4 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z' +
+  ' M3.3 17.5a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0-3.4 0z' +
+  ' M13.3 17.5a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0-3.4 0z' +
+  ' M-0.9 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z' +
+  ' M9.1 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z' +
+  ' M19.1 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z';
 $dot-overlay-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cpath fill='%234a4656' d='#{$dot-circles}'/%3E%3C/svg%3E");
 /* 底带 = 顶带单元垂直翻转（半圆贴底边，点径向内容方向渐大） */
 $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cg transform='translate(0 28) scale(1 -1)'%3E%3Cpath fill='%234a4656' d='#{$dot-circles}'/%3E%3C/g%3E%3C/svg%3E");
@@ -2182,8 +2179,11 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
   flex-direction: column;
   /* 黑橙画布：#4A4656（主题 hover 亮阶）底 + #FF9205 辉光（径向）+ 橙色点阵图案，不使用线性渐变 */
   background-color: #4a4656;
-  background-image:
-    radial-gradient(ellipse 85% 65% at 15% 8%, rgba(255, 146, 5, 0.22), transparent 60%),
+  background-image: radial-gradient(
+      ellipse 85% 65% at 15% 8%,
+      rgba(255, 146, 5, 0.22),
+      transparent 60%
+    ),
     radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
     radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
   background-size:
@@ -2198,8 +2198,12 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     justify-content: space-between;
     padding: 10px 20px;
     /* 悬浮暗色毛玻璃横梁 */
-    background:
-      linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.18) 100%, transparent 50%),
+    background: linear-gradient(
+        115deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.18) 100%,
+        transparent 50%
+      ),
       rgba(26, 24, 32, 0.75);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
@@ -2295,17 +2299,22 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     flex: 1 1 0%;
     padding: 8px;
     overflow: hidden;
+    gap: 10px;
   }
 
   .sidebar {
     /* 悬浮暗色毛玻璃面板（不带反光条，避免白光突兀） */
-    background:
-      linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.18) 100%, transparent 50%),
+    background: linear-gradient(
+        115deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.18) 100%,
+        transparent 50%
+      ),
       rgba(26, 24, 32, 0.75);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
+    border-radius: 16px 0 0 16px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
       4px 0 16px -10px rgba(0, 0, 0, 0.55);
@@ -2438,7 +2447,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     flex: 1 1 0%;
     overflow: hidden;
     position: relative;
-    border-radius: 16px 0 0 16px;
+    // border-radius: 16px 0 0 16px;
     /* 淡出带：边缘 28px 的「磨砂 + 画布色圆点」叠加层——磨砂虚化内容，
        圆点以画布底色覆盖其上模拟蛀空；显隐由 gridAtTop/gridAtBottom 驱动，随类
        切换同帧生效。backdrop-filter 只在激活态开启（避免常驻合成层） */
@@ -2447,7 +2456,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
       content: '';
       position: absolute;
       left: 0;
-      right: 0;
+      right: 10px;
       height: 28px;
       z-index: 3;
       pointer-events: none;

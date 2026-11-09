@@ -1,0 +1,159 @@
+/* 书本卡/光盘盒卡共享样式：透视外壳、封面占位、评分角标、标题横幅 */
+
+/* 透视容器（参考稿的 perspective 在网格上，这里逐卡包装实现同效） */
+.media-card-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 1500px;
+}
+
+/* 加载/无封面占位（纯色底 + 图标文案） */
+.placeholder-cover {
+  width: 100%;
+  height: 100%;
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8a8aa0;
+  gap: 10px;
+  text-align: center;
+  padding: 16px;
+}
+
+.placeholder-text {
+  font-size: 12px;
+  color: #a0a0b8;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ===== 评分铭牌（拉丝金属：5星金 / 4星银 / 其余铜） =====
+   作为卡片本体（preserve-3d）的直接子元素，translateZ 由各形态组件按厚度覆盖 */
+.stamp-badge {
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  z-index: 10;
+  padding: 0rem 0.22rem 0rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden; /* 裁切拉丝纹理 */
+
+  /* 倒角与浮雕感 */
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow:
+    -2px 3px 10px rgba(0, 0, 0, 0.8),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.stamp-badge span {
+  font-family: 'Bangers', 'Impact', 'Arial Black', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 2;
+}
+
+/* 拉丝纹理覆盖层（压在底色上、文字之下） */
+.stamp-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 1px,
+    rgba(0, 0, 0, 0.08) 1px,
+    rgba(0, 0, 0, 0.08) 2px
+  );
+}
+
+/* 金（5星）：高亮黄调，明暗反差大 */
+.stamp-badge.metal-gold {
+  background: linear-gradient(135deg, #fff7b0 0%, #ffd700 35%, #e6a800 55%, #8a6500 100%);
+  border-color: #ffe872;
+}
+.stamp-badge.metal-gold span {
+  color: #3d2900;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 银（4星）：冷白灰调，不锈钢 */
+.stamp-badge.metal-silver {
+  background: linear-gradient(135deg, #ffffff 0%, #d1d9e6 40%, #9eafc4 60%, #65748b 100%);
+  border-color: #f0f4f8;
+}
+.stamp-badge.metal-silver span {
+  color: #1c2635;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* 铜（3星及以下）：偏深红橘的做旧感 */
+.stamp-badge.metal-bronze {
+  background: linear-gradient(135deg, #f7cfa0 0%, #d47b3b 35%, #a64b15 60%, #5c2304 100%);
+  border-color: #d47b3b;
+}
+.stamp-badge.metal-bronze span {
+  color: #2a0c00;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ===== 标题横幅 ===== */
+.comic-title-banner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.2rem 0.6rem 0.2rem;
+  z-index: 6;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.65) 55%,
+    transparent 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.comic-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: uppercase;
+  margin: 0;
+  color: #f4e9d0;
+  transform: rotate(-0.8deg);
+  transform-origin: left bottom;
+  font-family: 'Bangers', 'Impact', 'Arial Black', sans-serif;
+  letter-spacing: 1px;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.9),
+    0 2px 3px rgba(0, 0, 0, 0.7),
+    0 0 12px rgba(201, 169, 107, 0.35);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.comic-issue {
+  min-height: 15px;
+  min-width: 60px;
+  font-size: 0.72rem;
+  color: #cdbb96;
+  letter-spacing: 1px;
+  border-top: 1px solid rgba(201, 169, 107, 0.45);
+  display: inline-block;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}

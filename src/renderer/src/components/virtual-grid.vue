@@ -174,7 +174,7 @@ const gridStyle = computed(() => {
     gridTemplateColumns: `repeat(auto-fill, minmax(${props.itemWidth}px, 1fr))`,
     gridAutoRows: `${props.itemHeight}px`,
     gap: `${props.gap}px`,
-    padding: '5px 10px',
+    padding: '5px 10px 5px 0px',
     justifyContent: 'start'
   }
 })

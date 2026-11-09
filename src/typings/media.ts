@@ -29,6 +29,8 @@ export interface MediaItem {
   path?: string
   /** 页数/文件数角标 */
   fileCount?: number
+  /** 全视频文件夹标记：打开仍按文件夹整本（kind=comic），卡片用光盘盒形态 */
+  videoFolder?: boolean
   /** 本地条目状态：加载中/空内容不可打开 */
   state?: 'loading' | 'empty'
   /** 站点原始数据（跳转、下载用） */
@@ -120,6 +122,7 @@ export function toMediaItem(folder: FolderInfo, source: MediaSource = 'local'): 
           : undefined,
     path: folder.fullPath,
     fileCount: folder.fileCount,
+    videoFolder: !isFileEntry && contentType === 'video',
     state
   }
 }
