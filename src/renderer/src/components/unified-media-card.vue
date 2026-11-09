@@ -17,7 +17,7 @@
         </div>
         <div v-else class="placeholder-cover">
           <n-icon :component="FolderIcon" size="48" />
-          <div class="placeholder-text">{{ item.title }}</div>
+          <div class="placeholder-text">无封面</div>
         </div>
 
         <!-- 评分角标（金箔烫印） -->
@@ -26,8 +26,8 @@
         <!-- 标题横幅（常显，单行省略，悬浮显示全名） -->
         <div class="comic-title-banner">
           <div class="comic-title" :title="item.title">{{ item.title }}</div>
-          <div v-if="showCount && item.fileCount" class="comic-issue">
-            共 {{ item.fileCount }} 页
+          <div class="comic-issue">
+            <span v-if="showCount && item.fileCount">共 {{ item.fileCount }} 页</span>
           </div>
         </div>
       </div>
@@ -349,7 +349,8 @@ onUnmounted(() => {
   border-radius: 0 4px 4px 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(
+  background:
+    linear-gradient(
       to right,
       rgba(255, 255, 255, 0.5) 0px,
       transparent 2px,
@@ -386,7 +387,8 @@ onUnmounted(() => {
   z-index: 5;
   pointer-events: none;
   border-right: 1px solid rgba(0, 0, 0, 0.35);
-  background: linear-gradient(
+  background:
+    linear-gradient(
       to bottom,
       transparent 0,
       transparent 28px,
@@ -462,7 +464,8 @@ onUnmounted(() => {
   pointer-events: none;
   opacity: 0.3;
   mix-blend-mode: overlay;
-  background-image: repeating-linear-gradient(
+  background-image:
+    repeating-linear-gradient(
       to right,
       rgba(255, 255, 255, 0.05) 0px,
       rgba(255, 255, 255, 0.05) 1px,
@@ -503,7 +506,8 @@ onUnmounted(() => {
   inset: 0;
   z-index: 4;
   pointer-events: none;
-  background: radial-gradient(
+  background:
+    radial-gradient(
       ellipse at 28% 35%,
       transparent 30%,
       rgba(0, 0, 0, 0.18) 78%,
@@ -625,7 +629,7 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 1.2rem 0.9rem 0.8rem;
+  padding: 1.2rem 0.6rem 0.2rem;
   z-index: 6;
   background: linear-gradient(
     to top,
@@ -658,6 +662,8 @@ onUnmounted(() => {
 }
 
 .comic-issue {
+  min-height: 15px;
+  min-width: 60px;
   font-size: 0.72rem;
   color: #cdbb96;
   letter-spacing: 1px;

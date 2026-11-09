@@ -134,6 +134,7 @@
               label-field="name"
               block-line
               class="folder-tree"
+              :selected-keys="tree.currentKey ? [tree.currentKey] : []"
               :default-expanded-keys="defaultExpandedTreeKeys"
               :render-label="renderTreeNode"
               :indent="20"
@@ -214,7 +215,12 @@
               <template #description> 正在加载... </template>
             </n-spin>
           </div>
-          <div v-else class="grid-view">
+          <div
+            v-else
+            ref="gridViewEl"
+            class="grid-view"
+            :class="{ 'fade-top': !gridAtTop, 'fade-bottom': !gridAtBottom }"
+          >
             <div v-if="grid.filterRows.length === 0" class="empty-data-state">
               <n-empty description="没有找到匹配的内容"> </n-empty>
             </div>
@@ -334,7 +340,7 @@ import {
 } from '@vicons/fluent'
 import { NButton, NIcon, NButtonGroup, NSpin, NInput, useMessage, useDialog } from 'naive-ui'
 import { debounce } from 'lodash'
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@renderer/plugins/store'
 import { queue } from '@renderer/plugins/store/downloadQueue'
@@ -1127,8 +1133,45 @@ const preloadNextPage = async () => {
   }
 }
 
+// ===== 网格边缘淡出状态：滚动贴合上/下边缘时隐藏对应淡出带（内容不足一屏则都不显示） =====
+const gridViewEl = ref<HTMLElement>()
+const gridAtTop = ref(true)
+const gridAtBottom = ref(true)
+
+const updateGridEdgeState = (scroller: HTMLElement | null) => {
+  if (!scroller) {
+    gridAtTop.value = true
+    gridAtBottom.value = true
+    return
+  }
+  gridAtTop.value = scroller.scrollTop <= 0
+  // 页面缩放会产生小数像素，物理滚动到底可能仍差几个像素，留 4px 容差
+  gridAtBottom.value = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4
+}
+
+// 直接监听滚动容器：virtual-grid 的 scroll 事件经节流后逐层 emit，滞后明显，
+// 这里绕开整条链路对 .virtual-grid-container 挂原生监听，边缘态随每帧滚动即时更新
+let gridScrollerEl: HTMLElement | null = null
+const onGridScrollerScroll = () => {
+  updateGridEdgeState(gridScrollerEl)
+  // 滚动事件可能被合并，rAF 后按静止终态再校一次
+  requestAnimationFrame(() => updateGridEdgeState(gridScrollerEl))
+}
+
+const bindGridScroller = () => {
+  const scroller = gridViewEl.value?.querySelector('.virtual-grid-container') as HTMLElement | null
+  if (scroller === gridScrollerEl) return
+  if (gridScrollerEl) gridScrollerEl.removeEventListener('scroll', onGridScrollerScroll)
+  gridScrollerEl = scroller
+  if (scroller) {
+    scroller.addEventListener('scroll', onGridScrollerScroll, { passive: true })
+    updateGridEdgeState(scroller)
+  }
+}
+
 // 滚动事件处理
 const handleScroll = (event: Event) => {
+  updateGridEdgeState(event.target as HTMLElement)
   if (currentViewMode.value !== 'folders') return
   const target = event.target as HTMLElement
   const { scrollTop, scrollHeight, clientHeight } = target
@@ -1138,6 +1181,20 @@ const handleScroll = (event: Event) => {
     preloadNextPage()
   }
 }
+
+// 数据/视图切换后重新绑定并判定（grid-view 随 loading/视图重建，滚动容器会换新元素）
+watch(
+  [() => grid.filterRows, isLoading, currentViewMode],
+  () => {
+    nextTick(bindGridScroller)
+  }
+)
+
+onMounted(bindGridScroller)
+
+onBeforeUnmount(() => {
+  if (gridScrollerEl) gridScrollerEl.removeEventListener('scroll', onGridScrollerScroll)
+})
 
 // 递归补 treeKey（n-tree 的 key-field；收藏分组内的同路径节点由调用方加前缀避免重复 key）
 const assignTreeKeys = (nodes: any[], prefix = '') => {
@@ -2099,25 +2156,60 @@ defineExpose({
 </script>
 
 <style lang="scss">
+/* 斑点淡出带 SVG 平铺单元（20x28）：四行圆点向边缘渐大（r=0.9/1.7/2.6/3.4），
+   首行半圆贴边，行间 5px 错位；x=0 与 x=20 各画一份圆保证平铺接缝处合成整圆。
+   以画布底色实心圆点叠加在内容边缘（配合 backdrop 模糊）模拟「蛀空」——
+   不用 CSS mask（多层遮罩在 Blink 下渲染不稳），显隐与模糊条同机制 */
+$dot-circles: 'M1.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z'
+  + ' M11.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z'
+  + ' M-2.6 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z'
+  + ' M7.4 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z'
+  + ' M17.4 10.5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0z'
+  + ' M3.3 17.5a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0-3.4 0z'
+  + ' M13.3 17.5a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0-3.4 0z'
+  + ' M-0.9 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z'
+  + ' M9.1 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z'
+  + ' M19.1 24.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0-1.8 0z';
+$dot-overlay-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cpath fill='%234a4656' d='#{$dot-circles}'/%3E%3C/svg%3E");
+/* 底带 = 顶带单元垂直翻转（半圆贴底边，点径向内容方向渐大） */
+$dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cg transform='translate(0 28) scale(1 -1)'%3E%3Cpath fill='%234a4656' d='#{$dot-circles}'/%3E%3C/g%3E%3C/svg%3E");
+
 /* 复用原页面的样式类名以避免大面积改动 */
 .home-container {
   height: 100%;
   width: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #ffffff;
-  color: #111827;
+  /* 黑橙画布：#4A4656（主题 hover 亮阶）底 + #FF9205 辉光（径向）+ 橙色点阵图案，不使用线性渐变 */
+  background-color: #4a4656;
+  background-image:
+    radial-gradient(ellipse 85% 65% at 15% 8%, rgba(255, 146, 5, 0.22), transparent 60%),
+    radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
+    radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    26px 26px;
+  color: #d9d4de;
 
   .navbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 10px 20px;
-    background-color: #ffffff;
-    border-bottom-width: 1px;
-    border-bottom-color: #e5e7eb;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    height: 64px;
+    /* 悬浮暗色毛玻璃横梁 */
+    background:
+      linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.18) 100%, transparent 50%),
+      rgba(26, 24, 32, 0.75);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 16px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 8px 24px -10px rgba(0, 0, 0, 0.6);
+    height: 60px;
+    margin: 8px 8px 0;
     flex-shrink: 0;
 
     &-center {
@@ -2137,29 +2229,94 @@ defineExpose({
     }
   }
 
+  /* 暗色玻璃上的 naive 组件适配：操作栏按钮/输入框 + 侧栏标签管理按钮换暗色皮肤
+     （交互色以内联 CSS 变量下发，需 !important 覆盖） */
+  .navbar,
+  .tag-filter-controls {
+    .n-button--default-type {
+      --n-color: rgba(255, 255, 255, 0.08) !important;
+      --n-color-hover: rgba(255, 255, 255, 0.16) !important;
+      --n-color-pressed: rgba(255, 255, 255, 0.22) !important;
+      --n-color-focus: rgba(255, 255, 255, 0.16) !important;
+      --n-color-disabled: rgba(255, 255, 255, 0.04) !important;
+      --n-text-color: #d9d4de !important;
+      --n-text-color-hover: #ffca85 !important;
+      --n-text-color-pressed: #ffca85 !important;
+      --n-text-color-focus: #ffca85 !important;
+      --n-text-color-disabled: #6f6a7d !important;
+      --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
+      --n-border-pressed: 1px solid rgba(255, 146, 5, 0.75) !important;
+      --n-border-focus: 1px solid rgba(255, 146, 5, 0.55) !important;
+      --n-border-disabled: 1px solid rgba(255, 255, 255, 0.1) !important;
+      --n-icon-color: #9d97ab !important;
+      --n-icon-color-hover: #ffca85 !important;
+      --n-icon-color-pressed: #ffca85 !important;
+      --n-icon-color-focus: #ffca85 !important;
+    }
+
+    /* 激活态视图按钮：品牌橙实底（同 theme-config 的 orange 预设） */
+    .n-button--primary-type {
+      --n-color: #ff9205 !important;
+      --n-color-hover: #ffa740 !important;
+      --n-color-pressed: #e67e00 !important;
+      --n-color-focus: #ffa740 !important;
+      --n-text-color: #ffffff !important;
+      --n-text-color-hover: #ffffff !important;
+      --n-text-color-pressed: #ffffff !important;
+      --n-text-color-focus: #ffffff !important;
+      --n-border: 1px solid transparent !important;
+      --n-border-hover: 1px solid transparent !important;
+      --n-border-pressed: 1px solid transparent !important;
+      --n-border-focus: 1px solid transparent !important;
+    }
+
+    .n-input {
+      --n-color: rgba(255, 255, 255, 0.08) !important;
+      /* 悬停不变底色（覆盖 naive 默认的浅灰 --n-color-hover），只保留边框反馈 */
+      --n-color-hover: rgba(255, 255, 255, 0.08) !important;
+      --n-color-focus: rgba(255, 255, 255, 0.12) !important;
+      --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
+      --n-border-focus: 1px solid rgba(255, 146, 5, 0.75) !important;
+      --n-text-color: #d9d4de !important;
+      --n-caret-color: #ff9205 !important;
+      --n-placeholder-color: #9a92a0 !important;
+      --n-icon-color: #9d97ab !important;
+      --n-icon-color-hover: #ffca85 !important;
+      --n-clear-color: #9a92a0 !important;
+      --n-clear-color-hover: #ffca85 !important;
+      --n-clear-color-pressed: #ffca85 !important;
+    }
+  }
+
   .main-content {
     display: flex;
     flex: 1 1 0%;
+    padding: 8px;
     overflow: hidden;
   }
 
   .sidebar {
-    background-color: #f9fafb;
-    // border-right-width: 1px;
-    // border-right-color: #e5e7eb;
+    /* 悬浮暗色毛玻璃面板（不带反光条，避免白光突兀） */
+    background:
+      linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.18) 100%, transparent 50%),
+      rgba(26, 24, 32, 0.75);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      4px 0 16px -10px rgba(0, 0, 0, 0.55);
     display: flex;
     flex-direction: column;
     width: 20%;
-    min-width: 256px;
+    min-width: 240px;
+    overflow: hidden;
 
     &-hidden {
-      width: 0px;
-      min-width: 0px;
-
-      .sidebar-title,
-      .sidebar-content {
-        display: none;
-      }
+      display: none;
     }
 
     &-header {
@@ -2186,7 +2343,8 @@ defineExpose({
       font-size: 0.875rem;
       line-height: 1.25rem;
       font-weight: 500;
-      color: #374151;
+      color: #ffca85;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
       margin: 0;
     }
 
@@ -2197,9 +2355,75 @@ defineExpose({
     }
   }
 
+  /* 暗色滚动条：橙色胶囊滑块，槽完全透明；作用于 home-container 内全部滚动区域
+     （track-piece 不一并置透明的话，Chromium 会给滑块两侧画默认底色） */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 146, 5, 0.45);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 146, 5, 0.7);
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
   .folder-tree {
     font-size: 0.875rem;
     line-height: 1.25rem;
+
+    /* 换肤为 #322F3B + #FF9205 配色：naive-ui 将交互色以内联 CSS 变量下发，需 !important 覆盖 */
+    --n-node-color-hover: rgba(255, 255, 255, 0.08) !important;
+    --n-node-color-pressed: rgba(255, 255, 255, 0.14) !important;
+    --n-node-color-active: rgba(255, 146, 5, 0.25) !important;
+    --n-node-text-color: #d9d4de !important;
+    --n-node-text-color-disabled: #6f6a7d !important;
+    --n-arrow-color: #9d97ab !important;
+    --n-loading-color: #ff9205 !important;
+    --n-line-color: rgba(255, 146, 5, 0.28) !important;
+    --n-node-border-radius: 6px !important;
+
+    .n-tree-node {
+      transition: background-color 0.2s ease;
+    }
+
+    /* 选中节点：#FF9205 辉光缎带 + 暖白加粗标题 */
+    .n-tree-node--selected {
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 5px;
+        bottom: 5px;
+        width: 3px;
+        border-radius: 2px;
+        background: linear-gradient(to bottom, #ffb457, #ff9205);
+        box-shadow:
+          1px 0 0 rgba(255, 220, 170, 0.3),
+          2px 0 6px rgba(255, 146, 5, 0.5);
+      }
+
+      .tree-node-label {
+        color: #ffedd0;
+        font-weight: 600;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      }
+    }
   }
 
   .content-area {
@@ -2214,6 +2438,41 @@ defineExpose({
     flex: 1 1 0%;
     overflow: hidden;
     position: relative;
+    border-radius: 16px 0 0 16px;
+    /* 淡出带：边缘 28px 的「磨砂 + 画布色圆点」叠加层——磨砂虚化内容，
+       圆点以画布底色覆盖其上模拟蛀空；显隐由 gridAtTop/gridAtBottom 驱动，随类
+       切换同帧生效。backdrop-filter 只在激活态开启（避免常驻合成层） */
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 28px;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      background-repeat: repeat-x;
+      background-size: 20px 28px;
+    }
+
+    &::before {
+      top: 0;
+      background-image: $dot-overlay-top;
+    }
+
+    &::after {
+      bottom: 0;
+      background-image: $dot-overlay-bottom;
+    }
+
+    &.fade-top::before,
+    &.fade-bottom::after {
+      opacity: 1;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
   }
 
   /* 最近下载视图的筛选 tag 栏 */
@@ -2222,7 +2481,8 @@ defineExpose({
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid rgba(255, 146, 5, 0.25);
+    background: rgba(24, 22, 30, 0.55);
     flex-shrink: 0;
   }
 
@@ -2231,6 +2491,11 @@ defineExpose({
     display: flex;
     align-items: center;
     justify-content: center;
+
+    /* 暗色画布上的空状态文字提亮（naive 默认是深灰） */
+    .n-empty__description {
+      color: #9a92a0;
+    }
   }
 
   .empty-data-state {
@@ -2240,6 +2505,10 @@ defineExpose({
     height: 100%;
     width: 100%;
     padding: 2rem;
+
+    .n-empty__description {
+      color: #9a92a0;
+    }
   }
 
   /* 标签树视图样式 */
@@ -2248,6 +2517,7 @@ defineExpose({
     height: 100%;
     display: flex;
     flex-direction: column;
+    color: #d9d4de;
   }
 
   .tag-filter-header {
@@ -2262,7 +2532,9 @@ defineExpose({
     font-size: 0.875rem;
     line-height: 1.25rem;
     font-weight: 500;
-    color: #374151;
+    color: #ffca85;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
     margin: 0;
   }
 
@@ -2283,7 +2555,7 @@ defineExpose({
 
   .empty-tags {
     text-align: center;
-    color: #6b7280;
+    color: #9a92a0;
     padding-top: 1rem;
     padding-bottom: 1rem;
   }
@@ -2302,7 +2574,7 @@ defineExpose({
   .tag-section-title {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #6b7280;
+    color: #9a92a0;
     margin-bottom: 0.5rem;
     padding-left: 0.25rem;
   }
@@ -2312,7 +2584,7 @@ defineExpose({
     transition: background-color 0.2s;
 
     &:hover {
-      background-color: #f3f4f6;
+      background-color: rgba(255, 255, 255, 0.08);
       border-radius: 4px;
     }
   }
@@ -2326,7 +2598,7 @@ defineExpose({
 
   .folder-icon {
     // margin-right: 2px;
-    color: #aaa;
+    color: #9d97ab;
   }
 
   .folder-tag-label {
@@ -2340,27 +2612,33 @@ defineExpose({
     gap: 4px;
   }
 
-  /* 根节点样式 */
+  /* 根节点：琥珀色铭牌（#FF9205 亮调） */
   .root-tree-node {
     font-weight: 600;
     font-size: 13px;
-    color: #1f2937;
+    color: #ffca85;
     padding: 4px 0;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
 
     .root-folder-icon {
-      color: #6b7280;
+      color: #ff9205;
       flex-shrink: 0;
     }
 
     .root-node-label {
       font-size: 12px;
-      color: #6b7280;
-      font-weight: 500;
+      color: #ffca85;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
     }
   }
 
+  /* 收藏书签：#FF9205 徽记 */
   .bookmark-icon {
-    color: #f59e0b;
+    color: #ff9205;
+    filter: drop-shadow(0 0 4px rgba(255, 146, 5, 0.45));
     flex-shrink: 0;
   }
 
@@ -2371,17 +2649,15 @@ defineExpose({
     white-space: nowrap;
   }
 
-  /* 根节点之间的分隔线 */
+  /* 根节点之间的分隔线：naive-ui 无 --root 修饰类，根节点行由 .root-tree-node 锚定（子树渲染在前一个 wrapper 内，兄弟 wrapper 即相邻根） */
   .folder-tree {
-    .n-tree-node--root {
-      border-bottom: 1px solid #e5e7eb;
-      padding-bottom: 4px;
-      margin-bottom: 4px;
-
-      &:last-child {
-        border-bottom: none;
-        margin-bottom: 0;
-      }
+    .n-tree-node-wrapper
+      + .n-tree-node-wrapper
+      > .n-tree-node:has(> .n-tree-node-content .root-tree-node) {
+      border-top: 1px solid rgba(255, 146, 5, 0.28);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+      margin-top: 6px;
+      padding-top: 4px;
     }
   }
 
@@ -2394,12 +2670,14 @@ defineExpose({
     user-select: none;
 
     &:hover {
-      background-color: #f3f4f6;
+      background-color: rgba(255, 255, 255, 0.08);
     }
 
+    /* 选中标签：同目录树的 #FF9205 缎带 */
     &.tag-selected {
-      background-color: #04f70416;
-      border-left: 3px solid #18a058;
+      background-color: rgba(255, 146, 5, 0.25);
+      border-left: 3px solid #ff9205;
+      color: #ffedd0;
     }
   }
 
@@ -2487,7 +2765,7 @@ defineExpose({
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(20, 19, 25, 0.7);
     z-index: 1000;
     backdrop-filter: blur(2px);
   }
