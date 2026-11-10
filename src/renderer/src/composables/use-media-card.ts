@@ -776,6 +776,111 @@ export function flyDiscClose(
   }, DISC_CLOSE_TOTAL)
 }
 
+/* ===== 封面取色（书脊/光盘切面共用） ===== */
+
+/** 取色区域（0~1 比例，相对封面整图）；缺省整图 */
+export interface CoverColorRegion {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * 从封面图提取主色调：缩小到 64px canvas 采样（可限定 0~1 比例的采样
+ * 区域——书脊取整图，光盘四切面各取对应边缘条带），过滤太暗/太亮/低饱和
+ * 像素，按色相分桶取数量最多的桶的均值。跨域封面读取像素会抛错，返回
+ * null 走默认色。
+ */
+export function extractDominantColor(
+  img: HTMLImageElement,
+  region?: CoverColorRegion
+): { r: number; g: number; b: number } | null {
+  try {
+    const size = 64
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0, size, size)
+    const { data } = ctx.getImageData(0, 0, size, size)
+
+    // 采样窗口（像素，向内钳制防越界）
+    const rx = Math.min(Math.max(region ? Math.round(region.x * size) : 0, 0), size - 1)
+    const ry = Math.min(Math.max(region ? Math.round(region.y * size) : 0, 0), size - 1)
+    const rw = Math.max(1, Math.min(region ? Math.round(region.w * size) : size, size - rx))
+    const rh = Math.max(1, Math.min(region ? Math.round(region.h * size) : size, size - ry))
+
+    const buckets = Array.from({ length: 360 }, () => ({ r: 0, g: 0, b: 0, count: 0 }))
+    for (let y = ry; y < ry + rh; y++) {
+      for (let x = rx; x < rx + rw; x++) {
+        const i = (y * size + x) * 4
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        if (data[i + 3] < 200) continue
+
+        const max = Math.max(r, g, b)
+        const min = Math.min(r, g, b)
+        const delta = max - min
+        const v = max / 255
+        const s = max === 0 ? 0 : delta / max
+        if (v < 0.18 || v > 0.95 || s < 0.18) continue
+
+        let h = 0
+        if (delta !== 0) {
+          if (max === r) h = 60 * (((g - b) / delta) % 6)
+          else if (max === g) h = 60 * ((b - r) / delta + 2)
+          else h = 60 * ((r - g) / delta + 4)
+        }
+        if (h < 0) h += 360
+
+        const bucket = buckets[Math.floor(h) % 360]
+        bucket.r += r
+        bucket.g += g
+        bucket.b += b
+        bucket.count++
+      }
+    }
+
+    let best: { r: number; g: number; b: number; count: number } | null = null
+    for (const bucket of buckets) {
+      if (bucket.count > 0 && (!best || bucket.count > best.count)) best = bucket
+    }
+    if (!best) return null
+    return { r: best.r / best.count, g: best.g / best.count, b: best.b / best.count }
+  } catch {
+    // 跨域封面无法读取像素，保持默认配色
+    return null
+  }
+}
+
+/** 提亮增饱和：先放大亮度，再以均值为锚提升对比，让取出的颜色更鲜明 */
+export function boostColor(r: number, g: number, b: number, factor = 1.15) {
+  const clamp = (n: number) => Math.min(255, Math.max(0, Math.round(n)))
+  let nr = r * factor
+  let ng = g * factor
+  let nb = b * factor
+  const avg = (nr + ng + nb) / 3
+  const contrast = 1.1
+  nr = (nr - avg) * contrast + avg
+  ng = (ng - avg) * contrast + avg
+  nb = (nb - avg) * contrast + avg
+  return { r: clamp(nr), g: clamp(ng), b: clamp(nb) }
+}
+
+/** 离屏加载图片（不进 DOM、命中缓存）：封面以 CSS 变量单份渲染的卡片
+ *  （光盘盒，无 <img>）用它取色；加载失败返回 null */
+export function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
 /**
  * 媒体卡片共用元信息：评分加载 + 点击时的浏览历史记录与 open 分发
  */

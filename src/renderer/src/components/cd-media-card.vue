@@ -61,7 +61,11 @@ import {
   flyDiscOpen,
   useMediaCardCover,
   useMediaCardMeta,
-  use3DTilt
+  use3DTilt,
+  extractDominantColor,
+  boostColor,
+  loadImage,
+  type CoverColorRegion
 } from '@renderer/composables/use-media-card'
 
 interface Props {
@@ -89,6 +93,33 @@ const itemRef = toRef(props, 'item')
 const cardRef = ref<HTMLElement>()
 
 const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef, cardRef)
+
+// ===== 四切面自动取色（类似书脊取色法） =====
+/** 封面在卡上只有 --cover-image 一份 CSS 引用、无 <img>，离屏加载（命中
+ *  缓存）取色：四个切面各取封面对应边缘条带（14% 宽）的主色注入，切面
+ *  颜色延续封面画；跨域/加载失败保持 CSS 默认塑料色 */
+watch(
+  coverImageSrc,
+  async (url) => {
+    if (!url || imageError.value) return
+    const img = await loadImage(url)
+    if (!img) return
+    const band = 0.14
+    const regions: Array<[string, CoverColorRegion]> = [
+      ['--edge-left', { x: 0, y: 0, w: band, h: 1 }],
+      ['--edge-right', { x: 1 - band, y: 0, w: band, h: 1 }],
+      ['--edge-top', { x: 0, y: 0, w: 1, h: band }],
+      ['--edge-bottom', { x: 0, y: 1 - band, w: 1, h: band }]
+    ]
+    for (const [prop, region] of regions) {
+      const color = extractDominantColor(img, region)
+      if (!color) continue
+      const boosted = boostColor(color.r, color.g, color.b, 1.2)
+      cardRef.value?.style.setProperty(prop, `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`)
+    }
+  },
+  { immediate: true }
+)
 
 /** 单视频文件（kind=video 即本地单个视频文件；视频文件夹 kind=comic 不在此列） */
 const isSingleVideo = computed(() => props.item.kind === 'video')
@@ -361,14 +392,16 @@ const coverVarStyle = computed(() =>
   opacity: 0.9;
 }
 
-/* ===== 塑料盒侧棱四切面：从背板平面立起、贴到面板边缘，撑出盒厚 ===== */
+/* ===== 塑料盒侧棱四切面：从背板平面立起、贴到面板边缘，撑出盒厚。
+   各切面底色取自封面对应边缘条带（--edge-* 由脚本取色注入，失败走
+   fallback 塑料灰），铰链/外缘压暗保持切面的立体感 ===== */
 .cd-spine {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: var(--box-thickness);
-  background: linear-gradient(to right, #0d0d0d, #2e2e2e);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.65), var(--edge-left, #2e2e2e));
   transform-origin: left center;
   transform: rotateY(-90deg);
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.9);
@@ -380,7 +413,7 @@ const coverVarStyle = computed(() =>
   bottom: 0;
   right: 0;
   width: var(--box-thickness);
-  background: linear-gradient(to left, #0d0d0d, #262626);
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.65), var(--edge-right, #262626));
   transform-origin: right center;
   transform: rotateY(90deg);
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.9);
@@ -392,7 +425,7 @@ const coverVarStyle = computed(() =>
   left: 0;
   right: 0;
   height: var(--box-thickness);
-  background: linear-gradient(to bottom, #232323, #101010);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4), var(--edge-top, #232323));
   transform-origin: top center;
   transform: rotateX(90deg);
 }
@@ -403,7 +436,7 @@ const coverVarStyle = computed(() =>
   left: 0;
   right: 0;
   height: var(--box-thickness);
-  background: linear-gradient(to top, #232323, #101010);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.4), var(--edge-bottom, #232323));
   transform-origin: bottom center;
   transform: rotateX(-90deg);
   box-shadow: inset 0 -2px 5px rgba(255, 255, 255, 0.06);
