@@ -229,27 +229,43 @@ function onPreview(row) {
 </script>
 
 <style lang="scss">
+// 作者卡片：悬浮暗色毛玻璃（与书架面板同款：115° 反光条 + 深色半透 + blur）
 .author-card {
   width: 100%;
   height: 100%;
-  background-color: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.18) 100%,
+      transparent 50%
+    ),
+    rgba(26, 24, 32, 0.65);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 24px -10px rgba(0, 0, 0, 0.6);
   overflow: hidden;
-  border: 1px solid #e5e7eb;
-  transition: box-shadow 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s;
   display: flex;
   flex-direction: column;
 
   &:hover {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border-color: rgba(255, 255, 255, 0.38);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 14px 32px -12px rgba(0, 0, 0, 0.7);
   }
 }
 
 // 作者头部信息
 .author-header {
   padding: 4px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -262,6 +278,7 @@ function onPreview(row) {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+  // box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
 .author-info {
@@ -272,7 +289,7 @@ function onPreview(row) {
 .author-name {
   font-size: 1rem;
   font-weight: 600;
-  color: #111827;
+  color: #ece8f3;
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -280,12 +297,16 @@ function onPreview(row) {
 }
 .author-move {
   cursor: move;
-  color: #6b7280;
+  color: #9d97ab;
   padding-bottom: 20px;
+
+  &:hover {
+    color: #ffca85;
+  }
 }
 .works-count {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: #9d97ab;
   margin: 0;
 }
 
@@ -326,7 +347,7 @@ function onPreview(row) {
 .artwork-item {
   height: 100%;
   border-radius: 8px;
-  background: #f5f5f5;
+  background: rgba(255, 255, 255, 0.06);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
   display: flex;
@@ -335,7 +356,7 @@ function onPreview(row) {
   align-items: center;
   position: relative;
   &:hover {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
     .hover-ops {
       opacity: 1;
     }
@@ -429,8 +450,9 @@ function onPreview(row) {
 .pagination-buttons {
   display: flex;
   gap: 0.25rem;
+  align-items: center;
   .pagination-info {
-    color: #6b7280;
+    color: #9d97ab;
     margin-right: 10px;
   }
 }
@@ -442,23 +464,25 @@ function onPreview(row) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #00000029; //#f3f4f6;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #d9d4de;
   cursor: pointer;
   font-size: 0.75rem;
   transition-duration: 0.3s;
   &:hover {
-    background-color: #e5e7eb;
+    background-color: rgba(255, 146, 5, 0.35);
+    color: #ffca85;
     transition-duration: 0.3s;
   }
 }
 
-// 操作按钮区域
+// 操作按钮区域：卡尾深色收边条
 .action-buttons {
   padding: 0.5rem;
-  background-color: #f9fafb;
+  background-color: rgba(0, 0, 0, 0.25);
   display: flex;
   justify-content: space-between;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
   .button-group {
     display: flex;
@@ -477,58 +501,55 @@ function onPreview(row) {
 }
 
 .unfollow-button {
-  color: #ef4444;
+  color: #f87171;
 
   &:hover {
-    color: #dc2626;
+    color: #ef4444;
   }
 }
 
 .download-all-button {
-  color: #10b981;
+  color: #34d399;
 
   &:hover {
-    color: #059669;
+    color: #10b981;
   }
 }
 
 .download-new-button {
-  // color: #3b82f6;
-
-  // &:hover {
-  //   color: #2563eb;
-  // }
-  color: #10b981;
+  color: #34d399;
 
   &:hover {
-    color: #059669;
+    color: #10b981;
   }
 }
 
 .tag-button {
-  color: #8b5cf6;
+  color: #a78bfa;
 
   &:hover {
-    color: #7c3aed;
+    color: #c4b5fd;
   }
 }
 
 .drag-button {
-  color: #3b82f6;
+  color: #f87171;
   cursor: move;
 
   &:hover {
-    color: #2563eb;
+    color: #ef4444;
   }
 }
 
-// 新作品提示样式
+// 新作品提示：红光描边在暗玻璃上更醒目
 .has-new-artwork {
-  border: 2px solid #ef4444;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+  border-color: rgba(248, 113, 113, 0.85);
+  box-shadow:
+    0 0 14px rgba(248, 113, 113, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-// Loading遮罩样式
+// Loading遮罩样式：暗玻璃
 .loading-overlay {
   position: absolute;
   top: 0;
@@ -539,13 +560,15 @@ function onPreview(row) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(26, 24, 32, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 10;
   border-radius: 0.5rem;
 
   .loading-text {
     margin-top: 12px;
-    color: #6b7280;
+    color: #9d97ab;
     font-size: 0.875rem;
   }
 }

@@ -32,6 +32,7 @@
               size="small"
               placeholder="类型"
               style="width: 120px"
+              :menu-props="{ class: 'attention-dark-menu' }"
             />
             <n-button type="primary" size="small" @click="refresh">刷新</n-button>
             <n-button
@@ -409,12 +410,122 @@ onMounted(async () => {
 })
 </script>
 <style scoped lang="scss">
-// 页面容器
+// 页面画布：黑橙底 + 辉光 + 点阵（与书架 home-container 同款）
 .page-container {
   height: 100%;
   width: 100%;
-  background-color: #f9fafb;
+  background-color: #4a4656;
+  background-image:
+    radial-gradient(ellipse 85% 65% at 15% 8%, rgba(255, 146, 5, 0.22), transparent 60%),
+    radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
+    radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    26px 26px;
+  color: #d9d4de;
   padding: 10px;
+
+  // 暗色滚动条：橙色胶囊滑块，槽完全透明（track-piece 一并置透明，
+  // 否则 Chromium 会给滑块两侧画默认底色）
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 146, 5, 0.45);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+
+    &:hover {
+      background: rgba(255, 146, 5, 0.7);
+    }
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  // 暗色画布上的 naive 组件适配（与书架 navbar 同一套皮肤：交互色以内联
+  // CSS 变量下发，需 !important 覆盖；下拉浮层走全局主题不受此影响）
+  .n-button--default-type {
+    --n-color: rgba(255, 255, 255, 0.08) !important;
+    --n-color-hover: rgba(255, 255, 255, 0.16) !important;
+    --n-color-pressed: rgba(255, 255, 255, 0.22) !important;
+    --n-color-focus: rgba(255, 255, 255, 0.16) !important;
+    --n-color-disabled: rgba(255, 255, 255, 0.04) !important;
+    --n-text-color: #d9d4de !important;
+    --n-text-color-hover: #ffca85 !important;
+    --n-text-color-pressed: #ffca85 !important;
+    --n-text-color-focus: #ffca85 !important;
+    --n-text-color-disabled: #6f6a7d !important;
+    --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
+    --n-border-pressed: 1px solid rgba(255, 146, 5, 0.75) !important;
+    --n-border-focus: 1px solid rgba(255, 146, 5, 0.55) !important;
+    --n-border-disabled: 1px solid rgba(255, 255, 255, 0.1) !important;
+    --n-icon-color: #9d97ab !important;
+    --n-icon-color-hover: #ffca85 !important;
+    --n-icon-color-pressed: #ffca85 !important;
+    --n-icon-color-focus: #ffca85 !important;
+  }
+
+  // 主操作按钮（刷新）：品牌橙实底（同书架激活态视图按钮）
+  .n-button--primary-type {
+    --n-color: #ff9205 !important;
+    --n-color-hover: #ffa740 !important;
+    --n-color-pressed: #e67e00 !important;
+    --n-color-focus: #ffa740 !important;
+    --n-text-color: #ffffff !important;
+    --n-text-color-hover: #ffffff !important;
+    --n-text-color-pressed: #ffffff !important;
+    --n-text-color-focus: #ffffff !important;
+    --n-border: 1px solid transparent !important;
+    --n-border-hover: 1px solid transparent !important;
+    --n-border-pressed: 1px solid transparent !important;
+    --n-border-focus: 1px solid transparent !important;
+  }
+
+  .n-input {
+    --n-color: rgba(255, 255, 255, 0.08) !important;
+    /* 悬停不变底色，只保留边框反馈 */
+    --n-color-hover: rgba(255, 255, 255, 0.08) !important;
+    --n-color-focus: rgba(255, 255, 255, 0.12) !important;
+    --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
+    --n-border-focus: 1px solid rgba(255, 146, 5, 0.75) !important;
+    --n-text-color: #d9d4de !important;
+    --n-caret-color: #ff9205 !important;
+    --n-placeholder-color: #9a92a0 !important;
+    --n-icon-color: #9d97ab !important;
+    --n-icon-color-hover: #ffca85 !important;
+    --n-clear-color: #9a92a0 !important;
+    --n-clear-color-hover: #ffca85 !important;
+    --n-clear-color-pressed: #ffca85 !important;
+  }
+
+  // 站点筛选下拉的触发器换暗肤（:deep 穿透 n-select 内部结构，
+  // .n-base-selection 未必是组件根、拿不到 scoped 属性）
+  :deep(.n-base-selection) {
+    --n-color: rgba(255, 255, 255, 0.08) !important;
+    --n-color-hover: rgba(255, 255, 255, 0.08) !important;
+    --n-color-active: rgba(255, 255, 255, 0.12) !important;
+    --n-color-focus: rgba(255, 255, 255, 0.12) !important;
+    --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
+    --n-border-active: 1px solid rgba(255, 146, 5, 0.75) !important;
+    --n-border-focus: 1px solid rgba(255, 146, 5, 0.75) !important;
+    --n-text-color: #d9d4de !important;
+    --n-placeholder-color: #9a92a0 !important;
+    --n-icon-color: #9d97ab !important;
+    --n-icon-color-hover: #ffca85 !important;
+  }
 }
 
 .content-container {
@@ -432,7 +543,7 @@ onMounted(async () => {
 .page-title {
   font-size: 24px;
   font-weight: 700;
-  color: #111827;
+  color: #ece8f3;
 }
 
 .search-controls {
@@ -446,21 +557,26 @@ onMounted(async () => {
   gap: 0.5rem;
 }
 
-// 新作品提示样式
+// 新作品提示：暗红玻璃警示条
 .new-artwork-notification {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
   margin-bottom: 10px;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #dc2626;
+  background: rgba(120, 30, 30, 0.32);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ff9d9d;
   font-size: 14px;
 
   .n-icon {
-    color: #dc2626;
+    color: #ff9d9d;
   }
 
   .notification-buttons {
@@ -476,12 +592,23 @@ onMounted(async () => {
   }
 }
 
-// 标签筛选区域样式
+// 标签筛选区域：悬浮暗色毛玻璃面板（与书架侧栏同款）
 .tag-filter-section {
   margin-top: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background-color: white;
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.18) 100%,
+      transparent 50%
+    ),
+    rgba(26, 24, 32, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 24px -10px rgba(0, 0, 0, 0.6);
   padding: 12px;
 }
 
@@ -495,11 +622,15 @@ onMounted(async () => {
 .tag-filter-title {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: #d9d4de;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 4px;
+
+  .n-icon {
+    color: #9d97ab;
+  }
 }
 
 .tag-filter-controls {
@@ -515,7 +646,7 @@ onMounted(async () => {
 
 .empty-tags {
   text-align: center;
-  color: #6b7280;
+  color: #9d97ab;
   padding: 10px;
   font-size: 12px;
 }
@@ -529,21 +660,25 @@ onMounted(async () => {
 .tag-item {
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-radius: 6px;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
   user-select: none;
   font-size: 12px;
-  border: 1px solid #e5e7eb;
-  background-color: #f9fafb;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #c9c3d4;
 
   &:hover {
-    background-color: #f3f4f6;
+    background-color: rgba(255, 255, 255, 0.12);
   }
 
   &.tag-selected {
-    background-color: #04f70416;
-    border-color: #18a058;
-    color: #18a058;
+    background-color: rgba(255, 146, 5, 0.2);
+    border-color: rgba(255, 146, 5, 0.65);
+    color: #ffca85;
   }
 }
 
@@ -554,10 +689,64 @@ onMounted(async () => {
 }
 
 .folder-icon {
-  color: #aaa;
+  color: #9d97ab;
 }
 
 .tag-label {
   white-space: nowrap;
+}
+</style>
+
+<style lang="scss">
+// 下拉菜单浮层（Teleport 到 body，scoped 够不着，须全局）：挂到菜单上的
+// attention-dark-menu 类由 n-select 的 menu-props 注入。菜单的交互色由 naive
+// 按全局主题以内联 CSS 变量下发（浅色主题为浅底深字），需 !important 覆盖
+.attention-dark-menu {
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.14) 100%,
+      transparent 50%
+    ),
+    rgba(26, 24, 32, 0.95) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.7) !important;
+
+  --n-color: rgba(26, 24, 32, 0.95) !important;
+  --n-border-radius: 12px !important;
+  --n-option-text-color: #d9d4de !important;
+  --n-option-text-color-hover: #ffca85 !important;
+  --n-option-text-color-active: #ffca85 !important;
+  --n-option-text-color-disabled: #6f6a7d !important;
+  --n-option-color-pending: rgba(255, 255, 255, 0.08) !important;
+  --n-option-color-active: rgba(255, 146, 5, 0.22) !important;
+  --n-option-color-active-hover: rgba(255, 146, 5, 0.3) !important;
+  --n-action-divider-color: rgba(255, 255, 255, 0.12) !important;
+  --n-action-text-color: #d9d4de !important;
+
+  // 菜单内滚动条同步橙色胶囊
+  ::-webkit-scrollbar {
+    width: 8px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 146, 5, 0.45);
+    border-radius: 8px;
+
+    &:hover {
+      background: rgba(255, 146, 5, 0.7);
+    }
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
 }
 </style>

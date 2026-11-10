@@ -12,7 +12,7 @@
         <VirtualGrid
           v-else
           :items="queue.tasks"
-          :item-width="330"
+          :item-width="322"
           :item-height="90"
           :gap="8"
           key-field="id"
@@ -250,14 +250,82 @@ function onOpenLocalFile(path) {
 </script>
 
 <style lang="scss">
+// 任务队列抽屉：悬浮右侧的暖色毛玻璃面板。底色即画布色 #4a4656
+// （0.85 实度），叠两处 #FF9205 辉光呼应书架画布
 .n-drawer.n-drawer--right-placement {
   top: 30px !important;
   bottom: 5px !important;
   right: 6px !important;
-  border-radius: 20px;
+  border-radius: 16px !important;
+  background: radial-gradient(ellipse 90% 55% at 12% 0%, rgba(255, 146, 5, 0.2), transparent 58%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(255, 146, 5, 0.13), transparent 60%),
+    rgba(74, 70, 86, 0.85) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 146, 5, 0.3) !important;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.7) !important;
+  color: #d9d4de;
+
+  // 暗色玻璃上的 naive 组件适配（交互色以内联 CSS 变量下发，需 !important）
+  .n-button {
+    --n-color: transparent !important;
+    --n-color-hover: rgba(255, 255, 255, 0.12) !important;
+    --n-color-pressed: rgba(255, 255, 255, 0.18) !important;
+    --n-color-focus: rgba(255, 255, 255, 0.12) !important;
+    --n-text-color: #d9d4de !important;
+    --n-text-color-hover: #ffca85 !important;
+    --n-text-color-pressed: #ffca85 !important;
+    --n-text-color-focus: #ffca85 !important;
+    --n-border: 1px solid transparent !important;
+    --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
+    --n-border-pressed: 1px solid rgba(255, 146, 5, 0.75) !important;
+    --n-border-focus: 1px solid rgba(255, 146, 5, 0.55) !important;
+    --n-icon-color: #9d97ab !important;
+    --n-icon-color-hover: #ffca85 !important;
+    --n-icon-color-pressed: #ffca85 !important;
+    --n-icon-color-focus: #ffca85 !important;
+  }
+
+  .n-progress {
+    --n-rail-color: rgba(255, 255, 255, 0.1) !important;
+    /* 默认态（进行中）的填充换品牌橙；success/error 状态色不受影响 */
+    --n-color: #ff9205 !important;
+  }
+
+  .n-drawer-header {
+    border-bottom: 1px solid rgba(255, 146, 5, 0.25) !important;
+  }
+
+  // 暗色滚动条：橙色胶囊滑块，槽完全透明
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 146, 5, 0.45);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+
+    &:hover {
+      background: rgba(255, 146, 5, 0.7);
+    }
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
 }
+
+// 抽屉 body 留出左右/底部内边距（任务卡片不贴边；列宽 322 已为 8px
+// 滚动条让位：360 - 2 边框 - 24 内边距 - 8 滚动条 = 326 ≥ 322）
 .n-drawer-body-content-wrapper {
-  padding: 0px !important;
+  padding: 4px 8px !important;
 }
 .task-list {
   display: flex;
@@ -267,13 +335,23 @@ function onOpenLocalFile(path) {
   overflow: hidden;
 }
 .empty {
-  color: #999;
+  color: #9d97ab;
   text-align: center;
   padding: 24px 0;
 }
+// 任务条：深色玻璃 chip，悬停描边泛橙
 .task-item {
-  background: #f7f7f7;
-  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+
+  &:hover {
+    border-color: rgba(255, 146, 5, 0.4);
+    background-color: rgba(255, 146, 5, 0.08);
+  }
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -301,15 +379,16 @@ function onOpenLocalFile(path) {
 }
 .site-icon-fallback {
   flex-shrink: 0;
-  color: #6b7280;
+  color: #9d97ab;
 }
 .name {
   font-weight: 700;
   width: 100%;
+  color: #ece8f3;
 }
 .progress {
   font-size: 12px;
-  color: #666;
+  color: #9d97ab;
 }
 .progress-bar {
   margin-top: 4px;
@@ -330,7 +409,7 @@ function onOpenLocalFile(path) {
 }
 .progress-text {
   font-size: 12px;
-  color: #666;
+  color: #c2bec9;
   margin-top: 3px;
   display: flex;
   align-items: center;
@@ -350,7 +429,7 @@ function onOpenLocalFile(path) {
   gap: 6px;
 }
 .error-msg {
-  color: #d03050;
+  color: #ff9d9d;
   max-width: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -360,10 +439,11 @@ function onOpenLocalFile(path) {
   margin-left: 12px;
   font-weight: 600;
   white-space: nowrap;
+  color: #d9d4de;
 }
 .move-size {
   margin-left: 6px;
-  color: #6b7280;
+  color: #9d97ab;
   font-weight: 400;
 }
 .n-drawer-header__main {
@@ -374,6 +454,11 @@ function onOpenLocalFile(path) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  span {
+    color: #ece8f3;
+    font-weight: 600;
+  }
 }
 
 /* 虚拟列表样式 */

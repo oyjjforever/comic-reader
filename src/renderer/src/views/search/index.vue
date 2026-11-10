@@ -1,153 +1,166 @@
 <template>
-  <div class="search-container">
-    <!-- 搜索表单 -->
-    <div class="search-form">
-      <div class="search-form-row">
-        <n-select
-          v-model:value="searchType"
-          :options="typeOptions"
-          placeholder="选择网站类型"
-          style="width: 120px; flex-shrink: 0"
-        />
-        <n-input
-          v-model:value="keyword"
-          type="textarea"
-          placeholder="输入搜索关键字（每行一条记录，Shift+Enter换行）"
-          :autosize="{ minRows: 1, maxRows: 4 }"
-          clearable
-          @keydown="handleKeydown"
-        />
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button
-              :type="autoExtract ? 'primary' : 'default'"
-              @click="autoExtract = !autoExtract"
-              style="flex-shrink: 0"
-            >
-              <template #icon>
-                <n-icon :component="NumberSymbol24Regular" />
-              </template>
-              {{ autoExtract ? '提取' : '原文' }}
-            </n-button>
-          </template>
-          {{
-            autoExtract
-              ? '当前为自动提取数字（切换到原文搜索）'
-              : '当前为原文搜索（切换到自动提取数字）'
-          }}
-        </n-tooltip>
-        <n-button type="success" @click="onSearch" :loading="loading" :disabled="!keyword">
-          <template #icon>
-            <n-icon :component="Search24Regular" />
-          </template>
-          搜索
-        </n-button>
+  <n-config-provider class="search-provider" :theme="darkTheme" :theme-overrides="orangeOverrides">
+    <div class="search-container">
+      <!-- 搜索表单 -->
+      <div class="search-form">
+        <div class="search-form-row">
+          <n-select
+            v-model:value="searchType"
+            :options="typeOptions"
+            placeholder="选择网站类型"
+            style="width: 120px; flex-shrink: 0"
+          />
+          <n-input
+            v-model:value="keyword"
+            type="textarea"
+            placeholder="输入搜索关键字（每行一条记录，Shift+Enter换行）"
+            :autosize="{ minRows: 1, maxRows: 4 }"
+            clearable
+            @keydown="handleKeydown"
+          />
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button
+                :type="autoExtract ? 'primary' : 'default'"
+                @click="autoExtract = !autoExtract"
+                style="flex-shrink: 0"
+              >
+                <template #icon>
+                  <n-icon :component="NumberSymbol24Regular" />
+                </template>
+                {{ autoExtract ? '提取' : '原文' }}
+              </n-button>
+            </template>
+            {{
+              autoExtract
+                ? '当前为自动提取数字（切换到原文搜索）'
+                : '当前为原文搜索（切换到自动提取数字）'
+            }}
+          </n-tooltip>
+          <n-button type="success" @click="onSearch" :loading="loading" :disabled="!keyword">
+            <template #icon>
+              <n-icon :component="Search24Regular" />
+            </template>
+            搜索
+          </n-button>
+        </div>
+        <!-- 数字提取提示 -->
+        <div v-if="autoExtract" class="number-extract-hint">
+          <n-icon :component="NumberSymbol24Regular" size="16" />
+          <span>已提取 {{ extractedKeywords.length }} 个搜索关键字：</span>
+          <n-tag v-for="(kw, idx) in extractedKeywords" :key="idx" size="small" round type="info">
+            {{ kw }}
+          </n-tag>
+        </div>
       </div>
-      <!-- 数字提取提示 -->
-      <div v-if="autoExtract" class="number-extract-hint">
-        <n-icon :component="NumberSymbol24Regular" size="16" />
-        <span>已提取 {{ extractedKeywords.length }} 个搜索关键字：</span>
-        <n-tag v-for="(kw, idx) in extractedKeywords" :key="idx" size="small" round type="info">
-          {{ kw }}
-        </n-tag>
-      </div>
-    </div>
 
-    <!-- 搜索结果 -->
-    <div v-if="searchResults.length > 0" class="search-results">
-      <div class="results-header">
-        <span class="results-count">找到 {{ searchResults.length }} 个结果</span>
-      </div>
-      <responsive-virtual-grid
-        ref="virtualGridRef"
-        :items="searchResults"
-        key-field="id"
-        :min-item-width="100"
-        :max-item-width="200"
-        :aspect-ratio="0.6"
-        :gap="10"
-        mode="lazy"
-        @scroll="handleScroll"
-        @ready="onGridReady"
-      >
-        <template #default="{ item }">
-          <div class="search-item" :class="{ 'search-item--downloaded': item.downloaded }">
-            <div class="item-cover">
-              <!-- 加载中状态 -->
-              <div v-if="item.loading" class="loading-placeholder">
-                <n-spin size="small" />
-              </div>
-              <!-- 已加载状态 -->
-              <template v-else-if="item.loaded">
-                <n-image v-if="item.cover" :src="item.cover" class="cover-image">
-                  <template #error>
-                    <img :src="errorImg" />
-                  </template>
-                </n-image>
+      <!-- 搜索结果 -->
+      <div v-if="searchResults.length > 0" class="search-results">
+        <div class="results-header">
+          <span class="results-count">找到 {{ searchResults.length }} 个结果</span>
+        </div>
+        <responsive-virtual-grid
+          ref="virtualGridRef"
+          :items="searchResults"
+          key-field="id"
+          :min-item-width="100"
+          :max-item-width="200"
+          :aspect-ratio="0.6"
+          :gap="10"
+          mode="lazy"
+          @scroll="handleScroll"
+          @ready="onGridReady"
+        >
+          <template #default="{ item }">
+            <div class="search-item" :class="{ 'search-item--downloaded': item.downloaded }">
+              <div class="item-cover">
+                <!-- 加载中状态 -->
+                <div v-if="item.loading" class="loading-placeholder">
+                  <n-spin size="small" />
+                </div>
+                <!-- 已加载状态 -->
+                <template v-else-if="item.loaded">
+                  <n-image v-if="item.cover" :src="item.cover" class="cover-image">
+                    <template #error>
+                      <img :src="errorImg" />
+                    </template>
+                  </n-image>
+                  <div v-else class="default-cover">
+                    <n-icon :component="Image24Regular" size="48" />
+                  </div>
+                  <!-- 悬浮操作栏 -->
+                  <div v-if="item.artworkId" class="hover-ops">
+                    <div v-if="item.pages" class="item-pages">
+                      <n-icon :component="SlideMultiple24Regular" size="12" />{{ item.pages }}
+                    </div>
+                    <button size="small" @click.stop="onDownload(item)">
+                      <n-icon :component="CloudDownload" size="24" />
+                    </button>
+                    <button size="small" @click.stop="onPreview(item)">
+                      <n-icon :component="InformationCircle" size="24" />
+                    </button>
+                  </div>
+                </template>
+                <!-- 未加载状态 -->
                 <div v-else class="default-cover">
                   <n-icon :component="Image24Regular" size="48" />
                 </div>
-                <!-- 悬浮操作栏 -->
-                <div v-if="item.artworkId" class="hover-ops">
-                  <div v-if="item.pages" class="item-pages">
-                    <n-icon :component="SlideMultiple24Regular" size="12" />{{ item.pages }}
-                  </div>
-                  <button size="small" @click.stop="onDownload(item)">
-                    <n-icon :component="CloudDownload" size="24" />
-                  </button>
-                  <button size="small" @click.stop="onPreview(item)">
-                    <n-icon :component="InformationCircle" size="24" />
-                  </button>
+              </div>
+              <div class="item-info">
+                <h3 class="item-title" :title="item.title">{{ item.title || '加载中...' }}</h3>
+                <div class="item-meta">
+                  <span v-if="item.author" class="item-author">{{ item.author }}</span>
                 </div>
-              </template>
-              <!-- 未加载状态 -->
-              <div v-else class="default-cover">
-                <n-icon :component="Image24Regular" size="48" />
               </div>
             </div>
-            <div class="item-info">
-              <h3 class="item-title" :title="item.title">{{ item.title || '加载中...' }}</h3>
-              <div class="item-meta">
-                <span v-if="item.author" class="item-author">{{ item.author }}</span>
-              </div>
-            </div>
-          </div>
-        </template>
-      </responsive-virtual-grid>
-      <!-- 加载更多指示器 -->
-      <div v-if="isLoadingMore" class="load-more-indicator">
-        <n-spin size="small" />
-        <span>加载更多中...</span>
+          </template>
+        </responsive-virtual-grid>
+        <!-- 加载更多指示器 -->
+        <div v-if="isLoadingMore" class="load-more-indicator">
+          <n-spin size="small" />
+          <span>加载更多中...</span>
+        </div>
+        <div v-else-if="!hasMore" class="load-more-indicator no-more">
+          <span>没有更多结果了</span>
+        </div>
       </div>
-      <div v-else-if="!hasMore" class="load-more-indicator no-more">
-        <span>没有更多结果了</span>
+
+      <!-- 空状态 -->
+      <div v-else-if="hasSearched && !loading" class="empty-state">
+        <n-icon :component="Search24Regular" size="64" color="#ccc" />
+        <p class="empty-text">未找到相关结果</p>
       </div>
-    </div>
 
-    <!-- 空状态 -->
-    <div v-else-if="hasSearched && !loading" class="empty-state">
-      <n-icon :component="Search24Regular" size="64" color="#ccc" />
-      <p class="empty-text">未找到相关结果</p>
-    </div>
+      <!-- 初始状态 -->
+      <div v-else-if="!hasSearched" class="initial-state">
+        <n-icon :component="Search24Regular" size="64" color="#e0e0e0" />
+        <p class="initial-text">请输入关键字开始搜索</p>
+      </div>
 
-    <!-- 初始状态 -->
-    <div v-else-if="!hasSearched" class="initial-state">
-      <n-icon :component="Search24Regular" size="64" color="#e0e0e0" />
-      <p class="initial-text">请输入关键字开始搜索</p>
+      <!-- 预览弹窗 -->
+      <preview-dialog
+        v-if="previewer.show"
+        :dialog="previewer"
+        @download="onDownload"
+      ></preview-dialog>
     </div>
-
-    <!-- 预览弹窗 -->
-    <preview-dialog
-      v-if="previewer.show"
-      :dialog="previewer"
-      @download="onDownload"
-    ></preview-dialog>
-  </div>
+  </n-config-provider>
 </template>
 
 <script setup lang="ts" name="search">
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { NSelect, NInput, NButton, NIcon, NImage, NSpin, NTag, NTooltip } from 'naive-ui'
+import {
+  NSelect,
+  NInput,
+  NButton,
+  NIcon,
+  NImage,
+  NSpin,
+  NTag,
+  NTooltip,
+  darkTheme,
+  type GlobalThemeOverrides
+} from 'naive-ui'
 import {
   Search24Regular,
   Image24Regular,
@@ -160,6 +173,17 @@ import previewDialog from '../special-attention/preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
 import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { useSettingStore } from '@renderer/plugins/store'
+
+// 整页换暗色主题：嵌套 n-config-provider 对全部 naive 组件生效（含
+// Teleport 到 body 的下拉浮层），主色覆盖为品牌橙（与书架黑橙画布一致）
+const orangeOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#FF9205',
+    primaryColorHover: '#FFA740',
+    primaryColorPressed: '#E67E00',
+    primaryColorSuppl: '#FF9205'
+  }
+}
 
 // 网站类型选项
 const typeOptions = [
@@ -463,23 +487,77 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+.search-provider {
+  height: 100%;
+}
+
+// 页面画布：黑橙底 + 辉光 + 点阵（与书架 home-container 同款）
 .search-container {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  background: #f5f5f5;
+  padding: 8px;
+  background-color: #4a4656;
+  background-image: radial-gradient(
+      ellipse 85% 65% at 15% 8%,
+      rgba(255, 146, 5, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
+    radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    26px 26px;
+  color: #d9d4de;
+
+  // 暗色滚动条：橙色胶囊滑块，槽完全透明（track-piece 一并置透明防默认底色）
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 146, 5, 0.45);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+
+    &:hover {
+      background: rgba(255, 146, 5, 0.7);
+    }
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
 }
 
+// 搜索表单：悬浮暗色毛玻璃横梁（与书架 navbar 同款）
 .search-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 16px 20px;
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.18) 100%,
+      transparent 50%
+    ),
+    rgba(26, 24, 32, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 24px -10px rgba(0, 0, 0, 0.6);
 }
 
 .search-form-row {
@@ -493,10 +571,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: #f0f7ff;
-  border-radius: 8px;
+  background: rgba(255, 146, 5, 0.1);
+  border: 1px solid rgba(255, 146, 5, 0.3);
+  border-radius: 10px;
   font-size: 13px;
-  color: #666;
+  color: #d9d4de;
   flex-wrap: wrap;
 }
 
@@ -513,25 +592,40 @@ onUnmounted(() => {
 
 .results-count {
   font-size: 14px;
-  color: #666;
+  color: #d3d2d6;
   font-weight: 500;
 }
 
+// 搜索结果卡：深色玻璃
 .search-item {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 12px;
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.18) 100%,
+      transparent 50%
+    ),
+    rgba(26, 24, 32, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 24px -10px rgba(0, 0, 0, 0.6);
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    border-color: rgba(255, 255, 255, 0.38);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 14px 32px -12px rgba(0, 0, 0, 0.7);
 
     .hover-ops {
       opacity: 1;
@@ -550,7 +644,7 @@ onUnmounted(() => {
   width: 100%;
   flex: 1;
   min-height: 0;
-  background: #f0f0f0;
+  background: rgba(255, 255, 255, 0.06);
   overflow: hidden;
   position: relative;
 }
@@ -572,8 +666,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: rgba(255, 255, 255, 0.06);
+  color: #6f6a7d;
 }
 
 /* 加载中占位 */
@@ -583,7 +677,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f0f0;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* 页数指示器 */
@@ -640,7 +734,7 @@ onUnmounted(() => {
 .item-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #ece8f3;
   margin: 0 0 8px 0;
   line-height: 1.4;
   display: -webkit-box;
@@ -661,14 +755,14 @@ onUnmounted(() => {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 4px;
-  background: #e3f2fd;
-  color: #1976d2;
+  background: rgba(255, 146, 5, 0.18);
+  color: #ffca85;
   font-weight: 500;
 }
 
 .item-author {
   font-size: 12px;
-  color: #999;
+  color: #9d97ab;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -689,7 +783,7 @@ onUnmounted(() => {
 .initial-text {
   margin-top: 16px;
   font-size: 16px;
-  color: #999;
+  color: #9d97ab;
 }
 
 /* 加载更多指示器 */
@@ -700,10 +794,10 @@ onUnmounted(() => {
   gap: 8px;
   padding: 12px 0;
   font-size: 13px;
-  color: #999;
+  color: #9d97ab;
 
   &.no-more {
-    color: #ccc;
+    color: #6f6a7d;
   }
 }
 

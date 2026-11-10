@@ -311,9 +311,20 @@ onBeforeUnmount(() => {
   max-height: 90vh;
   height: 86vh;
   width: 90%;
-  background-color: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  // 暗色毛玻璃（与书架面板同款）
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.18) 100%,
+      transparent 50%
+    ),
+    rgba(26, 24, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  color: #d9d4de;
   overflow: auto;
   transition: all 0.3s ease;
   animation: scale-in 0.3s ease-out forwards;
@@ -321,20 +332,54 @@ onBeforeUnmount(() => {
     width: 70%;
     height: 90vh;
   }
+
+  // 暗色滚动条：橙色胶囊滑块
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 146, 5, 0.45);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+
+    &:hover {
+      background: rgba(255, 146, 5, 0.7);
+    }
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
 }
 
+// 关闭按钮：固定正方形 + flex 居中（内容撑开的盒子宽高不等，
+// 配 border-radius: 50% 会渲染成椭圆）
 .close-button {
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 8px;
+  right: 8px;
   z-index: 10;
-  background-color: rgba(255, 255, 255, 0.8);
-  color: #374151;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #d9d4de;
   transition: all 0.2s ease;
   border: none;
+  border-radius: 50%;
 
   &:hover {
-    background-color: rgba(255, 255, 255, 1);
+    background-color: rgba(255, 146, 5, 0.35);
+    color: #ffca85;
   }
 }
 
@@ -359,14 +404,9 @@ onBeforeUnmount(() => {
     width: 66.666667%;
   }
 
-  // 隐藏滚动条
+  // 滚动条继承容器的橙色胶囊样式
   &::-webkit-scrollbar {
     width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: #d1d5db;
-    border-radius: 3px;
   }
 }
 
@@ -394,7 +434,7 @@ onBeforeUnmount(() => {
     max-width: 100%;
     max-height: 80vh;
     border-radius: 0.5rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -402,7 +442,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: auto;
   border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.6);
   transition: transform 0.2s ease;
   margin-bottom: 5px;
 }
@@ -412,7 +452,7 @@ onBeforeUnmount(() => {
   padding: 1.5rem 1.5rem 1rem 1.5rem;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #e5e7eb;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 
   @media (min-width: 1024px) {
     width: 33.333333%;
@@ -427,7 +467,7 @@ onBeforeUnmount(() => {
 .project-title {
   font-size: 26px;
   font-weight: 700;
-  color: #1f2937;
+  color: #ece8f3;
   margin-bottom: 0.5rem;
   word-break: break-all;
 }
@@ -435,7 +475,7 @@ onBeforeUnmount(() => {
 .image-count {
   display: flex;
   align-items: center;
-  color: #4b5563;
+  color: #9d97ab;
   margin-bottom: 1rem;
 
   .fas {
@@ -454,12 +494,12 @@ onBeforeUnmount(() => {
   }
 
   &::-webkit-scrollbar-thumb {
-    background-color: #d1d5db;
+    background-color: rgba(255, 146, 5, 0.45);
     border-radius: 3px;
   }
 
   p {
-    color: #374151;
+    color: #c9c3d4;
     line-height: 1.625;
     white-space: pre-line;
   }
@@ -526,8 +566,8 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-height: 200px;
   width: 100%;
-  background-color: #f3f4f6;
-  color: #6b7280;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #9d97ab;
   font-size: 0.875rem;
   border-radius: 0.5rem;
 
