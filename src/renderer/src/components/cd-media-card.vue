@@ -415,11 +415,11 @@ const coverVarStyle = computed(() =>
 }
 
 /* ===== 打开态（disc-opening 由 use-media-card 的 flyDiscOpen 添加）：
-   封面绕左缘翻开 135°、铭牌横幅淡出，露出银盘；盒底保留——
+   封面绕左缘翻开 120°、铭牌横幅淡出，露出银盘；盒底保留——
    盒子立在原地直到黑洞吞过去，不提前消失 ===== */
 .media-card.disc-opening {
   .cover-container {
-    transform: perspective(1200px) scale(0.976) rotateY(-135deg)
+    transform: perspective(1200px) scale(0.976) rotateY(-120deg)
       translateZ(var(--box-thickness));
   }
 

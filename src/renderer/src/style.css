@@ -2,88 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== 卡片打开过渡：飞行舞台（点击卡片 → 真实阅读器随书本放大 → 原地归还） =====
-   舞台盒子由 JS 定位到阅读器覆盖层矩形（.reader-host 边界），真实阅读器
-   （library 的 reader-overlay）由 <Teleport> 挂进舞台、垫在书本铬件之下：
-   翻开封面即见阅读器本体，不存在快照与真实界面的对接缝。
-   翻开状态由舞台上的 .opened 类驱动（与 FLIP 飞行同时启动） */
-.flying-card-stage {
-  position: fixed;
-  z-index: 9999;
-  pointer-events: none;
-  /* 快照克隆的是卡片本体，透视由舞台提供（与卡片外壳一致） */
-  perspective: 1500px;
-  will-change: transform;
-}
-
-/* 书本铬件（克隆卡片）压在挂入的阅读器（z-index:100 的 overlay）之上：
-   封面翻开、到达后的淡出都只作用于铬件，阅读器在下面原位不动 */
-.flying-card-stage > div.media-card {
-  z-index: 200;
-}
-
-/* 封面铰链层：沿左边缘把封面翻开（--fly-depth 由 JS 按卡片厚度注入，
-   保持封面在原深度平面上绕书脊侧旋转） */
-.flying-rotator {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  transform-origin: left center;
-  transform: translateZ(var(--fly-depth, 0px));
-  transition: transform var(--fly-dur, 1.2s) cubic-bezier(0.25, 1, 0.5, 1);
-  z-index: 5;
-}
-
-.flying-card-stage.opened .flying-rotator {
-  transform: translateZ(var(--fly-depth, 0px)) rotateY(-180deg);
-}
-
-/* 关闭倒放：封面合上与压暗恢复换成打开曲线的时间镜像（缓出加速收尾） */
-.flying-card-stage.closing .flying-rotator {
-  transition: transform var(--fly-dur, 1.2s) cubic-bezier(0.5, 0, 0.75, 1);
-}
-
-.flying-card-stage.closing .cover-container {
-  transition: filter var(--fly-dur, 1.2s) cubic-bezier(0.5, 0, 0.75, 1);
-}
-
-/* 封面翻开过程中压暗，铭牌与标题横幅淡出（真实卡片不受影响） */
-.flying-card-stage .cover-container {
-  transition: filter var(--fly-dur, 1.2s) ease;
-}
-
-.flying-card-stage.opened .cover-container {
-  filter: brightness(0.35);
-}
-
-.flying-card-stage .stamp-badge,
-.flying-card-stage .comic-title-banner {
-  transition: opacity 0.3s ease;
-}
-
-.flying-card-stage.opened .stamp-badge,
-.flying-card-stage.opened .comic-title-banner {
-  opacity: 0;
-}
-
-/* 飞行途中不显示体现厚度的切面（书脊/页侧/顶底）：翻开的封面 + 真实阅读器
-   即全部画面，避免放大后一圈厚边框（光盘盒为薄壳三层结构，无切面） */
-.flying-card-stage .comic-spine,
-.flying-card-stage .comic-pages,
-.flying-card-stage .comic-top,
-.flying-card-stage .comic-bottom {
-  display: none;
-}
-
-/* ===== 光盘打开：盘片飞行层（克隆银盘弹出 + 中心黑洞吞噬） ===== */
-/* 盒子由 JS 定位成阅读器区域矩形；黑洞最大只到阅读器大小（侧栏不被动黑） */
+/* ===== 卡片打开过渡：飞行层（光盘与书本共用） ===== */
+/* 层盒子由 JS 定位到阅读器覆盖层矩形（.reader-host 边界），真实阅读器
+   （library 的 reader-overlay）由 <Teleport> 挂进书本的内容舞台、从书位
+   放大到全屏；光盘则克隆银盘 + 黑洞吞噬直接切入。越界部分裁掉
+   （侧栏不被动黑；光盘黑洞与书本封面翻开都可能超出阅读器区域） */
 .flying-disc-layer {
   position: fixed;
   z-index: 9999;
   pointer-events: none;
-  /* 黑洞越界部分裁掉（盘片弹出为原地缩放，无需透视） */
   overflow: hidden;
 }
+
+/* ===== 光盘打开：克隆银盘弹出 + 中心黑洞吞噬 ===== */
 
 /* 克隆银盘：定位/尺寸由 JS 按原盘片矩形内联注入；银面、银光旋转与中心孔
    复用克隆自带的 .cd-disc scoped 样式（含伪元素） */
@@ -107,7 +38,38 @@
   z-index: 300;
 }
 
-/* 飞行途中禁用视线高光（:hover 在快照上可能误触发） */
-.flying-card-stage .card-glare {
-  display: none;
+/* ===== 书本打开：内容舞台 + 封面克隆 ===== */
+
+/* 内容舞台：真实阅读器由 <Teleport> 挂入、等比缩到书位居中（保真实比例，
+   关闭倒放），FLIP 的 transform 由 JS 内联注入。z100 恒定，封面克隆的层级
+   由 JS 在不重叠的瞬间切换：打开起手 z200 盖着书位内容、放大起跑时降 z50
+   被扩张的内容盖过；关闭起手 z50 随缩回被揭开、封面起合前升 z200 压着
+   落位的内容合上。自带黑底：阅读器等比留下的边与底板同为黑 */
+.flying-disc-layer .flying-content-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  transform-origin: top left;
+  background: #000;
+  will-change: transform;
+}
+
+/* 黑色底板：内容容器的"屏幕"底色——书位处非等比铺满书脸（纯色无变形，
+   保证书脸不镂空），放大时与舞台同参长到全屏，终态与舞台矩形重合、
+   黑边归零；transform 由 JS 内联注入 */
+.flying-disc-layer .flying-content-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  transform-origin: top left;
+  background: #000;
+  will-change: transform;
+}
+
+/* 封面克隆外层：定位在书本布局盒上（left/top/width/height/transform/z-index
+   由 JS 内联注入，transform 里带卡面初始倾角 roll），内层封面克隆绕左缘
+   （书脊侧）翻开——翻开/合上、压暗、横幅淡出均由 JS WAAPI 驱动 */
+.flying-disc-layer .cloned-book-cover-wrap {
+  position: absolute;
+  will-change: transform;
 }

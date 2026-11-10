@@ -63,7 +63,7 @@
 import { FolderOutline as FolderIcon } from '@vicons/ionicons5'
 import type { MediaItem } from '@/typings/media'
 import {
-  flyCardFullscreen,
+  flyBookOpen,
   useMediaCardCover,
   useMediaCardMeta,
   use3DTilt
@@ -95,14 +95,14 @@ const cardRef = ref<HTMLElement>()
 
 const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef, cardRef)
 
-/** 点击打开：阅读器（Teleport）即刻挂入飞行舞台随书本一起放大（见 use-media-card）；
- * 加载中/空内容跳过动画直接打开（走提示） */
+/** 点击打开：封面原地翻开 → 内容（真实阅读器 Teleport）从书位放大到全屏
+ * （见 use-media-card 的 flyBookOpen）；加载中/空内容跳过动画直接打开（走提示） */
 const flyOpen = (i: MediaItem) => {
   if (i.state) {
     emit('open', i)
     return
   }
-  flyCardFullscreen(cardRef.value, () => emit('open', i))
+  flyBookOpen(cardRef.value, () => emit('open', i))
 }
 
 const { rating, handleCardClick } = useMediaCardMeta(itemRef, ns, (i) => flyOpen(i))
@@ -219,9 +219,11 @@ const thicknessStyle = computed(() => ({ '--book-thickness': `${bookThickness.va
 <style lang="scss" scoped>
 @use './media-card-common';
 
-/* 评分角标悬浮：浮在封面上方 5px（厚度随页数 20~70px 变化，固定值会陷进厚书） */
+/* 评分角标悬浮：浮在封面上方 5px（厚度随页数 20~70px 变化，固定值会陷进厚书）；
+   打开动画期间随真实卡淡出（封面克隆不带铭牌，见 use-media-card） */
 .stamp-badge {
   transform: translateZ(calc(var(--book-thickness) + 5px));
+  transition: opacity 0.3s ease;
 }
 
 /* ===== 卡片本体（3D 书体：自身是背板，封面沿 Z 轴前推） ===== */

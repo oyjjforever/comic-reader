@@ -23,8 +23,9 @@
       </template>
     </resource-browser>
 
-    <!-- 全屏阅读器覆盖层：飞行过渡期间 Teleport 进飞行舞台，随书本一起从小放大
-         （舞台与覆盖层矩形一致，过渡结束归还原位，见 use-media-card 的 flyStageEl） -->
+    <!-- 全屏阅读器覆盖层：书本打开过渡期间 Teleport 进内容舞台、从书位放大到
+         全屏（舞台与覆盖层矩形一致，过渡结束归还原位，见 use-media-card 的
+         flyStageEl）；光盘打开不经舞台，黑洞直接切入 -->
     <Teleport :to="flyStageEl || 'body'" :disabled="!flyStageEl">
       <div v-if="isOpen" class="reader-overlay">
         <reader-view
@@ -53,7 +54,7 @@ import UnifiedMediaCard from '@renderer/components/unified-media-card.vue'
 import ResourceBrowser from '@renderer/components/resource-browser.vue'
 import ReaderView from '@renderer/views/reader/index.vue'
 import { useMediaOpen } from '@renderer/composables/use-media-open'
-import { flyStageEl, flyCardClose, flyDiscClose } from '@renderer/composables/use-media-card'
+import { flyStageEl, flyBookClose, flyDiscClose } from '@renderer/composables/use-media-card'
 import { useSettingStore } from '@renderer/plugins/store'
 
 const route = useRoute()
@@ -213,8 +214,8 @@ const {
 // ===== 关闭阅读器：按卡片类型走对应倒放 =====
 // 按当前作品路径回查网格里的卡片（data-media-path）；卡片不在 DOM（虚拟滚动
 // 离屏、随机打开等）则直接关闭不走动画。光盘卡走盘片倒放（盒子原地不动，
-// 黑洞收拢 + 盘缩回 + 合封面），书本卡走通用合书。isStillClosing 防飞行途中
-// 点击穿透网格重新打开其它作品时误卸载新阅读器
+// 黑洞收拢 + 盘缩回 + 合封面），书本卡走原地合书（内容缩回书位 + 封面合上）。
+// isStillClosing 防飞行途中点击穿透网格重新打开其它作品时误卸载新阅读器
 const handleCloseMedia = () => {
   const path = currentItem.value?.path
   const cardEl = path
@@ -230,7 +231,7 @@ const handleCloseMedia = () => {
   if (cardEl.querySelector('.cd-disc')) {
     flyDiscClose(cardEl, closeMedia, stillClosing)
   } else {
-    flyCardClose(cardEl, closeMedia, stillClosing)
+    flyBookClose(cardEl, closeMedia, stillClosing)
   }
 }
 </script>
