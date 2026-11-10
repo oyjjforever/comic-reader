@@ -12,16 +12,18 @@
       @mousemove="handle3DTilt"
       @mouseleave="reset3DTilt"
     >
-      <!-- 正面：带有圆形凹槽的厚壳 -->
+      <!-- 盒底：深色薄板 -->
+      <div class="case-back"></div>
+
+      <!-- 银光盘片：夹在盒底与面板之间，银光持续旋转 -->
+      <div class="cd-disc"></div>
+
+      <!-- 正面：透明厚壳，封面画内嵌 -->
       <div class="cover-container">
-        <div v-if="!coverImageSrc || imageError" class="placeholder-cover">
+        <div v-if="coverImageSrc && !imageError" class="cover-art"></div>
+        <div v-else class="placeholder-cover">
           <n-icon :component="FolderIcon" :size="isLoadingCover ? 32 : 48" />
           <div class="placeholder-text">{{ isLoadingCover ? '加载中...' : '无封面' }}</div>
-        </div>
-
-        <!-- 中心隔断光盘：透明凹槽，透出下方同一张封面 -->
-        <div v-if="coverImageSrc && !imageError" class="disc-indent">
-          <div class="disc-center-hole"></div>
         </div>
 
         <!-- 标题横幅（常显，单行省略，悬浮显示全名） -->
@@ -38,7 +40,7 @@
         <span>{{ rating }}★</span>
       </div>
 
-      <!-- 塑料盒骨架四切面 -->
+      <!-- 塑料盒侧棱四切面：连接背板与面板，撑出盒厚 -->
       <div class="cd-spine"></div>
       <div class="cd-side"></div>
       <div class="cd-top"></div>
@@ -51,7 +53,7 @@
 import { FolderOutline as FolderIcon } from '@vicons/ionicons5'
 import type { MediaItem } from '@/typings/media'
 import {
-  flyCardFullscreen,
+  flyDiscOpen,
   useMediaCardCover,
   useMediaCardMeta,
   use3DTilt
@@ -83,18 +85,18 @@ const cardRef = ref<HTMLElement>()
 
 const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef, cardRef)
 
-/** 点击打开：阅读器（Teleport）即刻挂入飞行舞台随光盘盒一起放大（见 use-media-card）；
+/** 点击打开：封面翻开 → 盘片卡扣弹出 → 黑洞吞噬切入阅读器（见 use-media-card）；
  * 加载中/空内容跳过动画直接打开（走提示） */
 const flyOpen = (i: MediaItem) => {
   if (i.state) {
     emit('open', i)
     return
   }
-  flyCardFullscreen(cardRef.value, () => emit('open', i))
+  flyDiscOpen(cardRef.value, () => emit('open', i))
 }
 
 const { rating, handleCardClick } = useMediaCardMeta(itemRef, ns, (i) => flyOpen(i))
-const { handleTiltEnter, handle3DTilt, reset3DTilt } = use3DTilt(cardRef, 15, () => 20)
+const { handleTiltEnter, handle3DTilt, reset3DTilt } = use3DTilt(cardRef, 15, () => 30)
 
 /** 评分铭牌材质：5星金、4星银、其余铜 */
 const ratingMetal = computed(() =>
@@ -103,7 +105,7 @@ const ratingMetal = computed(() =>
 
 /**
  * 封面单份引用：URL 只在 DOM 中出现一次（--cover-image），
- * 正面以它为背景渲染，不重复渲染 <img>
+ * 封面画以它为背景渲染，不重复渲染 <img>
  */
 const coverVarStyle = computed(() =>
   coverImageSrc.value && !imageError.value
@@ -136,12 +138,13 @@ const coverVarStyle = computed(() =>
   transform: translateY(40px) scale(1.05);
 }
 
-/* 评分角标悬浮：浮在封面上方 5px */
+/* 评分角标悬浮：浮在封面上方 5px；打开时随铭牌一起淡出 */
 .stamp-badge {
   transform: translateZ(calc(var(--box-thickness) + 5px));
+  transition: opacity 0.3s ease;
 }
 
-/* ===== 盒体：更快的跟随响应，阴影交给落地投影与正面厚壳 ===== */
+/* ===== 盒体：薄壳（盒底 - 银盘 - 透明面板 三层 + 侧棱撑厚） ===== */
 .media-card {
   --box-thickness: 30px;
 
@@ -157,114 +160,142 @@ const coverVarStyle = computed(() =>
   z-index: 2;
 }
 
-/* ===== 正面厚壳 ===== */
+/* 盒底：深色薄板 + 内嵌暗纹边框 */
+.case-back {
+  position: absolute;
+  inset: 0;
+  background: #1a1a1a;
+  border-radius: 4px;
+  border: 1px solid #333;
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.8),
+    0 30px 50px -10px rgba(0, 0, 0, 0.9);
+  transition: opacity 0.5s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 15px;
+    background: linear-gradient(135deg, #222, #0a0a0a);
+    border-radius: 2px;
+    border: 1px solid #444;
+  }
+}
+
+/* ===== 银光盘片：银面 + 中心轴孔 + 银光旋转 ===== */
+.cd-disc {
+  position: absolute;
+  /* inset + margin auto + aspect-ratio：取能放进卡片的最大正方形并居中，
+     任意长宽比的卡片都不越界（正方形卡片即示例的 320/340 比例） */
+  inset: 6%;
+  margin: auto;
+  aspect-ratio: 1 / 1;
+  transform: translateZ(calc(var(--box-thickness) / 2));
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #ffffff 0%, #e0e0e0 60%, #b0b0b0 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(255, 255, 255, 0.8),
+    0 5px 15px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+}
+
+/* 中心轴孔 */
+.cd-disc::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6.5%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  background: #000;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 1),
+    0 0 0 2px #e0e0e0,
+    0 0 0 3px #bbbbbb;
+  z-index: 2;
+}
+
+/* 银光旋转：高透锥形高光 + 低透彩虹衍射双层一起转动（真实光盘的虹彩感） */
+.cd-disc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from 120deg,
+      rgba(255, 0, 128, 0.1),
+      rgba(255, 200, 0, 0.1),
+      rgba(0, 255, 170, 0.1),
+      rgba(80, 150, 255, 0.1),
+      rgba(200, 60, 255, 0.1),
+      rgba(255, 0, 128, 0.1)
+    ),
+    conic-gradient(
+      from 0deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.25) 12%,
+      rgba(255, 255, 255, 1) 25%,
+      rgba(255, 255, 255, 0.3) 38%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.25) 62%,
+      rgba(255, 255, 255, 0.95) 75%,
+      rgba(255, 255, 255, 0.3) 88%,
+      transparent 100%
+    );
+  animation: cd-disc-spin var(--disc-spin-dur, 4s) linear infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@keyframes cd-disc-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== 正面透明厚壳：封面画内嵌 10px ===== */
 .cover-container {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  z-index: 2;
-  background: #222;
-  transform: translateZ(var(--box-thickness));
-  /* 机加工多层阴影：内侧白描边环 + 内凹暗影 + 外投影 */
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.2),
-    inset 0 0 20px rgba(0, 0, 0, 0.8),
-    0 10px 20px rgba(0, 0, 0, 0.5);
-}
-
-/* 全幅封面：压暗衬托光盘 */
-.cover-container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--cover-image) center / cover no-repeat;
-  // filter: brightness(0.7) contrast(1.1);
-}
-
-/* ===== 中心隔断光盘：透明凹槽直接透出封面（图片只渲染一次），内部提亮 + 物理缝隙与反光 ===== */
-.disc-indent {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  /* 卡片非正方形时保持正圆 */
-  width: 65%;
-  aspect-ratio: 1 / 1;
-  border-radius: 50%;
-  overflow: hidden;
-  z-index: 5;
-  /* 抵消封面的整体压暗，让盘面比封面亮 */
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.08) 55%,
-    rgba(255, 255, 255, 0) 78%
-  );
-  box-shadow:
-    inset 0 0 0 4px rgba(0, 0, 0, 0.6),
-    inset 0 0 18px rgba(0, 0, 0, 0.6),
-    0 0 0 2px rgba(255, 255, 255, 0.15),
-    0 15px 25px rgba(0, 0, 0, 0.7);
-  pointer-events: none;
-}
-
-/* 光盘锥形反光 */
-.disc-indent::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 45deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.1) 25%,
-    transparent 50%,
-    rgba(255, 255, 255, 0.1) 75%,
-    transparent 100%
-  );
-  mix-blend-mode: overlay;
-  pointer-events: none;
-}
-
-/* 中心轴孔 */
-.disc-center-hole {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 20%;
-  height: 20%;
-  border-radius: 50%;
-  background: #000;
-  box-shadow:
-    inset 0 4px 8px rgba(0, 0, 0, 1),
-    0 2px 2px rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 2px 2px 10px rgba(255, 255, 255, 0.2);
+  transform-origin: left center;
+  /* perspective() 自带透视：翻开/合上都有 3D 深度，不依赖祖先透视链生效。
+     scale(0.976) = 1200/(1200+30)：抵消 translateZ(30px) 在 1200px 透视下的
+     放大，面板不悬出盒体轮廓（否则封面看着比盒子大一圈） */
+  transform: perspective(1200px) scale(0.976) rotateY(0deg) translateZ(var(--box-thickness));
+  transition: transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1);
   z-index: 10;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
-.disc-center-hole::before {
-  content: '';
-  width: 60%;
-  height: 60%;
-  border-radius: 50%;
-  border: 2px solid #333;
-  box-shadow: inset 0 0 5px #000;
+.cover-art {
+  position: absolute;
+  inset: 10px;
+  background: var(--cover-image) center / cover no-repeat;
+  border-radius: 2px;
+  opacity: 0.9;
 }
 
-/* ===== 塑料盒骨架四切面（直角盒体，与正面一致） ===== */
+/* ===== 塑料盒侧棱四切面：从背板平面立起、贴到面板边缘，撑出盒厚 ===== */
 .cd-spine {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: var(--box-thickness);
-  background: linear-gradient(to right, #111, #444);
+  background: linear-gradient(to right, #0d0d0d, #2e2e2e);
   transform-origin: left center;
   transform: rotateY(-90deg);
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.9);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.9);
 }
 
 .cd-side {
@@ -273,9 +304,10 @@ const coverVarStyle = computed(() =>
   bottom: 0;
   right: 0;
   width: var(--box-thickness);
-  background: #0a0a0a;
+  background: linear-gradient(to left, #0d0d0d, #262626);
   transform-origin: right center;
   transform: rotateY(90deg);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.9);
 }
 
 .cd-top {
@@ -284,7 +316,7 @@ const coverVarStyle = computed(() =>
   left: 0;
   right: 0;
   height: var(--box-thickness);
-  background: #222;
+  background: linear-gradient(to bottom, #232323, #101010);
   transform-origin: top center;
   transform: rotateX(90deg);
 }
@@ -295,9 +327,29 @@ const coverVarStyle = computed(() =>
   left: 0;
   right: 0;
   height: var(--box-thickness);
-  background: #111;
+  background: linear-gradient(to top, #232323, #101010);
   transform-origin: bottom center;
   transform: rotateX(-90deg);
-  box-shadow: inset 0 -2px 5px rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 -2px 5px rgba(255, 255, 255, 0.06);
+}
+
+/* 标题横幅随封面翻开淡出（样式本体在共用 scss） */
+.comic-title-banner {
+  transition: opacity 0.3s ease;
+}
+
+/* ===== 打开态（disc-opening 由 use-media-card 的 flyDiscOpen 添加）：
+   封面绕左缘翻开 135°、铭牌横幅淡出，露出银盘；盒底保留——
+   盒子立在原地直到黑洞吞过去，不提前消失 ===== */
+.media-card.disc-opening {
+  .cover-container {
+    transform: perspective(1200px) scale(0.976) rotateY(-135deg)
+      translateZ(var(--box-thickness));
+  }
+
+  .stamp-badge,
+  .comic-title-banner {
+    opacity: 0;
+  }
 }
 </style>

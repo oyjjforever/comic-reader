@@ -143,6 +143,9 @@ const OPEN_EASE = 'cubic-bezier(0.25, 1, 0.5, 1)'
 const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.75, 1)'
 
 let flyingStage: HTMLElement | null = null
+/** 飞行代际令牌：光盘打开的 onArrive 延迟到动画尾部，期间任何新的打开/关闭
+ *  顶掉本次飞行时代际递增，让尾部回调只清理、不再打开（防旧条目迟到的覆盖） */
+let flyToken = 0
 
 /**
  * 飞行舞台元素：真实阅读器（library 的 reader-overlay）通过 <Teleport :to>
@@ -201,7 +204,9 @@ function createFlyStage(cardEl: HTMLElement) {
  */
 export function flyCardFullscreen(cardEl: HTMLElement | undefined, onArrive: () => void) {
   if (!cardEl || flyingStage) {
-    // 无元素或已有飞行进行中：跳过动画直接打开
+    // 无元素或已有飞行进行中：跳过动画直接打开；并令牌 +1 使进行中的
+    // 光盘打开尾部回调失效（避免其迟到的 onArrive 覆盖本次打开）
+    flyToken++
     onArrive()
     return
   }
@@ -259,7 +264,9 @@ export function flyCardClose(
   isStillClosing: () => boolean = () => true
 ) {
   if (!cardEl || flyingStage) {
-    // 无元素或已有飞行进行中：跳过动画直接关闭
+    // 无元素或已有飞行进行中：跳过动画直接关闭；并令牌 +1 使进行中的
+    // 光盘打开尾部回调失效（关闭后再被其迟到的 onArrive 重新打开）
+    flyToken++
     onClose()
     return
   }
@@ -306,6 +313,319 @@ export function flyCardClose(
     source.style.visibility = ''
     flyingStage = null
   }, CLOSE_DURATION)
+}
+
+/* ===== 光盘打开：银盘弹出 + 黑洞吞噬 ===== */
+
+/** 光盘打开总时序：0ms 封面翻开/盘片弹出，350ms 黑洞开始吞噬，900ms 铺满 */
+const DISC_OPEN_DURATION = 950
+/** 盘片卡扣弹出的等效缩放（translateZ 透视换算成原地缩放：Z/1200 视距，
+ *  盘片偏离透视图心，直接 translateZ 会向旁滑移） */
+const DISC_POP_SCALE_PEAK = ((1200 + 120) / 1200) * 1.03
+const DISC_POP_SCALE_REST = ((1200 + 100) / 1200) * 1.02
+/** 黑洞扩张：350ms 起跑，550ms 完成 */
+const HOLE_DELAY = 350
+const HOLE_DURATION = 550
+/** 关闭（光盘）时序：黑洞收拢后盘片缩回盒内，再合上封面 */
+const DISC_CLOSE_RETURN_DELAY = 400
+const DISC_CLOSE_RETURN = 250
+const DISC_CLOSE_COVER = 750
+const DISC_CLOSE_TOTAL = 1400
+/** 黑洞扩张/收拢的缓动（互为时间镜像） */
+const HOLE_EASE = 'cubic-bezier(0.6, 0, 0.2, 1)'
+const HOLE_EASE_REVERSE = 'cubic-bezier(0.8, 0, 0.4, 1)'
+/** 盘片中心孔的基准半径（与 cd-media-card 的克隆孔一致，缩放以此为基准） */
+const HOLE_BASE_RADIUS = 10
+
+/**
+ * 光盘打开过渡：
+ * 1. 真实卡进入 disc-opening 态（铭牌淡出、盒底保留）；封面克隆进飞行层
+ *    垫在盘片之上翻开 135°（真实封面层级低于飞行层，直接翻会被飞行盘盖住）；
+ * 2. 克隆银盘（保留银光旋转与中心孔，转速加快到 2s）固定在原位，卡扣式
+ *    原地弹出（WAAPI：80ms 内放大到峰值，随后回弹落定）；
+ * 3. 盘片中心孔放大成黑洞，吞掉整个阅读器区域（缩放按孔心到区域四角的
+ *    最远距离计算，保证铺满）；
+ * 4. 铺满瞬间 onArrive 打开阅读器（黑底与黑洞无缝衔接），随后恢复卡片、
+ *    清理飞行层。
+ * 与书本打开不同：阅读器不经 Teleport 挂入舞台，直接由黑洞切入。
+ */
+export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => void) {
+  if (!cardEl || flyingStage) {
+    flyToken++
+    onArrive()
+    return
+  }
+  const disc = cardEl.querySelector('.cd-disc') as HTMLElement | null
+  if (!disc) {
+    onArrive()
+    return
+  }
+
+  const token = ++flyToken
+  const rect = disc.getBoundingClientRect()
+  const hostRect =
+    cardEl.closest('.reader-host')?.getBoundingClientRect() ??
+    document.documentElement.getBoundingClientRect()
+
+  // 飞行层：直接定位成阅读器区域矩形并裁剪（见 style.css 的 overflow）——
+  // 黑洞随便放多大都被裁在阅读器范围内，侧栏不被动黑；透视供盘片 Z 弹出
+  const layer = document.createElement('div')
+  layer.className = 'flying-disc-layer'
+  layer.style.left = `${hostRect.left}px`
+  layer.style.top = `${hostRect.top}px`
+  layer.style.width = `${hostRect.width}px`
+  layer.style.height = `${hostRect.height}px`
+  document.body.appendChild(layer)
+  flyingStage = layer
+
+  // 克隆银盘：scoped 样式与伪元素（银光旋转/中心孔）随克隆保留；
+  // 定位尺寸内联注入（相对飞行层的坐标，覆盖卡片里的居中定位）；
+  // 银光转速加快（示例的飞行盘 2s）
+  const clone = disc.cloneNode(true) as HTMLElement
+  clone.classList.add('cloned-disc')
+  clone.style.position = 'absolute'
+  clone.style.left = `${rect.left - hostRect.left}px`
+  clone.style.top = `${rect.top - hostRect.top}px`
+  clone.style.right = 'auto'
+  clone.style.bottom = 'auto'
+  clone.style.margin = '0'
+  clone.style.width = `${rect.width}px`
+  clone.style.height = `${rect.height}px`
+  clone.style.transform = 'none'
+  clone.style.setProperty('--disc-spin-dur', '2s')
+
+  // 黑洞：飞行层直接子节点、锚在盘心（z300 压过盘片 z100 与封面克隆 z200，
+  // 吞噬时连翻开中的封面一起盖掉）
+  const hole = document.createElement('div')
+  hole.className = 'cloned-disc-hole'
+  hole.style.left = `${rect.left + rect.width / 2 - hostRect.left}px`
+  hole.style.top = `${rect.top + rect.height / 2 - hostRect.top}px`
+  layer.appendChild(clone)
+  layer.appendChild(hole)
+
+  // 原盘临时隐藏（封面翻开露出的是飞行中的克隆），真实卡进入打开态
+  disc.style.opacity = '0'
+  cardEl.classList.add('disc-opening')
+
+  // 封面也克隆进飞行层、垫在盘片之上（z200 > 盘片 z100）：真实封面在网格
+  // 层级里，翻开会从飞行盘下方扫过（层 z9999 恒压卡片之上）。克隆继承
+  // scoped 的过渡/透视样式，几何与真实封面一致；CSS 变量挂在 .media-card
+  // 上，需随克隆拷贝（封面画与厚度）
+  const cover = cardEl.querySelector('.cover-container') as HTMLElement | null
+  let coverClone: HTMLElement | null = null
+  if (cover) {
+    const cardStyle = getComputedStyle(cardEl)
+    const crect = cover.getBoundingClientRect()
+    coverClone = cover.cloneNode(true) as HTMLElement
+    coverClone.classList.add('cloned-cover')
+    coverClone.style.position = 'absolute'
+    coverClone.style.left = `${crect.left - hostRect.left}px`
+    coverClone.style.top = `${crect.top - hostRect.top}px`
+    coverClone.style.width = `${crect.width}px`
+    coverClone.style.height = `${crect.height}px`
+    coverClone.style.zIndex = '200'
+    coverClone.style.setProperty(
+      '--box-thickness',
+      cardStyle.getPropertyValue('--box-thickness') || '20px'
+    )
+    const coverImage = cardStyle.getPropertyValue('--cover-image')
+    if (coverImage) coverClone.style.setProperty('--cover-image', coverImage)
+    layer.appendChild(coverClone)
+    // 回流固化闭合起始姿态，否则翻开过渡不会触发（见 flyCardClose 同类坑）
+    void coverClone.offsetHeight
+    cover.style.visibility = 'hidden'
+  }
+
+  // 盘片卡扣回弹：原地朝观察者放大（示例的 translateZ 透视对居中元素等效于
+  // 缩放；盘片在网格里偏离透视图心，直接 translateZ 会向旁滑移，故用等效倍率）
+  clone.animate(
+    [
+      { transform: 'scale(1)', offset: 0 },
+      { transform: `scale(${DISC_POP_SCALE_PEAK})`, offset: 0.08, easing: 'ease-out' },
+      { transform: `scale(${DISC_POP_SCALE_REST})`, offset: 0.3, easing: 'ease-in-out' },
+      { transform: `scale(${DISC_POP_SCALE_REST})`, offset: 1 }
+    ],
+    { duration: 800, fill: 'forwards' }
+  )
+
+  // 黑洞吞噬：从盘片原位放大到盖住阅读器区域四角（超出部分被飞行层裁剪，
+  // 留 1.3 倍余量确保四角落在渐变的实心区内，不透缝）
+  const holeCx = rect.left + rect.width / 2
+  const holeCy = rect.top + rect.height / 2
+  const farthest = Math.max(
+    Math.hypot(hostRect.left - holeCx, hostRect.top - holeCy),
+    Math.hypot(hostRect.right - holeCx, hostRect.top - holeCy),
+    Math.hypot(hostRect.left - holeCx, hostRect.bottom - holeCy),
+    Math.hypot(hostRect.right - holeCx, hostRect.bottom - holeCy)
+  )
+  const maxScale = (farthest * 1.3) / HOLE_BASE_RADIUS
+  hole.animate(
+    [
+      { transform: 'translate(-50%, -50%) scale(1)' },
+      { transform: `translate(-50%, -50%) scale(${maxScale})` }
+    ],
+    {
+      duration: HOLE_DURATION,
+      delay: HOLE_DELAY,
+      easing: HOLE_EASE,
+      fill: 'forwards'
+    }
+  )
+
+  // 封面克隆下一帧翻开（与真实封面原时机一致：0.6s 过渡由 scoped 样式提供）；
+  // 克隆内的横幅同步淡出（真实侧由 disc-opening 驱动）
+  requestAnimationFrame(() => {
+    if (!coverClone) return
+    coverClone.style.transform =
+      'perspective(1200px) scale(0.976) rotateY(-135deg) translateZ(var(--box-thickness))'
+    const banner = coverClone.querySelector('.comic-title-banner') as HTMLElement | null
+    if (banner) banner.style.opacity = '0'
+  })
+
+  // 黑洞铺满后打开阅读器（黑底无缝接棒）；期间被其它打开/关闭顶掉则只清理
+  window.setTimeout(
+    async () => {
+      const stale = token !== flyToken
+      if (!stale) onArrive()
+      await nextTick()
+      requestAnimationFrame(() => {
+        layer.remove()
+        disc.style.opacity = ''
+        if (cover) cover.style.visibility = ''
+        cardEl.classList.remove('disc-opening')
+        flyingStage = null
+      })
+    },
+    Math.max(DISC_OPEN_DURATION, HOLE_DELAY + HOLE_DURATION)
+  )
+}
+
+/**
+ * 光盘关闭（打开的倒放，盒子原地不动）：
+ * 起手铺满的黑洞与阅读器黑底同形（阅读器立即卸载、无缝接管），真实卡被
+ * 无过渡地摆到打开态垫底；随后黑洞收拢回盘心揭开网格、克隆盘原地缩回
+ * 盒内，最后移除 disc-opening 让封面绕左缘合上（自带 0.6s 过渡）。
+ * 盒底与卡片全程留在原位，不参与任何缩放。
+ */
+export function flyDiscClose(
+  cardEl: HTMLElement | undefined,
+  onClose: () => void,
+  isStillClosing: () => boolean = () => true
+) {
+  if (!cardEl || flyingStage) {
+    flyToken++
+    onClose()
+    return
+  }
+  const disc = cardEl.querySelector('.cd-disc') as HTMLElement | null
+  if (!disc) {
+    onClose()
+    return
+  }
+
+  // 递增令牌：使未完成的光盘打开尾部回调失效（本函数清理无条件执行）
+  flyToken++
+  const rect = disc.getBoundingClientRect()
+  const hostRect =
+    cardEl.closest('.reader-host')?.getBoundingClientRect() ??
+    document.documentElement.getBoundingClientRect()
+
+  // 飞行层：定位成阅读器区域矩形并裁剪（同打开）
+  const layer = document.createElement('div')
+  layer.className = 'flying-disc-layer'
+  layer.style.left = `${hostRect.left}px`
+  layer.style.top = `${hostRect.top}px`
+  layer.style.width = `${hostRect.width}px`
+  layer.style.height = `${hostRect.height}px`
+  document.body.appendChild(layer)
+  flyingStage = layer
+
+  // 克隆银盘就位（弹出的落定姿态）；黑洞直接铺满（无过渡）
+  const clone = disc.cloneNode(true) as HTMLElement
+  clone.classList.add('cloned-disc')
+  clone.style.position = 'absolute'
+  clone.style.left = `${rect.left - hostRect.left}px`
+  clone.style.top = `${rect.top - hostRect.top}px`
+  clone.style.right = 'auto'
+  clone.style.bottom = 'auto'
+  clone.style.margin = '0'
+  clone.style.width = `${rect.width}px`
+  clone.style.height = `${rect.height}px`
+  clone.style.transform = `scale(${DISC_POP_SCALE_REST})`
+  clone.style.setProperty('--disc-spin-dur', '2s')
+
+  const hole = document.createElement('div')
+  hole.className = 'cloned-disc-hole'
+  const holeCx = rect.left + rect.width / 2
+  const holeCy = rect.top + rect.height / 2
+  const farthest = Math.max(
+    Math.hypot(hostRect.left - holeCx, hostRect.top - holeCy),
+    Math.hypot(hostRect.right - holeCx, hostRect.top - holeCy),
+    Math.hypot(hostRect.left - holeCx, hostRect.bottom - holeCy),
+    Math.hypot(hostRect.right - holeCx, hostRect.bottom - holeCy)
+  )
+  const maxScale = (farthest * 1.3) / HOLE_BASE_RADIUS
+  // 黑洞为飞行层直接子节点、锚在盘心、初始铺满（无过渡）
+  hole.style.left = `${holeCx - hostRect.left}px`
+  hole.style.top = `${holeCy - hostRect.top}px`
+  hole.style.transform = `translate(-50%, -50%) scale(${maxScale})`
+  layer.appendChild(clone)
+  layer.appendChild(hole)
+
+  // 真实卡无过渡地摆到打开态（封面已翻开、露出空盒），真实盘隐藏
+  const cover = cardEl.querySelector('.cover-container') as HTMLElement | null
+  if (cover) cover.style.transition = 'none'
+  cardEl.classList.add('disc-opening')
+  void cardEl.offsetHeight
+  if (cover) cover.style.transition = ''
+  disc.style.opacity = '0'
+
+  // 阅读器立即卸载：铺满的黑洞黑面无缝接管。已不是这部在关则撤场直接关
+  if (!isStillClosing()) {
+    layer.remove()
+    disc.style.opacity = ''
+    cardEl.classList.remove('disc-opening')
+    flyingStage = null
+    return
+  }
+  onClose()
+
+  // 下一帧倒放：黑洞收拢回盘心，随后盘片原地缩回盒内
+  nextTick(() =>
+    requestAnimationFrame(() => {
+      hole.animate(
+        [
+          { transform: `translate(-50%, -50%) scale(${maxScale})` },
+          { transform: 'translate(-50%, -50%) scale(1)' }
+        ],
+        { duration: HOLE_DURATION, easing: HOLE_EASE_REVERSE, fill: 'forwards' }
+      )
+      clone.animate(
+        [
+          { transform: `scale(${DISC_POP_SCALE_REST})` },
+          { transform: 'scale(1)' }
+        ],
+        { duration: DISC_CLOSE_RETURN, delay: DISC_CLOSE_RETURN_DELAY, easing: 'ease-out', fill: 'forwards' }
+      )
+    })
+  )
+
+  // 盘已落回：撤克隆与黑洞（已收拢为盘心黑点，随盘一起消失，不留浮点）、
+  // 恢复真实盘，移除打开态让封面合上（0.6s 过渡）。
+  // 清理无条件执行（各步幂等）——若以 token 守卫，关闭中途被新打开顶掉时
+  // 这里被跳过，flyingStage 永不清空，之后所有打开/关闭动画都会失效
+  window.setTimeout(() => {
+    clone.style.display = 'none'
+    hole.style.display = 'none'
+    disc.style.opacity = ''
+    cardEl.classList.remove('disc-opening')
+  }, DISC_CLOSE_COVER)
+
+  // 封面合上后清理
+  window.setTimeout(() => {
+    layer.remove()
+    flyingStage = null
+  }, DISC_CLOSE_TOTAL)
 }
 
 /**

@@ -66,17 +66,45 @@
   opacity: 0;
 }
 
-/* 飞行途中不显示体现厚度的切面（书脊/页侧/顶底、光盘盒骨架四切面）：
-   翻开的封面 + 真实阅读器即全部画面，避免放大后一圈厚边框 */
+/* 飞行途中不显示体现厚度的切面（书脊/页侧/顶底）：翻开的封面 + 真实阅读器
+   即全部画面，避免放大后一圈厚边框（光盘盒为薄壳三层结构，无切面） */
 .flying-card-stage .comic-spine,
 .flying-card-stage .comic-pages,
 .flying-card-stage .comic-top,
-.flying-card-stage .comic-bottom,
-.flying-card-stage .cd-spine,
-.flying-card-stage .cd-side,
-.flying-card-stage .cd-top,
-.flying-card-stage .cd-bottom {
+.flying-card-stage .comic-bottom {
   display: none;
+}
+
+/* ===== 光盘打开：盘片飞行层（克隆银盘弹出 + 中心黑洞吞噬） ===== */
+/* 盒子由 JS 定位成阅读器区域矩形；黑洞最大只到阅读器大小（侧栏不被动黑） */
+.flying-disc-layer {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  /* 黑洞越界部分裁掉（盘片弹出为原地缩放，无需透视） */
+  overflow: hidden;
+}
+
+/* 克隆银盘：定位/尺寸由 JS 按原盘片矩形内联注入；银面、银光旋转与中心孔
+   复用克隆自带的 .cd-disc scoped 样式（含伪元素） */
+.flying-disc-layer .cloned-disc {
+  z-index: 100;
+  will-change: transform;
+}
+
+/* 中心黑洞：飞行层直接子节点，锚点由 JS 按盘心注入（left/top），
+   z300 压过封面克隆（z200）与盘片（z100）——吞噬时全部盖掉。
+   渐变几乎全实心：四角落点（约 77% 半径处）必须不透缝 */
+.flying-disc-layer .cloned-disc-hole {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #000 0%, #000 80%, #111 92%, transparent 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 1);
+  transform: translate(-50%, -50%);
+  will-change: transform;
+  z-index: 300;
 }
 
 /* 飞行途中禁用视线高光（:hover 在快照上可能误触发） */
