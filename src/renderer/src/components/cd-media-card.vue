@@ -16,7 +16,11 @@
       <div class="case-back"></div>
 
       <!-- 银光盘片：夹在盒底与面板之间，银光持续旋转 -->
-      <div class="cd-disc"></div>
+      <div class="cd-disc">
+        <!-- 外圈光弧：贴盘缘的亮弧带，与银光同相位同速旋转（子元素随
+             cloneNode 进飞行层，伪元素已用完故落成真实节点） -->
+        <div class="disc-ring-light"></div>
+      </div>
 
       <!-- 正面：透明厚壳，封面画内嵌 -->
       <div class="cover-container">
@@ -267,27 +271,58 @@ const coverVarStyle = computed(() =>
   background:
     conic-gradient(
       from 120deg,
-      rgba(255, 0, 128, 0.1),
-      rgba(255, 200, 0, 0.1),
-      rgba(0, 255, 170, 0.1),
-      rgba(80, 150, 255, 0.1),
-      rgba(200, 60, 255, 0.1),
-      rgba(255, 0, 128, 0.1)
+      rgba(255, 0, 128, 0.16),
+      rgba(255, 200, 0, 0.16),
+      rgba(0, 255, 170, 0.16),
+      rgba(80, 150, 255, 0.16),
+      rgba(200, 60, 255, 0.16),
+      rgba(255, 0, 128, 0.16)
     ),
     conic-gradient(
       from 0deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.25) 12%,
+      rgba(255, 255, 255, 0.4) 12%,
       rgba(255, 255, 255, 1) 25%,
-      rgba(255, 255, 255, 0.3) 38%,
+      rgba(255, 255, 255, 0.4) 38%,
       transparent 50%,
-      rgba(255, 255, 255, 0.25) 62%,
+      rgba(255, 255, 255, 0.4) 62%,
       rgba(255, 255, 255, 0.95) 75%,
-      rgba(255, 255, 255, 0.3) 88%,
+      rgba(255, 255, 255, 0.4) 88%,
       transparent 100%
     );
   animation: cd-disc-spin var(--disc-spin-dur, 4s) linear infinite;
   z-index: 1;
+  pointer-events: none;
+}
+
+/* 外圈光弧：径向 mask 裁出盘缘环带，亮弧与内侧银光同角度布点（25%/75%
+   波峰）、同一动画同一变量 → 相位恒同步，光扫到哪弧跟到哪；前后缘
+   带冷暖色散模拟折射 */
+.disc-ring-light {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  z-index: 3;
+  /* closest-side：正方形下渐变半径 = 半盘宽，百分比即占盘缘半径的比例。
+     默认 farthest-corner 会按对角线计（≈1.41 倍半径），72% 落到盘外，
+     整层被 mask 裁空 */
+  -webkit-mask: radial-gradient(circle closest-side, transparent 70%, #000 80%);
+  mask: radial-gradient(circle closest-side, transparent 70%, #000 80%);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgba(140, 210, 255, 0.45) 16%,
+    rgba(255, 255, 255, 1) 25%,
+    rgba(255, 214, 150, 0.5) 34%,
+    transparent 42%,
+    transparent 50%,
+    rgba(140, 210, 255, 0.45) 66%,
+    rgba(255, 255, 255, 1) 75%,
+    rgba(255, 214, 150, 0.5) 84%,
+    transparent 92%,
+    transparent 100%
+  );
+  animation: cd-disc-spin var(--disc-spin-dur, 4s) linear infinite;
   pointer-events: none;
 }
 

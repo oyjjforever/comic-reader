@@ -317,14 +317,18 @@ export function flyCardClose(
 
 /* ===== 光盘打开：银盘弹出 + 黑洞吞噬 ===== */
 
-/** 光盘打开总时序：0ms 封面翻开/盘片弹出，350ms 黑洞开始吞噬，900ms 铺满 */
-const DISC_OPEN_DURATION = 950
+/** 光盘打开总时序：0ms 封面翻开（0.6s），600ms 封面全开后盘片卡扣弹出，
+ *  550ms 黑洞开始吞噬，1000ms 铺满 */
+const DISC_OPEN_DURATION = 1000
+/** 封面翻开过渡时长（与 cd-media-card scoped 样式的 0.6s 一致）：
+ *  盘片须等封面完全打开后才起跳 */
+const DISC_COVER_OPEN_MS = 300
 /** 盘片卡扣弹出的等效缩放（translateZ 透视换算成原地缩放：Z/1200 视距，
  *  盘片偏离透视图心，直接 translateZ 会向旁滑移） */
 const DISC_POP_SCALE_PEAK = ((1200 + 120) / 1200) * 1.03
 const DISC_POP_SCALE_REST = ((1200 + 100) / 1200) * 1.02
-/** 黑洞扩张：350ms 起跑，550ms 完成 */
-const HOLE_DELAY = 350
+/** 黑洞扩张：盘片弹起落定（600+240ms）后起跑，550ms 完成 */
+const HOLE_DELAY = 550
 const HOLE_DURATION = 550
 /** 关闭（光盘）时序：黑洞收拢后盘片缩回盒内，再合上封面 */
 const DISC_CLOSE_RETURN_DELAY = 400
@@ -341,8 +345,9 @@ const HOLE_BASE_RADIUS = 10
  * 光盘打开过渡：
  * 1. 真实卡进入 disc-opening 态（铭牌淡出、盒底保留）；封面克隆进飞行层
  *    垫在盘片之上翻开 135°（真实封面层级低于飞行层，直接翻会被飞行盘盖住）；
- * 2. 克隆银盘（保留银光旋转与中心孔，转速加快到 2s）固定在原位，卡扣式
- *    原地弹出（WAAPI：80ms 内放大到峰值，随后回弹落定）；
+ * 2. 克隆银盘（保留银光旋转与中心孔，转速加快到 2s）固定在原位，待封面
+ *    完全翻开后（600ms）卡扣式原地弹出（WAAPI：80ms 内放大到峰值，随后
+ *    回弹落定）；
  * 3. 盘片中心孔放大成黑洞，吞掉整个阅读器区域（缩放按孔心到区域四角的
  *    最远距离计算，保证铺满）；
  * 4. 铺满瞬间 onArrive 打开阅读器（黑底与黑洞无缝衔接），随后恢复卡片、
@@ -437,7 +442,9 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
   }
 
   // 盘片卡扣回弹：原地朝观察者放大（示例的 translateZ 透视对居中元素等效于
-  // 缩放；盘片在网格里偏离透视图心，直接 translateZ 会向旁滑移，故用等效倍率）
+  // 缩放；盘片在网格里偏离透视图心，直接 translateZ 会向旁滑移，故用等效倍率）；
+  // 延迟一个封面翻开的时长——盘片等封面完全打开后才起跳，期间透过透明
+  // 面板可见其静卧盒中
   clone.animate(
     [
       { transform: 'scale(1)', offset: 0 },
@@ -445,7 +452,7 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
       { transform: `scale(${DISC_POP_SCALE_REST})`, offset: 0.3, easing: 'ease-in-out' },
       { transform: `scale(${DISC_POP_SCALE_REST})`, offset: 1 }
     ],
-    { duration: 800, fill: 'forwards' }
+    { duration: 800, delay: DISC_COVER_OPEN_MS, fill: 'forwards' }
   )
 
   // 黑洞吞噬：从盘片原位放大到盖住阅读器区域四角（超出部分被飞行层裁剪，
