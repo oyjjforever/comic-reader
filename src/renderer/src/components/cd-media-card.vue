@@ -48,6 +48,7 @@
 import { FolderOutline as FolderIcon } from '@vicons/ionicons5'
 import type { MediaItem } from '@/typings/media'
 import {
+  flyCardFullscreen,
   useMediaCardCover,
   useMediaCardMeta,
   use3DTilt
@@ -78,7 +79,17 @@ const itemRef = toRef(props, 'item')
 const cardRef = ref<HTMLElement>()
 
 const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef, cardRef)
-const { rating, handleCardClick } = useMediaCardMeta(itemRef, ns, (i) => emit('open', i))
+
+/** 点击打开：卡片快照飞向全屏后进入阅读器；加载中/空内容跳过动画直接打开（走提示） */
+const flyOpen = (i: MediaItem) => {
+  if (i.state) {
+    emit('open', i)
+    return
+  }
+  flyCardFullscreen(cardRef.value, () => emit('open', i))
+}
+
+const { rating, handleCardClick } = useMediaCardMeta(itemRef, ns, (i) => flyOpen(i))
 const { handleTiltEnter, handle3DTilt, reset3DTilt } = use3DTilt(cardRef, 15, () => 20)
 
 /** 评分铭牌材质：5星金、4星银、其余铜 */

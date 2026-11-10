@@ -132,6 +132,118 @@ export function useMediaCardCover(item: Ref<MediaItem>, cardRef: Ref<HTMLElement
   return { coverImageSrc, isLoadingCover, imageError }
 }
 
+/* ===== 点击打开的飞入过渡 ===== */
+
+/** 与 .flying-card-veil 的过渡时长保持一致 */
+const FLY_DURATION = 1200
+
+let flyingStage: HTMLElement | null = null
+
+/**
+ * 点击卡片 → 铺满全屏的打开过渡（FLIP）：
+ * 克隆卡片本体作为飞行快照（保留 scoped 样式与内联 CSS 变量，不改卡片本身），
+ * 从原网格位置飞向全屏，同时封面绕书脊侧翻开、露出内页「正在进入...」。
+ * 临近终点回调打开阅读器（黑底覆盖层），快照到达后淡出交棒。
+ * 原卡在飞行期间临时隐藏防重影，结束或移除时恢复。
+ */
+export function flyCardFullscreen(cardEl: HTMLElement | undefined, onArrive: () => void) {
+  if (!cardEl || flyingStage) {
+    // 无元素或已有飞行进行中：跳过动画直接打开
+    onArrive()
+    return
+  }
+
+  const firstRect = cardEl.getBoundingClientRect()
+
+  // 快照：清除跟随倾斜的内联变换，回落到组件 CSS 里的静止姿态
+  const snapshot = cardEl.cloneNode(true) as HTMLElement
+  snapshot.style.transform = ''
+  snapshot.style.transition = ''
+
+  const stage = document.createElement('div')
+  stage.className = 'flying-card-stage'
+  stage.appendChild(snapshot)
+  document.body.appendChild(stage)
+  flyingStage = stage
+
+  // 结构改造（仅作用于快照）：封面挂到铰链层上翻开，后面垫上内页。
+  // 须在挂载后执行——脱离文档的元素读不到计算样式（封面深度会取 0）
+  setupOpenableCover(snapshot)
+
+  // 原卡临时隐藏（占位不动，避免网格重排），防双重影像
+  cardEl.style.visibility = 'hidden'
+
+  // FLIP：先瞬间摆回原网格位置，再过渡到全屏
+  const lastRect = stage.getBoundingClientRect()
+  const deltaX = firstRect.left - lastRect.left
+  const deltaY = firstRect.top - lastRect.top
+  const scaleX = firstRect.width / lastRect.width
+  const scaleY = firstRect.height / lastRect.height
+
+  stage.style.transformOrigin = 'top left'
+  stage.style.transition = 'none'
+  stage.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`
+  void stage.offsetHeight // 强制回流，让起始姿态先生效
+
+  requestAnimationFrame(() => {
+    stage.style.transition = `transform ${FLY_DURATION}ms cubic-bezier(0.25, 1, 0.5, 1)`
+    stage.style.transform = 'translate(0, 0) scale(1, 1)'
+    // 封面翻开与飞行同时启动
+    stage.classList.add('opened')
+  })
+
+  const cleanup = () => {
+    stage.remove()
+    cardEl.style.visibility = ''
+    flyingStage = null
+  }
+
+  // 稍早于动画终点打开阅读器（黑底覆盖层垫在快照之下）
+  window.setTimeout(onArrive, FLY_DURATION - 80)
+  // 到达后快照淡出，向阅读器交棒
+  window.setTimeout(() => {
+    stage.style.opacity = '0'
+    window.setTimeout(cleanup, 300)
+  }, FLY_DURATION)
+}
+
+/**
+ * 给飞行快照加装「可翻开封面」：
+ * 读取封面容器当前的 translateZ 深度，把封面移入铰链层（.flying-rotator，
+ * 翻开动画见 style.css），封面前方深度不变；原位垫一张内页（.flying-inside）。
+ */
+function setupOpenableCover(snapshot: HTMLElement) {
+  const cover = snapshot.querySelector('.cover-container') as HTMLElement | null
+  if (!cover || !cover.parentElement) return
+
+  // 封面在卡片坐标里的推进深度（书本随页数、光盘盒固定 20px）
+  let depth = 0
+  try {
+    const computed = getComputedStyle(cover).transform
+    if (computed && computed !== 'none') depth = new DOMMatrix(computed).m43
+  } catch {
+    depth = 0
+  }
+
+  const rotator = document.createElement('div')
+  rotator.className = 'flying-rotator'
+  rotator.style.setProperty('--fly-depth', `${depth}px`)
+
+  const inside = document.createElement('div')
+  inside.className = 'flying-inside'
+  const entering = document.createElement('h3')
+  entering.textContent = '正在进入...'
+  inside.appendChild(entering)
+
+  const cardBody = cover.parentElement
+  cardBody.insertBefore(inside, cover)
+  cardBody.insertBefore(rotator, cover)
+  rotator.appendChild(cover)
+
+  // 深度已转移到铰链层，封面自身的 transform 抵消（其余样式原样保留）
+  cover.style.transform = 'none'
+}
+
 /**
  * 媒体卡片共用元信息：评分加载 + 点击时的浏览历史记录与 open 分发
  */
