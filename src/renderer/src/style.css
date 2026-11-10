@@ -2,19 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== 卡片打开过渡：飞行快照（点击卡片 → 铺满全屏 + 封面翻开 → 打开阅读器） =====
-   以下规则只作用于克隆到 body 的飞行快照（.flying-card-stage 内），
-   不影响网格中的真实卡片；翻开状态由舞台上的 .opened 类驱动（与 FLIP 飞行同时启动） */
+/* ===== 卡片打开过渡：飞行舞台（点击卡片 → 真实阅读器随书本放大 → 原地归还） =====
+   舞台盒子由 JS 定位到阅读器覆盖层矩形（.reader-host 边界），真实阅读器
+   （library 的 reader-overlay）由 <Teleport> 挂进舞台、垫在书本铬件之下：
+   翻开封面即见阅读器本体，不存在快照与真实界面的对接缝。
+   翻开状态由舞台上的 .opened 类驱动（与 FLIP 飞行同时启动） */
 .flying-card-stage {
   position: fixed;
-  inset: 0;
   z-index: 9999;
   pointer-events: none;
   /* 快照克隆的是卡片本体，透视由舞台提供（与卡片外壳一致） */
   perspective: 1500px;
   will-change: transform;
-  /* 到达后淡出，向黑底阅读器交棒 */
-  transition: opacity 0.25s ease;
+}
+
+/* 书本铬件（克隆卡片）压在挂入的阅读器（z-index:100 的 overlay）之上：
+   封面翻开、到达后的淡出都只作用于铬件，阅读器在下面原位不动 */
+.flying-card-stage > div.media-card {
+  z-index: 200;
 }
 
 /* 封面铰链层：沿左边缘把封面翻开（--fly-depth 由 JS 按卡片厚度注入，
@@ -25,7 +30,7 @@
   transform-style: preserve-3d;
   transform-origin: left center;
   transform: translateZ(var(--fly-depth, 0px));
-  transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: transform var(--fly-dur, 1.2s) cubic-bezier(0.25, 1, 0.5, 1);
   z-index: 5;
 }
 
@@ -33,42 +38,18 @@
   transform: translateZ(var(--fly-depth, 0px)) rotateY(-180deg);
 }
 
-/* 翻开后露出的内页：纸张纹理 + 行线 + 「正在进入...」 */
-.flying-inside {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background-color: #e8e0d0;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 28px,
-    rgba(0, 0, 0, 0.05) 28px,
-    rgba(0, 0, 0, 0.05) 29px
-  );
-  box-shadow: inset 10px 0 20px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: translateZ(-1px);
+/* 关闭倒放：封面合上与压暗恢复换成打开曲线的时间镜像（缓出加速收尾） */
+.flying-card-stage.closing .flying-rotator {
+  transition: transform var(--fly-dur, 1.2s) cubic-bezier(0.5, 0, 0.75, 1);
 }
 
-.flying-inside h3 {
-  color: #8a7a66;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(1.5rem, 3.5vw, 3.5rem);
-  letter-spacing: 0.35em;
-  opacity: 0;
-  transition: opacity 0.5s ease 0.8s;
-}
-
-.flying-card-stage.opened .flying-inside h3 {
-  opacity: 1;
+.flying-card-stage.closing .cover-container {
+  transition: filter var(--fly-dur, 1.2s) cubic-bezier(0.5, 0, 0.75, 1);
 }
 
 /* 封面翻开过程中压暗，铭牌与标题横幅淡出（真实卡片不受影响） */
 .flying-card-stage .cover-container {
-  transition: filter 1.2s ease;
+  transition: filter var(--fly-dur, 1.2s) ease;
 }
 
 .flying-card-stage.opened .cover-container {
@@ -83,6 +64,19 @@
 .flying-card-stage.opened .stamp-badge,
 .flying-card-stage.opened .comic-title-banner {
   opacity: 0;
+}
+
+/* 飞行途中不显示体现厚度的切面（书脊/页侧/顶底、光盘盒骨架四切面）：
+   翻开的封面 + 真实阅读器即全部画面，避免放大后一圈厚边框 */
+.flying-card-stage .comic-spine,
+.flying-card-stage .comic-pages,
+.flying-card-stage .comic-top,
+.flying-card-stage .comic-bottom,
+.flying-card-stage .cd-spine,
+.flying-card-stage .cd-side,
+.flying-card-stage .cd-top,
+.flying-card-stage .cd-bottom {
+  display: none;
 }
 
 /* 飞行途中禁用视线高光（:hover 在快照上可能误触发） */

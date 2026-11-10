@@ -1,8 +1,11 @@
 <template>
   <div class="media-card-shell">
+    <!-- data-media-path：关闭阅读器的合书动画按此回查卡片。必须挂在 .media-card
+         本体上——飞行舞台的铬件层级规则按它匹配，挂外壳会导致封面沉到阅读器下 -->
     <div
       class="media-card"
       ref="cardRef"
+      :data-media-path="item.path || ''"
       :style="thicknessStyle"
       @click="handleCardClick"
       @mouseenter="handleTiltEnter"
@@ -92,7 +95,8 @@ const cardRef = ref<HTMLElement>()
 
 const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef, cardRef)
 
-/** 点击打开：卡片快照飞向全屏后进入阅读器；加载中/空内容跳过动画直接打开（走提示） */
+/** 点击打开：阅读器（Teleport）即刻挂入飞行舞台随书本一起放大（见 use-media-card）；
+ * 加载中/空内容跳过动画直接打开（走提示） */
 const flyOpen = (i: MediaItem) => {
   if (i.state) {
     emit('open', i)

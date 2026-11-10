@@ -1,5 +1,6 @@
 <template>
-  <div class="library-container">
+  <!-- reader-host：卡片打开过渡的飞行目标矩形 = 阅读器覆盖层区域（use-media-card 取此边界） -->
+  <div class="library-container reader-host">
     <resource-browser
       ref="resourceBrowserRef"
       :resource-paths="resourcePaths"
@@ -22,23 +23,26 @@
       </template>
     </resource-browser>
 
-    <!-- 全屏阅读器覆盖层 -->
-    <div v-if="isOpen" class="reader-overlay">
-      <reader-view
-        :key="currentItem?.path"
-        v-bind="
-          readerMode === 'file'
-            ? { filePath: encodeURIComponent(currentItem?.path || '') }
-            : { folderPath: encodeURIComponent(currentItem?.path || '') }
-        "
-        :module="namespace"
-        :has-next="hasNext"
-        :has-prev="hasPrev"
-        @close="closeMedia"
-        @next="nextMedia"
-        @prev="prevMedia"
-      />
-    </div>
+    <!-- 全屏阅读器覆盖层：飞行过渡期间 Teleport 进飞行舞台，随书本一起从小放大
+         （舞台与覆盖层矩形一致，过渡结束归还原位，见 use-media-card 的 flyStageEl） -->
+    <Teleport :to="flyStageEl || 'body'" :disabled="!flyStageEl">
+      <div v-if="isOpen" class="reader-overlay">
+        <reader-view
+          :key="currentItem?.path"
+          v-bind="
+            readerMode === 'file'
+              ? { filePath: encodeURIComponent(currentItem?.path || '') }
+              : { folderPath: encodeURIComponent(currentItem?.path || '') }
+          "
+          :module="namespace"
+          :has-next="hasNext"
+          :has-prev="hasPrev"
+          @close="handleCloseMedia"
+          @next="nextMedia"
+          @prev="prevMedia"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -49,6 +53,7 @@ import UnifiedMediaCard from '@renderer/components/unified-media-card.vue'
 import ResourceBrowser from '@renderer/components/resource-browser.vue'
 import ReaderView from '@renderer/views/reader/index.vue'
 import { useMediaOpen } from '@renderer/composables/use-media-open'
+import { flyStageEl, flyCardClose } from '@renderer/composables/use-media-card'
 import { useSettingStore } from '@renderer/plugins/store'
 
 const route = useRoute()
@@ -204,6 +209,24 @@ const {
   getRandomItem: provideRandomItem,
   getRandomFavoriteItem: randomFavoriteItem
 })
+
+// ===== 关闭阅读器：打开动画的倒放（合书） =====
+// 按当前作品路径回查网格里的卡片（data-media-path）；卡片不在 DOM（虚拟滚动
+// 离屏、随机打开等）则直接关闭不走动画。isStillClosing 防飞行途中点击穿透
+// 网格重新打开其它作品时误卸载新阅读器
+const handleCloseMedia = () => {
+  const path = currentItem.value?.path
+  const cardEl = path
+    ? document.querySelector<HTMLElement>(
+        `.reader-host [data-media-path="${CSS.escape(path)}"]`
+      )
+    : null
+  if (!cardEl) {
+    closeMedia()
+    return
+  }
+  flyCardClose(cardEl, closeMedia, () => isOpen.value && currentItem.value?.path === path)
+}
 </script>
 
 <style lang="scss" scoped>

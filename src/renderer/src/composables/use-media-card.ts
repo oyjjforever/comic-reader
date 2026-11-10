@@ -1,4 +1,4 @@
-import { ref, watch, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, shallowRef, nextTick, watch, onMounted, onUnmounted, type Ref } from 'vue'
 import type { MediaItem } from '@/typings/media'
 
 /**
@@ -134,25 +134,31 @@ export function useMediaCardCover(item: Ref<MediaItem>, cardRef: Ref<HTMLElement
 
 /* ===== 点击打开的飞入过渡 ===== */
 
-/** 与 .flying-card-veil 的过渡时长保持一致 */
-const FLY_DURATION = 1200
+/** 打开（飞行 + 封面翻开）时长；封面过渡由 --fly-dur 变量同步 */
+const OPEN_DURATION = 1000
+/** 关闭（合书）时长：比打开更利落，CSS 侧由 --fly-dur 变量同步到封面过渡 */
+const CLOSE_DURATION = 700
+/** 打开缓动（快出慢入）；关闭用其时间镜像 CLOSE_EASE 实现倒放手感 */
+const OPEN_EASE = 'cubic-bezier(0.25, 1, 0.5, 1)'
+const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.75, 1)'
 
 let flyingStage: HTMLElement | null = null
 
 /**
- * 点击卡片 → 铺满全屏的打开过渡（FLIP）：
- * 克隆卡片本体作为飞行快照（保留 scoped 样式与内联 CSS 变量，不改卡片本身），
- * 从原网格位置飞向全屏，同时封面绕书脊侧翻开、露出内页「正在进入...」。
- * 临近终点回调打开阅读器（黑底覆盖层），快照到达后淡出交棒。
- * 原卡在飞行期间临时隐藏防重影，结束或移除时恢复。
+ * 飞行舞台元素：真实阅读器（library 的 reader-overlay）通过 <Teleport :to>
+ * 挂载进来，随舞台从卡片大小一起放大到阅读器尺寸——动画中看到的内页就是
+ * 阅读器本体，不存在快照与真实界面的对接缝。飞行结束时置回 null，
+ * Teleport 自动把 overlay 归还原容器（矩形一致，无视觉跳动）。
  */
-export function flyCardFullscreen(cardEl: HTMLElement | undefined, onArrive: () => void) {
-  if (!cardEl || flyingStage) {
-    // 无元素或已有飞行进行中：跳过动画直接打开
-    onArrive()
-    return
-  }
+export const flyStageEl = shallowRef<HTMLElement | null>(null)
 
+/**
+ * 创建飞行舞台 + 书本铬件快照（打开/关闭共用）：
+ * 克隆卡片本体作铬件（保留 scoped 样式与内联 CSS 变量），舞台定位到阅读器
+ * 覆盖层矩形（.reader-host 边界，与应用侧栏无关；未标记时退回视口）。
+ * 原卡临时隐藏（占位不动，避免网格重排），防双重影像。
+ */
+function createFlyStage(cardEl: HTMLElement) {
   const firstRect = cardEl.getBoundingClientRect()
 
   // 快照：清除跟随倾斜的内联变换，回落到组件 CSS 里的静止姿态
@@ -162,55 +168,151 @@ export function flyCardFullscreen(cardEl: HTMLElement | undefined, onArrive: () 
 
   const stage = document.createElement('div')
   stage.className = 'flying-card-stage'
+  const hostRect = cardEl.closest('.reader-host')?.getBoundingClientRect()
+  const target = hostRect ?? document.documentElement.getBoundingClientRect()
+  stage.style.left = `${target.left}px`
+  stage.style.top = `${target.top}px`
+  stage.style.width = `${target.width}px`
+  stage.style.height = `${target.height}px`
   stage.appendChild(snapshot)
   document.body.appendChild(stage)
-  flyingStage = stage
 
-  // 结构改造（仅作用于快照）：封面挂到铰链层上翻开，后面垫上内页。
+  // 结构改造（仅作用于快照）：封面挂到铰链层上翻开。
   // 须在挂载后执行——脱离文档的元素读不到计算样式（封面深度会取 0）
   setupOpenableCover(snapshot)
 
-  // 原卡临时隐藏（占位不动，避免网格重排），防双重影像
   cardEl.style.visibility = 'hidden'
 
-  // FLIP：先瞬间摆回原网格位置，再过渡到全屏
   const lastRect = stage.getBoundingClientRect()
   const deltaX = firstRect.left - lastRect.left
   const deltaY = firstRect.top - lastRect.top
   const scaleX = firstRect.width / lastRect.width
   const scaleY = firstRect.height / lastRect.height
+  const shrink = `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`
+  return { stage, snapshot, cardEl, shrink }
+}
 
+/**
+ * 打开（点击卡片 → 飞向阅读器区域，FLIP）：
+ * 铬件与真实阅读器（Teleport 挂入舞台、垫在铬件之下）一起从原网格位置
+ * 放大到阅读器矩形，封面绕书脊侧翻开、露出下方阅读器本体。
+ * onArrive 在点击瞬间回调打开阅读器（isOpen=true，overlay 即刻挂入舞台）。
+ * 到达后铬件淡出（阅读器原位不动），随后 Teleport 归还、移除舞台。
+ */
+export function flyCardFullscreen(cardEl: HTMLElement | undefined, onArrive: () => void) {
+  if (!cardEl || flyingStage) {
+    // 无元素或已有飞行进行中：跳过动画直接打开
+    onArrive()
+    return
+  }
+
+  const { stage, snapshot, cardEl: source, shrink } = createFlyStage(cardEl)
+  flyingStage = stage
+  // 封面翻开的过渡时长与舞台飞行同步（CSS 侧 .flying-rotator 等读 --fly-dur）
+  stage.style.setProperty('--fly-dur', `${OPEN_DURATION}ms`)
+
+  // FLIP：先瞬间摆回原网格位置，再过渡到阅读器区域（舞台矩形）
   stage.style.transformOrigin = 'top left'
   stage.style.transition = 'none'
-  stage.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`
+  stage.style.transform = shrink
   void stage.offsetHeight // 强制回流，让起始姿态先生效
 
+  // Teleport 目标先就位，再打开阅读器：overlay 渲染时直接挂进舞台，
+  // 从第一帧起就随舞台缩放（初始被未翻开的封面盖住，随翻开逐渐露出）
+  flyStageEl.value = stage
+  onArrive()
+
   requestAnimationFrame(() => {
-    stage.style.transition = `transform ${FLY_DURATION}ms cubic-bezier(0.25, 1, 0.5, 1)`
+    stage.style.transition = `transform ${OPEN_DURATION}ms ${OPEN_EASE}`
     stage.style.transform = 'translate(0, 0) scale(1, 1)'
     // 封面翻开与飞行同时启动
     stage.classList.add('opened')
   })
 
-  const cleanup = () => {
-    stage.remove()
-    cardEl.style.visibility = ''
-    flyingStage = null
+  // 到达：铬件淡出，阅读器在下面原位不动
+  window.setTimeout(() => {
+    snapshot.style.transition = 'opacity 0.3s ease'
+    snapshot.style.opacity = '0'
+    // 淡出完成后归还 Teleport 挂载（overlay 移回原容器，矩形一致无跳动），
+    // 等 DOM 移动落地后再拆舞台
+    window.setTimeout(async () => {
+      flyStageEl.value = null
+      await nextTick()
+      stage.remove()
+      source.style.visibility = ''
+      flyingStage = null
+    }, 300)
+  }, OPEN_DURATION)
+}
+
+/**
+ * 关闭（打开的倒放：阅读器缩回卡片位置、封面合上）：
+ * 起始即翻开态（.opened 在插入前就位，不触发过渡），把仍在渲染的阅读器
+ * Teleport 进舞台，随舞台缩回原卡矩形；封面转回合上、铭牌横幅转回显示。
+ * 到达时铬件与原卡外观一致、位置重合，直接卸载阅读器并移除舞台即可。
+ * isStillClosing：飞行中网格可被点击重新打开其它作品（舞台 pointer-events
+ * 穿透），届时跳过卸载、只做舞台清理。
+ */
+export function flyCardClose(
+  cardEl: HTMLElement | undefined,
+  onClose: () => void,
+  isStillClosing: () => boolean = () => true
+) {
+  if (!cardEl || flyingStage) {
+    // 无元素或已有飞行进行中：跳过动画直接关闭
+    onClose()
+    return
   }
 
-  // 稍早于动画终点打开阅读器（黑底覆盖层垫在快照之下）
-  window.setTimeout(onArrive, FLY_DURATION - 80)
-  // 到达后快照淡出，向阅读器交棒
-  window.setTimeout(() => {
-    stage.style.opacity = '0'
-    window.setTimeout(cleanup, 300)
-  }, FLY_DURATION)
+  const { stage, cardEl: source, shrink } = createFlyStage(cardEl)
+  flyingStage = stage
+  // 起始 = 打开完成态（封面已翻开）；.closing 同时把合上曲线换成镜像版。
+  // 起始姿态必须「无过渡地」摆到已翻开：若只靠 .opened 类 + 回流，回流瞬间
+  // 就会启动 0°→-180° 的翻开过渡，下一帧移除 .opened 时封面才转了两三度
+  // 又折返，全程看不到合书。做法：内联禁过渡直接摆位 → 回流固化 → 撤内联
+  // （与类给的 -180 计算值一致，不触发过渡）→ 之后移除 .opened 才真正转回
+  stage.classList.add('opened', 'closing')
+  // 封面合上的过渡时长与舞台缩小同步（CSS 侧 .flying-rotator 等读 --fly-dur）
+  stage.style.setProperty('--fly-dur', `${CLOSE_DURATION}ms`)
+  const rotator = stage.querySelector('.flying-rotator') as HTMLElement | null
+  if (rotator) {
+    const depth = rotator.style.getPropertyValue('--fly-depth').trim() || '0px'
+    rotator.style.transition = 'none'
+    rotator.style.transform = `translateZ(${depth}) rotateY(-180deg)`
+    void stage.offsetHeight
+    rotator.style.transition = ''
+    rotator.style.transform = ''
+  }
+
+  // 把仍在渲染的阅读器挂进舞台（Teleport 目标变化即时移动 DOM），随舞台缩回
+  flyStageEl.value = stage
+
+  // 等 Teleport 移入落地后的下一帧再启动倒放
+  nextTick(() =>
+    requestAnimationFrame(() => {
+      stage.classList.remove('opened')
+      stage.style.transformOrigin = 'top left'
+      stage.style.transition = `transform ${CLOSE_DURATION}ms ${CLOSE_EASE}`
+      stage.style.transform = shrink
+    })
+  )
+
+  // 到达：仍是这部在关才真正卸载阅读器（可能在飞行中被重新打开其它作品）
+  window.setTimeout(async () => {
+    if (isStillClosing()) onClose()
+    flyStageEl.value = null
+    await nextTick()
+    stage.remove()
+    source.style.visibility = ''
+    flyingStage = null
+  }, CLOSE_DURATION)
 }
 
 /**
  * 给飞行快照加装「可翻开封面」：
  * 读取封面容器当前的 translateZ 深度，把封面移入铰链层（.flying-rotator，
- * 翻开动画见 style.css），封面前方深度不变；原位垫一张内页（.flying-inside）。
+ * 翻开动画见 style.css）沿书脊侧旋转，封面前方深度不变。封面后方不垫
+ * 任何东西——真实阅读器就挂在舞台里，翻开即见。
  */
 function setupOpenableCover(snapshot: HTMLElement) {
   const cover = snapshot.querySelector('.cover-container') as HTMLElement | null
@@ -229,14 +331,7 @@ function setupOpenableCover(snapshot: HTMLElement) {
   rotator.className = 'flying-rotator'
   rotator.style.setProperty('--fly-depth', `${depth}px`)
 
-  const inside = document.createElement('div')
-  inside.className = 'flying-inside'
-  const entering = document.createElement('h3')
-  entering.textContent = '正在进入...'
-  inside.appendChild(entering)
-
   const cardBody = cover.parentElement
-  cardBody.insertBefore(inside, cover)
   cardBody.insertBefore(rotator, cover)
   rotator.appendChild(cover)
 
