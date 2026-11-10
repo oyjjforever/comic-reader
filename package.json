@@ -34,6 +34,7 @@
     "fast-glob": "^3.3.3",
     "hls.js": "^1.6.16",
     "js-sha512": "^0.9.0",
+    "mediabunny": "^1.65.2",
     "mime-types": "^3.0.1",
     "sharp": "^0.34.4",
     "sqlite": "^5.1.1",

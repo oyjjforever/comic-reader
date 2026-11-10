@@ -1,3 +1,5 @@
+import fs from 'fs'
+import { Input, ALL_FORMATS, FilePathSource } from 'mediabunny'
 import File from './file'
 import { FolderInfo, FileInfo, SortOptions } from '@/typings/file'
 
@@ -364,6 +366,82 @@ async function getFolderCoverInfo(filePath: string): Promise<{ coverPath?: strin
     }
 }
 
+/**
+ * 视频文件元数据（单视频文件封面副标题用：分辨率 + 时长）
+ */
+export interface VideoMeta {
+    duration: number | null
+    width: number | null
+    height: number | null
+}
+
+/**
+ * 视频元数据缓存：key = 路径，按文件大小 + 修改时间做失效判断。
+ * 元数据稳定，解析一次即可反复用于卡片副标题。
+ */
+const videoMetaCache = new Map<string, { size: number; mtimeMs: number; value: VideoMeta }>()
+
+const EMPTY_VIDEO_META: VideoMeta = { duration: null, width: null, height: null }
+
+/**
+ * 用 Mediabunny 读取视频文件的时长与分辨率。
+ * 只解析头部（moov 等），不做整文件解码，开销小。
+ * 失败（不支持/损坏/删除）返回全 null 值。
+ */
+async function getVideoMetadata(videoPath: string): Promise<VideoMeta> {
+    try {
+        const stat = fs.statSync(videoPath)
+        const cached = videoMetaCache.get(videoPath)
+        if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+            return cached.value
+        }
+
+        const input = new Input({
+            formats: ALL_FORMATS,
+            source: new FilePathSource(videoPath)
+        })
+
+        let duration: number | null = null
+        let width: number | null = null
+        let height: number | null = null
+        try {
+            const track = await input.getPrimaryVideoTrack()
+            if (track) {
+                width = await track.getDisplayWidth()
+                height = await track.getDisplayHeight()
+                // 优先从元数据读时长（getDurationFromMetadata 廉价，仅读文件头元数据；
+                // 读不到返回 null），比 computeDuration 快得多，适合批量
+                duration = await track.getDurationFromMetadata()
+            }
+            if (duration == null) {
+                // 元数据无时长（或不支持）再退回 computeDuration（慢但准确）
+                duration = await input.computeDuration()
+            }
+        } finally {
+            // 释放内部文件句柄
+            input.dispose()
+        }
+
+        const value: VideoMeta = {
+            duration: Number.isFinite(duration) ? duration : null,
+            width: Number.isFinite(width) ? width : null,
+            height: Number.isFinite(height) ? height : null
+        }
+        videoMetaCache.set(videoPath, { size: stat.size, mtimeMs: stat.mtimeMs, value })
+        return value
+    } catch (error) {
+        console.warn(`[media] 读取视频元数据失败: ${videoPath}`, error)
+        // 失败结果同样按路径缓存（文件未变前不再反复解析）；文件已删除则不缓存
+        try {
+            const stat = fs.statSync(videoPath)
+            videoMetaCache.set(videoPath, { size: stat.size, mtimeMs: stat.mtimeMs, value: EMPTY_VIDEO_META })
+        } catch {
+            /* 文件已不存在 */
+        }
+        return EMPTY_VIDEO_META
+    }
+}
+
 export default {
     getFolderTree,
     getFolderList,
@@ -375,6 +453,7 @@ export default {
     getFolderInfoCached,
     getFileInfo,
     getFolderCoverInfo,
+    getVideoMetadata,
     clearExpiredCache,
     // 工具函数
     isImageFile,

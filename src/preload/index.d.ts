@@ -74,6 +74,9 @@ declare global {
       getFolderCoverInfo: (
         filePath: string
       ) => Promise<{ coverPath?: string; coverFileName?: string }>
+      getVideoMetadata: (
+        videoPath: string
+      ) => Promise<{ duration: number | null; width: number | null; height: number | null }>
       clearExpiredCache: () => void
       // 工具函数
       isImageFile: (file: FileInfo) => boolean

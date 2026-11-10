@@ -30,7 +30,8 @@
         <div class="comic-title-banner">
           <div class="comic-title" :title="item.title">{{ item.title }}</div>
           <div class="comic-issue">
-            <span v-if="showCount && item.fileCount">共 {{ item.fileCount }} 部</span>
+            <span v-if="isSingleVideo && videoMetaLabel">{{ videoMetaLabel }}</span>
+            <span v-else-if="showCount && item.fileCount">共 {{ item.fileCount }} 部</span>
           </div>
         </div>
       </div>
@@ -84,6 +85,46 @@ const itemRef = toRef(props, 'item')
 const cardRef = ref<HTMLElement>()
 
 const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef, cardRef)
+
+/** 单视频文件（kind=video 即本地单个视频文件；视频文件夹 kind=comic 不在此列） */
+const isSingleVideo = computed(() => props.item.kind === 'video')
+
+/** 秒数格式化为 H:MM:SS（满 1 小时）或 M:SS */
+function formatDuration(seconds: number): string {
+  const s = Math.round(seconds)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`
+}
+
+/** 单视频文件的封面副标题：1080p · 1:32:06（元数据加载完成前为空，不占位） */
+const videoMeta = ref<{ duration: number | null; width: number | null; height: number | null } | null>(
+  null
+)
+const videoMetaLabel = computed(() => {
+  const meta = videoMeta.value
+  if (!meta) return null
+  const parts: string[] = []
+  if (meta.height) parts.push(`${meta.height}p`)
+  if (meta.duration != null && meta.duration > 0) parts.push(formatDuration(meta.duration))
+  return parts.length ? parts.join(' · ') : null
+})
+
+onMounted(() => {
+  if (!isSingleVideo.value) return
+  const videoPath = props.item.videoPath || props.item.path
+  if (!videoPath) return
+  window.media
+    .getVideoMetadata(videoPath)
+    .then((meta) => {
+      videoMeta.value = meta
+    })
+    .catch(() => {
+      videoMeta.value = null
+    })
+})
 
 /** 点击打开：封面翻开 → 盘片卡扣弹出 → 黑洞吞噬切入阅读器（见 use-media-card）；
  * 加载中/空内容跳过动画直接打开（走提示） */
