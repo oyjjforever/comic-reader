@@ -311,20 +311,22 @@ onBeforeUnmount(() => {
   max-height: 90vh;
   height: 86vh;
   width: 90%;
-  // 暗色毛玻璃（与书架面板同款）
+  // 白色毛玻璃（与全局弹窗皮肤、右键菜单琉璃白同族）
   background: linear-gradient(
       115deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.18) 100%,
+      rgba(255, 255, 255, 0.35) 100%,
       transparent 50%
     ),
-    rgba(26, 24, 32, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+    rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(31, 28, 40, 0.1);
   border-radius: 16px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 25px 50px -12px rgba(0, 0, 0, 0.7);
-  color: #d9d4de;
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 25px 50px -12px rgba(31, 28, 40, 0.45);
+  color: #3d3949;
   overflow: auto;
   transition: all 0.3s ease;
   animation: scale-in 0.3s ease-out forwards;
@@ -371,15 +373,15 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #d9d4de;
+  background-color: rgba(255, 255, 255, 0.55);
+  color: #3d3949;
   transition: all 0.2s ease;
   border: none;
   border-radius: 50%;
 
   &:hover {
     background-color: rgba(255, 146, 5, 0.35);
-    color: #ffca85;
+    color: #8a5300;
   }
 }
 
@@ -452,7 +454,7 @@ onBeforeUnmount(() => {
   padding: 1.5rem 1.5rem 1rem 1.5rem;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid rgba(74, 70, 86, 0.12);
 
   @media (min-width: 1024px) {
     width: 33.333333%;
@@ -467,7 +469,7 @@ onBeforeUnmount(() => {
 .project-title {
   font-size: 26px;
   font-weight: 700;
-  color: #ece8f3;
+  color: #26232f;
   margin-bottom: 0.5rem;
   word-break: break-all;
 }
@@ -475,7 +477,7 @@ onBeforeUnmount(() => {
 .image-count {
   display: flex;
   align-items: center;
-  color: #9d97ab;
+  color: #7d7789;
   margin-bottom: 1rem;
 
   .fas {
@@ -499,7 +501,7 @@ onBeforeUnmount(() => {
   }
 
   p {
-    color: #c9c3d4;
+    color: #4a4557;
     line-height: 1.625;
     white-space: pre-line;
   }
@@ -566,8 +568,8 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-height: 200px;
   width: 100%;
-  background-color: rgba(255, 255, 255, 0.06);
-  color: #9d97ab;
+  background-color: rgba(74, 70, 86, 0.06);
+  color: #7d7789;
   font-size: 0.875rem;
   border-radius: 0.5rem;
 

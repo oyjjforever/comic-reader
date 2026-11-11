@@ -73,3 +73,162 @@
   position: absolute;
   will-change: transform;
 }
+
+/* ===== 右键菜单（@imengyu/vue3-context-menu）：琉璃白玻璃 ===== */
+/* 库 CSS 在本文件之后导入，且 mac 主题变量声明在 .mx-context-menu.mac 上，
+   用 body 前缀抬高特异性使覆盖与导入顺序无关；子菜单复用同一组类名，
+   此处一并生效。琉璃感的关键：白色保持低不透明度，靠强模糊 + 高饱和把后面的
+   颜色洗成纯净色块透上来（白多了会发灰），文字用暗紫灰保证对比，
+   橙 #FF9205 只作 hover/激活的交互点缀 */
+body .mx-context-menu.mac {
+  --mx-menu-backgroud: rgba(255, 255, 255, 0.6);
+  --mx-menu-backgroud-radius: 12px;
+  --mx-menu-border-color: rgba(31, 28, 40, 0.1);
+  --mx-menu-shadow-color: rgba(31, 28, 40, 0.18);
+
+  --mx-menu-text: #141314;
+  --mx-menu-hover-backgroud: rgba(255, 146, 5, 0.6);
+  /* 文字色各状态与静止态一致：hover 只有橙色胶囊亮起，文字不翻转 */
+  --mx-menu-hover-text: #141314;
+  --mx-menu-active-backgroud: rgba(255, 146, 5, 0.28);
+  --mx-menu-active-text: #141314;
+  --mx-menu-open-backgroud: rgba(255, 146, 5, 0.6);
+  --mx-menu-open-hover-backgroud: rgba(255, 146, 5, 0.6);
+  --mx-menu-open-text: #141314;
+  --mx-menu-open-hover-text: #141314;
+  --mx-menu-disabled-text: rgba(61, 57, 73, 0.4);
+  --mx-menu-divider: rgba(74, 70, 86, 0.14);
+
+  --mx-menu-shortcut-backgroud: rgba(74, 70, 86, 0.08);
+  --mx-menu-shortcut-backgroud-hover: rgba(255, 255, 255, 0.18);
+  --mx-menu-shortcut-backgroud-active: rgba(255, 255, 255, 0.18);
+  --mx-menu-shortcut-backgroud-open: rgba(255, 255, 255, 0.18);
+  --mx-menu-shortcut-backgroud-disabled: transparent;
+  --mx-menu-shortcut-text: #7d7789;
+  --mx-menu-shortcut-text-hover: #7d7789;
+  --mx-menu-shortcut-text-active: #7d7789;
+  --mx-menu-shortcut-text-open: #7d7789;
+  --mx-menu-shortcut-text-disabled: rgba(61, 57, 73, 0.4);
+
+  --mx-menu-scrollbar-thumb-color: rgba(74, 70, 86, 0.25);
+  --mx-menu-scrollbar-thumb-color-light: rgba(74, 70, 86, 0.4);
+  --mx-menu-scrollbar-thumb-color-pressed: rgba(74, 70, 86, 0.18);
+
+  /* 强模糊 + 高饱和：后面的颜色被洗成纯净色晕透出，低透白不发灰 */
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  /* 玻璃顶缘高光提亮、投影加深：靠边缘对比撑住"琉璃"的轮廓 */
+  box-shadow:
+    0 12px 32px -8px rgba(31, 28, 40, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 分隔线垫底色引用 --mx-menu-backgroud，半透玻璃上会叠出不透明条，改为透空 */
+body .mx-context-menu.mac .mx-context-menu-item-sperator {
+  background: transparent;
+}
+
+/* 菜单项胶囊圆角与面板圆角（12px）呼应 */
+body .mx-context-menu.mac .mx-context-menu-item {
+  border-radius: 6px;
+  /* 橙色胶囊淡入淡出；文字色各状态同值，color 过渡实际不动 */
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out;
+}
+
+/* 图标/勾选的 fill、快捷键小标签随菜单项一起过渡；箭头 hover 右滑 2px */
+body .mx-context-menu.mac .mx-context-menu-item .mx-right-arrow,
+body .mx-context-menu.mac .mx-context-menu-item .mx-checked-mark,
+body .mx-context-menu.mac .mx-context-menu-item .mx-shortcut {
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out,
+    fill 0.15s ease-out,
+    transform 0.15s ease-out;
+}
+
+body .mx-context-menu.mac .mx-context-menu-item:hover .mx-right-arrow {
+  transform: translateX(2px);
+}
+
+/* ===== 统一弹窗皮肤：白色毛玻璃（右键菜单琉璃白同族） ===== */
+/* 项目内所有 n-modal 面板统一成白色玻璃质感：preset="card"
+   （面板自身带 .n-modal.n-card）、preset="dialog" 与 useDialog 命令式确认框
+   （.n-modal.n-dialog）、裸 n-modal 内嵌 n-card（.n-modal .n-card）。
+   preview-dialog 是裸容器自定义皮肤，不命中这些选择器，不受影响。
+   naive 的 cssr 样式运行时注入 head、晚于本文件，且 modal 内卡片背景走
+   --n-color-modal，故用 body 前缀抬特异性、皮肤属性加 !important 兜底。
+   白底与默认 light 主题的内层组件（输入框/按钮等）天然匹配 */
+@keyframes app-modal-scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+body .n-modal.n-card,
+body .n-modal .n-card,
+body .n-modal.n-dialog,
+body .n-modal .n-dialog {
+  /* 斜向白色反光 + 高透白底 + 背景模糊：白而通透，文字区域保白度 */
+  background:
+    linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%, transparent 50%),
+    rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(31, 28, 40, 0.1) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 25px 50px -12px rgba(31, 28, 40, 0.45) !important;
+  color: #3d3949;
+  animation: app-modal-scale-in 0.3s ease-out;
+
+  /* naive 面板变量：标题/正文/segmented 头脚分隔线（白底配深字） */
+  --n-title-text-color: #26232f;
+  --n-text-color: #3d3949;
+  --n-border-color: rgba(74, 70, 86, 0.12);
+}
+
+/* 关闭按钮：白色微底圆钮，hover 橙底深琥珀字（与菜单 hover 同语言） */
+body .n-modal .n-base-close {
+  --n-close-color: rgba(255, 255, 255, 0.55);
+  --n-close-color-hover: rgba(255, 146, 5, 0.35);
+  --n-close-color-pressed: rgba(255, 146, 5, 0.5);
+  --n-close-color-focus: rgba(255, 146, 5, 0.35);
+  --n-close-icon-color: #3d3949;
+  --n-close-icon-color-hover: #8a5300;
+  --n-close-icon-color-pressed: #7a4800;
+  --n-close-icon-color-focus: #8a5300;
+  transition: all 0.2s ease;
+}
+
+/* 弹窗内滚动条：橙色胶囊滑块（参照 .modal-container 的滚动条） */
+body .n-modal ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+
+body .n-modal ::-webkit-scrollbar-thumb {
+  background: rgba(255, 146, 5, 0.45);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+}
+
+body .n-modal ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 146, 5, 0.7);
+}
+
+body .n-modal ::-webkit-scrollbar-track,
+body .n-modal ::-webkit-scrollbar-track-piece,
+body .n-modal ::-webkit-scrollbar-corner {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
