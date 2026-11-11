@@ -250,50 +250,52 @@ function onOpenLocalFile(path) {
 </script>
 
 <style lang="scss">
-// 任务队列抽屉：悬浮右侧的暖色毛玻璃面板。底色即画布色 #4a4656
-// （0.85 实度），叠两处 #FF9205 辉光呼应书架画布
+// 任务队列抽屉：悬浮右侧的白色毛玻璃面板，与全局弹窗/右键菜单琉璃白同族
+// （斜向白反光 + 0.78 白底 + 强模糊高饱和，暗调发丝边 + 内嵌白高光）
 .n-drawer.n-drawer--right-placement {
   top: 30px !important;
   bottom: 5px !important;
   right: 6px !important;
   border-radius: 16px !important;
-  background: radial-gradient(ellipse 90% 55% at 12% 0%, rgba(255, 146, 5, 0.2), transparent 58%),
-    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(255, 146, 5, 0.13), transparent 60%),
-    rgba(74, 70, 86, 0.85) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 146, 5, 0.3) !important;
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.7) !important;
-  color: #d9d4de;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%, transparent 50%),
+    rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(31, 28, 40, 0.1) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 32px -8px rgba(31, 28, 40, 0.45) !important;
+  color: #3d3949;
 
-  // 暗色玻璃上的 naive 组件适配（交互色以内联 CSS 变量下发，需 !important）
+  // 白色玻璃上的 naive 组件适配（交互色以内联 CSS 变量下发，需 !important；
+  // 白底上的悬停叠层用暗紫灰，文字 hover 用深琥珀与菜单/弹窗同语言）
   .n-button {
     --n-color: transparent !important;
-    --n-color-hover: rgba(255, 255, 255, 0.12) !important;
-    --n-color-pressed: rgba(255, 255, 255, 0.18) !important;
-    --n-color-focus: rgba(255, 255, 255, 0.12) !important;
-    --n-text-color: #d9d4de !important;
-    --n-text-color-hover: #ffca85 !important;
-    --n-text-color-pressed: #ffca85 !important;
-    --n-text-color-focus: #ffca85 !important;
+    --n-color-hover: rgba(74, 70, 86, 0.08) !important;
+    --n-color-pressed: rgba(74, 70, 86, 0.14) !important;
+    --n-color-focus: rgba(74, 70, 86, 0.08) !important;
+    --n-text-color: #3d3949 !important;
+    --n-text-color-hover: #8a5300 !important;
+    --n-text-color-pressed: #7a4800 !important;
+    --n-text-color-focus: #8a5300 !important;
     --n-border: 1px solid transparent !important;
     --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
     --n-border-pressed: 1px solid rgba(255, 146, 5, 0.75) !important;
     --n-border-focus: 1px solid rgba(255, 146, 5, 0.55) !important;
-    --n-icon-color: #9d97ab !important;
-    --n-icon-color-hover: #ffca85 !important;
-    --n-icon-color-pressed: #ffca85 !important;
-    --n-icon-color-focus: #ffca85 !important;
+    --n-icon-color: #7d7789 !important;
+    --n-icon-color-hover: #8a5300 !important;
+    --n-icon-color-pressed: #7a4800 !important;
+    --n-icon-color-focus: #8a5300 !important;
   }
 
   .n-progress {
-    --n-rail-color: rgba(255, 255, 255, 0.1) !important;
+    --n-rail-color: rgba(74, 70, 86, 0.12) !important;
     /* 默认态（进行中）的填充换品牌橙；success/error 状态色不受影响 */
     --n-color: #ff9205 !important;
   }
 
   .n-drawer-header {
-    border-bottom: 1px solid rgba(255, 146, 5, 0.25) !important;
+    border-bottom: 1px solid rgba(74, 70, 86, 0.12) !important;
   }
 
   // 暗色滚动条：橙色胶囊滑块，槽完全透明
@@ -335,14 +337,14 @@ function onOpenLocalFile(path) {
   overflow: hidden;
 }
 .empty {
-  color: #9d97ab;
+  color: #7d7789;
   text-align: center;
   padding: 24px 0;
 }
-// 任务条：深色玻璃 chip，悬停描边泛橙
+// 任务条：浅色玻璃 chip，悬停描边泛橙
 .task-item {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(74, 70, 86, 0.06);
+  border: 1px solid rgba(74, 70, 86, 0.1);
   border-radius: 10px;
   transition:
     border-color 0.2s,
@@ -379,16 +381,16 @@ function onOpenLocalFile(path) {
 }
 .site-icon-fallback {
   flex-shrink: 0;
-  color: #9d97ab;
+  color: #7d7789;
 }
 .name {
   font-weight: 700;
   width: 100%;
-  color: #ece8f3;
+  color: #26232f;
 }
 .progress {
   font-size: 12px;
-  color: #9d97ab;
+  color: #7d7789;
 }
 .progress-bar {
   margin-top: 4px;
@@ -409,7 +411,7 @@ function onOpenLocalFile(path) {
 }
 .progress-text {
   font-size: 12px;
-  color: #c2bec9;
+  color: #5c5668;
   margin-top: 3px;
   display: flex;
   align-items: center;
@@ -429,7 +431,7 @@ function onOpenLocalFile(path) {
   gap: 6px;
 }
 .error-msg {
-  color: #ff9d9d;
+  color: #d64545;
   max-width: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -439,11 +441,11 @@ function onOpenLocalFile(path) {
   margin-left: 12px;
   font-weight: 600;
   white-space: nowrap;
-  color: #d9d4de;
+  color: #3d3949;
 }
 .move-size {
   margin-left: 6px;
-  color: #9d97ab;
+  color: #7d7789;
   font-weight: 400;
 }
 .n-drawer-header__main {
@@ -456,7 +458,7 @@ function onOpenLocalFile(path) {
   justify-content: space-between;
 
   span {
-    color: #ece8f3;
+    color: #26232f;
     font-weight: 600;
   }
 }
