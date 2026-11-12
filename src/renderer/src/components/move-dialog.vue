@@ -406,6 +406,34 @@ const onDeleteFolder = () => {
 
 // ===== 弹窗生命周期 =====
 
+// 记忆上次确认的目标路径（按模块区分，localStorage 持久化跨重启）：
+// 下次打开默认选中并展开到该节点；路径已失效或本次被禁选（如把文件夹
+// 移到其自身）则忽略、回到无选中
+const lastDestStorageKey = computed(() => `moveDialog:lastDest:${props.namespace}`)
+
+const restoreLastSelection = () => {
+  let last = ''
+  try {
+    last = localStorage.getItem(lastDestStorageKey.value) || ''
+  } catch {
+    return
+  }
+  if (!last) return
+  const node = findNode(fullTree.value, last)
+  if (!node || isNodeDisabled(node)) return
+  selectedKeys.value = [node.fullPath]
+  // 展开祖先链让该节点可见（资源根保持展开）
+  const chain: string[] = []
+  let cur = node.fullPath.replace(/[\\/]+$/, '')
+  while (true) {
+    const idx = Math.max(cur.lastIndexOf('\\'), cur.lastIndexOf('/'))
+    if (idx <= 0) break
+    cur = cur.slice(0, idx)
+    chain.push(cur)
+  }
+  expandedKeys.value = [...rootPaths.value, ...chain]
+}
+
 // 打开弹窗时重置状态：命中缓存秒开，否则扫盘构建；关闭时一次性汇报树结构变化
 watch(
   () => props.show,
@@ -419,9 +447,10 @@ watch(
       if (cached) {
         decorateDisabled(cached)
         fullTree.value = cached
+        restoreLastSelection()
       } else {
         fullTree.value = []
-        buildFullTree()
+        buildFullTree().then(restoreLastSelection)
       }
     } else if (dirtyParents.size > 0) {
       const parents = Array.from(dirtyParents)
@@ -444,6 +473,11 @@ defineExpose({ invalidateCache })
 
 const handleConfirm = () => {
   if (!selectedPath.value) return
+  try {
+    localStorage.setItem(lastDestStorageKey.value, selectedPath.value)
+  } catch {
+    /* 存储不可用时静默跳过，不影响本次移动 */
+  }
   emit('confirm', selectedPath.value)
 }
 </script>

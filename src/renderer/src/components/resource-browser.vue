@@ -1494,7 +1494,8 @@ async function handleContextMenu(e: MouseEvent, folder: FolderInfo) {
       {
         label: '删除',
         icon: h(NIcon, {
-          component: Delete24Filled
+          component: Delete24Filled,
+          color: '#e74c3c'
         }),
         onClick: () => {
           // 显示确认对话框
@@ -1558,25 +1559,25 @@ function deleteFolder(folder: any) {
   })
 }
 
-// 重新加载指定树节点的子节点
+// 重新加载指定树节点的子节点（收藏分组内同路径副本不刷：共享同一份 children
+// 会造成 treeKey 重复，分组由 loadBookmarkGroup 整体重建）
 const reloadTreeNodeChildren = async (folderPath: string) => {
-  const findNode = (nodes: any[]): any => {
+  const findNodes = (nodes: any[], inGroup: boolean, acc: any[]): any[] => {
     for (const node of nodes) {
-      if (node.fullPath === folderPath) return node
+      if (node.fullPath === folderPath && !inGroup) acc.push(node)
       if (node.children) {
-        const found = findNode(node.children)
-        if (found) return found
+        findNodes(node.children, inGroup || node.fullPath === BOOKMARK_GROUP_KEY, acc)
       }
     }
-    return null
+    return acc
   }
-  const node = findNode(tree.data)
-  if (!node) return
+  const nodes = findNodes(tree.data, false, [])
+  if (nodes.length === 0) return
   try {
     const children = await props.provideTree(folderPath)
     assignTreeKeys(children)
-    node.children = children
-  } catch (error) {
+    for (const node of nodes) node.children = children
+  } catch (error: any) {
     console.warn(`刷新树节点失败: ${folderPath}`, error)
   }
 }
@@ -2067,12 +2068,105 @@ async function handleFolderContextMenu(e: MouseEvent, folder: any) {
               message.error(`操作失败: ${error.message || error}`)
             }
           }
+        },
+        {
+          label: '删除',
+          icon: h(NIcon, { component: Delete24Filled, color: '#e74c3c' }),
+          // 根节点是设置里的资源路径，删除会导致配置失配
+          hidden: folder.isRoot,
+          onClick: () => confirmTreeDelete(folder)
         }
       ]
     })
   } catch (error: any) {
     message.error(`操作失败: ${error.message || error}`)
   }
+}
+
+// 全树剔除指定路径的节点（含收藏分组内的同路径副本）：原地 splice，
+// 确定触发响应更新，不依赖父节点重载的间接效果
+const removeTreeNodeEverywhere = (folderPath: string) => {
+  const strip = (nodes: any[]) => {
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      if (nodes[i].fullPath === folderPath) {
+        nodes.splice(i, 1)
+      } else if (Array.isArray(nodes[i].children)) {
+        strip(nodes[i].children)
+      }
+    }
+  }
+  strip(tree.data)
+}
+
+// 清理指向被删文件夹（及其子孙）的收藏标签：不清的话分组重建时死路径
+// 节点会被原样建回来
+const cleanupDeletedFolderTags = async (folderPath: string) => {
+  try {
+    const folderTags = (await window.tag.getFolderTags(undefined, props.namespace)) || []
+    const norm = (p: string) =>
+      p.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+    const gone = norm(folderPath)
+    await Promise.all(
+      folderTags
+        .filter((t: any) => {
+          const p = norm(String(t.folderPath || ''))
+          return p === gone || p.startsWith(gone + '/')
+        })
+        .map((t: any) => window.tag.deleteTag(t.id))
+    )
+  } catch (error) {
+    console.warn('清理被删文件夹的收藏标签失败:', error)
+  }
+}
+
+// 树节点删除：确认后递归删除文件夹及其全部内容（rm -rf 语义），全树剔除
+// 节点、清理收藏标签后重建分组；当前浏览目录在被删子树内时切回父目录
+const confirmTreeDelete = (folder: any) => {
+  dialog.warning({
+    title: '删除确认',
+    content: () =>
+      h('div', [
+        h('p', `确定要删除文件夹"${folder.name}"吗？`),
+        h(
+          'p',
+          { style: 'color: #e74c3c;font-weight: bold' },
+          '其中的全部文件与子文件夹将被永久删除，此操作不可撤销。'
+        )
+      ]),
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const success = await window.systemInterface.deleteFolder(folder.fullPath)
+      if (!success) {
+        message.error(`删除"${folder.name}"失败`)
+        return
+      }
+      message.success(`"${folder.name}"已删除`)
+      moveDialogRef.value?.invalidateCache()
+      // 全树剔除节点（含收藏分组副本），再清收藏标签、重建分组
+      removeTreeNodeEverywhere(folder.fullPath)
+      await cleanupDeletedFolderTags(folder.fullPath)
+      loadBookmarkGroup()
+      // 父节点重载一次取磁盘事实（分组安全版，不再误刷副本）
+      const parent = getParentPath(folder.fullPath)
+      if (parent) reloadTreeNodeChildren(parent)
+      // 当前浏览目录是被删节点或其子孙：切回父目录（父不在树中则回首个根）
+      const norm = (p: string) => p.replaceAll('\\', '/').toLowerCase()
+      const gone = folder.fullPath.replace(/[\\/]+$/, '')
+      const cur = tree.currentKey?.replace(/[\\/]+$/, '')
+      if (
+        currentViewMode.value === 'folders' &&
+        cur &&
+        (norm(cur) === norm(gone) || norm(cur).startsWith(norm(gone) + '/'))
+      ) {
+        const fallback = parent || tree.data[0]?.fullPath
+        if (fallback) {
+          tree.currentKey = fallback
+          fetchGridData(fallback)
+        }
+      }
+    }
+  })
 }
 
 // 更新节点收藏状态
