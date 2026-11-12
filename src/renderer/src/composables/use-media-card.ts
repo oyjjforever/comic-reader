@@ -150,11 +150,8 @@ const BOOK_OPEN_TOTAL = BOOK_COVER_SWING + BOOK_ZOOM
 const BOOK_CLOSE_TOTAL = 1200
 /** 封面翻开缓动（与光盘盒封面同曲线）；合上用 CLOSE_EASE（加速落定） */
 const BOOK_COVER_EASE = 'cubic-bezier(0.2, 0.9, 0.3, 1)'
-
-let flyingStage: HTMLElement | null = null
-/** 飞行代际令牌：光盘打开的 onArrive 延迟到动画尾部，期间任何新的打开/关闭
- *  顶掉本次飞行时代际递增，让尾部回调只清理、不再打开（防旧条目迟到的覆盖） */
-let flyToken = 0
+/** 打断倒放的最短时长（进度过半时仍保底一拍，避免闪一下 */
+const MIN_REVERSE_MS = 120
 
 /**
  * 飞行舞台元素：真实阅读器（library 的 reader-overlay）通过 <Teleport :to>
@@ -163,6 +160,132 @@ let flyToken = 0
  * Teleport 自动把 overlay 归还原容器（矩形一致，无视觉跳动）。
  */
 export const flyStageEl = shallowRef<HTMLElement | null>(null)
+
+/* ===== 飞行注册表：打开/关闭动画的打断与收场 ===== */
+
+/** 书本飞行（打开/关闭/倒放共用）的元素与时序引用 */
+interface BookFlight {
+  cover: HTMLElement
+  badge: HTMLElement | null
+  stage: HTMLElement
+  backdrop: HTMLElement
+  wrap: HTMLElement
+  coverClone: HTMLElement
+  banner: HTMLElement | null
+  coverAnim: Animation | null
+  bannerAnim: Animation | null
+  /** 内容放大已起跑（600ms 定时器已触发） */
+  zoomStarted: boolean
+  zoomStartAt: number
+  /** 内容舞台/底板缩回书位的目标 transform（打开起点 = 关闭终点） */
+  fitTransform: string
+  fillBackdrop: string
+}
+
+/** 光盘飞行的元素与时序引用 */
+interface DiscFlight {
+  disc: HTMLElement
+  cover: HTMLElement | null
+  clone: HTMLElement
+  hole: HTMLElement
+  coverClone: HTMLElement | null
+  popAnim: Animation | null
+  holeAnim: Animation | null
+}
+
+/** 一次进行中的打开/关闭动画。settle 可立即定格清场；倒放复用同一对象
+ *  （kind 改写为 *-close），其定时器/动画先取消再重排 */
+interface Flight {
+  kind: 'book-open' | 'book-close' | 'disc-open' | 'disc-close'
+  cardEl: HTMLElement
+  layer: HTMLElement
+  startTime: number
+  timers: number[]
+  anims: Animation[]
+  book?: BookFlight
+  disc?: DiscFlight
+  /** settle 时的附带清理（如光盘打开期的临时侧键监听），须幂等 */
+  onSettle?: () => void
+}
+
+let activeFlight: Flight | null = null
+
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
+
+/** WAAPI 当前进度（延迟期/未创建为 0，fill:forwards 完成态为 1） */
+function progressOf(anim: Animation | null | undefined): number {
+  if (!anim || !anim.effect) return 0
+  const p = anim.effect.getComputedTiming().progress
+  return p == null ? 0 : clamp(p, 0, 1)
+}
+
+/** 定时器挂到飞行上：settle/cancel 后不再触发（句柄也会被清） */
+function later(f: Flight, fn: () => void, ms: number): number {
+  const id = window.setTimeout(() => {
+    f.timers = f.timers.filter((t) => t !== id)
+    if (activeFlight === f) fn()
+  }, ms)
+  f.timers.push(id)
+  return id
+}
+
+/** WAAPI 动画挂到飞行上：settle/cancel 时一并取消 */
+function runAnim(
+  f: Flight,
+  el: HTMLElement,
+  keyframes: Keyframe[] | PropertyIndexedKeyframes,
+  options: KeyframeAnimationOptions
+): Animation {
+  const anim = el.animate(keyframes, options)
+  f.anims.push(anim)
+  return anim
+}
+
+/** 冻结 CSS 过渡：把过渡中的插值矩阵固化为内联样式并停掉过渡（打断倒放用） */
+function freezeTransition(el: HTMLElement) {
+  const m = getComputedStyle(el).transform
+  el.style.transition = 'none'
+  el.style.transform = m
+}
+
+/** 取消飞行的全部定时器与动画（倒放前先读姿态再调用——fill:forwards 的
+ *  动画在 cancel 前一直压着内联样式，先 cancel 会闪回起始姿态） */
+function cancelTimeline(f: Flight) {
+  f.timers.forEach((id) => window.clearTimeout(id))
+  f.timers = []
+  f.anims.forEach((a) => a.cancel())
+  f.anims = []
+}
+
+/**
+ * 立即收场：清时序、拆层、恢复卡片（幂等，不触发任何 onArrive/onClose）。
+ * 书本先置空 flyStageEl 等 Teleport 归位后再拆层（微任务内完成，不闪）；
+ * 光盘移除 disc-opening 让真封面走自带 0.6s 过渡柔和合上。阅读器的卸载
+ * 由调用方经 onClose 负责，settle 只管视觉清场。
+ */
+function settleFlight(f: Flight) {
+  if (activeFlight !== f) return
+  activeFlight = null
+  cancelTimeline(f)
+  if (f.kind.startsWith('book')) {
+    const b = f.book!
+    flyStageEl.value = null
+    void nextTick().then(() => f.layer.remove())
+    b.cover.style.visibility = ''
+    if (b.badge) b.badge.style.opacity = ''
+    f.cardEl.style.pointerEvents = ''
+  } else {
+    const d = f.disc!
+    d.clone.style.display = 'none'
+    d.hole.style.display = 'none'
+    if (d.coverClone) d.coverClone.style.display = 'none'
+    d.disc.style.opacity = ''
+    if (d.cover) d.cover.style.visibility = ''
+    f.cardEl.classList.remove('disc-opening')
+    f.layer.remove()
+  }
+  f.onSettle?.()
+}
 
 /** 还原元素的未变换布局盒：悬浮倾斜下 getBoundingClientRect 是旋转后的
  *  外接矩形，比卡身大一圈，拿去定位会让克隆/舞台与卡错位。旋转与透视缩放
@@ -260,12 +383,13 @@ function contentBackdropTransform(rect: DOMRect, hostRect: DOMRect): string {
  *    封面克隆同时沉到舞台之下，被扩张的内容一路盖过。放大完成即归还
  *    Teleport（矩形一致无跳动）、拆层、恢复卡片——全程发生在全屏阅读器
  *    之下，用户不可见。
+ * 打断：任何在飞动画被本次打开顶掉（settle 立即收场）；本飞行自身在关闭
+ * 打断时由 reverseBookOpen 原地倒放（见 flyBookClose）。
  */
 export function flyBookOpen(cardEl: HTMLElement | undefined, onArrive: () => void) {
-  if (!cardEl || flyingStage) {
-    // 无元素或已有飞行进行中：跳过动画直接打开；并令牌 +1 使进行中的
-    // 光盘打开尾部回调失效（避免其迟到的 onArrive 覆盖本次打开）
-    flyToken++
+  // 任何在飞的动画被本次打开顶掉：立即收场（恢复其卡片与层级）
+  if (activeFlight) settleFlight(activeFlight)
+  if (!cardEl) {
     onArrive()
     return
   }
@@ -277,7 +401,15 @@ export function flyBookOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
 
   const rect = layoutBoxOf(cardEl)
   const { layer, hostRect } = createFlyingLayer(cardEl)
-  flyingStage = layer
+  const flight: Flight = {
+    kind: 'book-open',
+    cardEl,
+    layer,
+    startTime: performance.now(),
+    timers: [],
+    anims: []
+  }
+  activeFlight = flight
 
   // 内容舞台：真实阅读器 Teleport 挂入，等比缩到能装进书位并居中（可见，
   // 合着的封面克隆盖在上面）——封面翻开即见真实内容，全程不拉伸变形
@@ -313,44 +445,164 @@ export function flyBookOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
   cardEl.style.transition = ''
   cardEl.style.transform = ''
 
+  flight.book = {
+    cover,
+    badge,
+    stage,
+    backdrop,
+    wrap,
+    coverClone,
+    banner,
+    coverAnim: null,
+    bannerAnim: null,
+    zoomStarted: false,
+    zoomStartAt: 0,
+    fitTransform: contentStageFitTransform(rect, hostRect),
+    fillBackdrop: contentBackdropTransform(rect, hostRect)
+  }
+
   // 阅读器即刻挂入舞台（垫在封面克隆之下），打开瞬间就在书位待命
   flyStageEl.value = stage
   onArrive()
 
   // 封面原地翻开：横幅随开淡出，封面渐压暗（打开角度大，露出的是封面
-  // 背面的暗面）
+  // 背面的暗面）；rAF 守卫——被顶掉收场后不再起动画
   requestAnimationFrame(() => {
-    coverClone.animate(
+    if (activeFlight !== flight || !flight.book) return
+    flight.book.coverAnim = runAnim(
+      flight,
+      coverClone,
       [
         { transform: 'perspective(1200px) rotateY(0deg)', filter: 'brightness(1)' },
         { transform: 'perspective(1200px) rotateY(-120deg)', filter: 'brightness(0.35)' }
       ],
       { duration: BOOK_COVER_SWING, easing: BOOK_COVER_EASE, fill: 'forwards' }
     )
-    banner?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' })
+    if (banner) {
+      flight.book.bannerAnim = runAnim(
+        flight,
+        banner,
+        [{ opacity: 1 }, { opacity: 0 }],
+        { duration: 300, fill: 'forwards' }
+      )
+    }
   })
 
   // 封面打开后：内容从书位放大到全屏（舞台等比保比例、底板同参补满）；
   // 封面克隆同时沉到舞台之下（此刻两者恰好不再重叠，切换无感）——扩张
   // 的内容一路盖过打开着的封面，不会浮在放大中的内容之上
-  window.setTimeout(() => {
-    wrap.style.zIndex = '50'
-    stage.style.transition = `transform ${BOOK_ZOOM}ms ${OPEN_EASE}`
-    backdrop.style.transition = `transform ${BOOK_ZOOM}ms ${OPEN_EASE}`
-    stage.style.transform = 'translate(0, 0) scale(1)'
-    backdrop.style.transform = 'translate(0, 0) scale(1, 1)'
-  }, BOOK_COVER_SWING)
+  later(
+    flight,
+    () => {
+      const b = flight.book!
+      b.zoomStarted = true
+      b.zoomStartAt = performance.now()
+      wrap.style.zIndex = '50'
+      stage.style.transition = `transform ${BOOK_ZOOM}ms ${OPEN_EASE}`
+      backdrop.style.transition = `transform ${BOOK_ZOOM}ms ${OPEN_EASE}`
+      stage.style.transform = 'translate(0, 0) scale(1)'
+      backdrop.style.transform = 'translate(0, 0) scale(1, 1)'
+    },
+    BOOK_COVER_SWING
+  )
 
-  // 放大完成：归还 Teleport、拆层、恢复卡片（各步幂等）
-  window.setTimeout(async () => {
-    flyStageEl.value = null
-    await nextTick()
-    layer.remove()
-    cover.style.visibility = ''
-    if (badge) badge.style.opacity = ''
-    cardEl.style.pointerEvents = ''
-    flyingStage = null
-  }, BOOK_OPEN_TOTAL)
+  // 放大完成：归还 Teleport、拆层、恢复卡片（settleFlight 幂等清场）
+  later(flight, () => settleFlight(flight), BOOK_OPEN_TOTAL)
+}
+
+/**
+ * 书本打开中途被打断（同卡关闭）：复用原飞行层与舞台，从当前姿态原地倒放。
+ * 打开两阶段对应两种倒放起手：
+ * - 封面阶段（内容仍在书位）：封面克隆从当前角度直接合回，无缩放参与；
+ * - 放大阶段：舞台/底板定格在过渡中的插值矩阵上，按剩余比例缩回书位
+ *   （打断越晚缩得越快，t=600 处与正常关闭时长无缝衔接），封面随后合上。
+ * 阅读器全程留在舞台里（倒放的就是它本体），封面合严后再卸载（onClose）。
+ */
+function reverseBookOpen(f: Flight, onClose: () => void, isStillClosing: () => boolean) {
+  const b = f.book!
+  // 先读当前进度再取消时序：fill:forwards 的动画在 cancel 前一直压着
+  // 内联样式，先 cancel 会闪回起始姿态（进度也会归零、无法复原）
+  const coverP = progressOf(b.coverAnim)
+  const bannerP = progressOf(b.bannerAnim)
+  cancelTimeline(f)
+  f.kind = 'book-close'
+
+  const finish = () => {
+    if (isStillClosing()) onClose()
+    settleFlight(f)
+  }
+
+  if (!b.zoomStarted) {
+    // 封面阶段：wrap 仍处打开起手的 z200（盖在书位内容之上），直接合回
+    const angle = -120 * coverP
+    const brightness = 1 + (0.35 - 1) * coverP
+    const dur = clamp(coverP * BOOK_COVER_SWING, MIN_REVERSE_MS, BOOK_COVER_SWING)
+    b.coverClone.style.transform = `perspective(1200px) rotateY(${angle}deg)`
+    runAnim(
+      f,
+      b.coverClone,
+      [
+        {
+          transform: `perspective(1200px) rotateY(${angle}deg)`,
+          filter: `brightness(${brightness})`
+        },
+        { transform: 'perspective(1200px) rotateY(0deg)', filter: 'brightness(1)' }
+      ],
+      { duration: dur, easing: CLOSE_EASE, fill: 'forwards' }
+    )
+    if (b.banner) {
+      const bannerNow = 1 - bannerP
+      runAnim(
+        f,
+        b.banner,
+        [{ opacity: bannerNow }, { opacity: 1 }],
+        { duration: Math.min(dur, 300), fill: 'forwards' }
+      )
+    }
+    later(f, finish, dur)
+    return
+  }
+
+  // 放大阶段：定格舞台/底板当前矩阵（getComputedStyle 取到的是过渡插值），
+  // 缩回目标复用打开时的书位姿态；封面已是全开完成态，内联兜底防回弹
+  freezeTransition(b.stage)
+  freezeTransition(b.backdrop)
+  const zp = clamp((performance.now() - b.zoomStartAt) / BOOK_ZOOM, 0, 1)
+  const zoomDur = clamp((1 - zp) * BOOK_ZOOM, MIN_REVERSE_MS, BOOK_ZOOM)
+  b.coverClone.style.transform = 'perspective(1200px) rotateY(-120deg)'
+  b.coverClone.style.filter = 'brightness(0.35)'
+  requestAnimationFrame(() => {
+    if (activeFlight !== f) return
+    b.stage.style.transition = `transform ${zoomDur}ms ${CLOSE_EASE}`
+    b.stage.style.transform = b.fitTransform
+    b.backdrop.style.transition = `transform ${zoomDur}ms ${CLOSE_EASE}`
+    b.backdrop.style.transform = b.fillBackdrop
+  })
+  // 封面在内容落位尾部起合（同正常关闭的时序形状）
+  const coverDelay = Math.max(zoomDur - 50, 0)
+  later(
+    f,
+    () => {
+      b.wrap.style.zIndex = '200'
+      runAnim(
+        f,
+        b.coverClone,
+        [
+          { transform: 'perspective(1200px) rotateY(-120deg)', filter: 'brightness(0.35)' },
+          { transform: 'perspective(1200px) rotateY(0deg)', filter: 'brightness(1)' }
+        ],
+        { duration: BOOK_COVER_SWING, easing: CLOSE_EASE, fill: 'forwards' }
+      )
+      if (b.banner) {
+        runAnim(f, b.banner, [{ opacity: 0 }, { opacity: 1 }], {
+          duration: 300,
+          fill: 'forwards'
+        })
+      }
+    },
+    coverDelay
+  )
+  later(f, finish, coverDelay + BOOK_COVER_SWING)
 }
 
 /**
@@ -361,18 +613,29 @@ export function flyBookOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
  * 书脸（封面随之被逐步揭开），落位后封面克隆抬回舞台之上、压着内容合上
  * （横幅回显）；阅读器保持渲染到封面合严才卸载（否则书脸会空洞一瞬）。
  * 合严后归还 Teleport、拆层、恢复卡片。
- * isStillClosing：飞行中网格可被点击重新打开其它作品（层 pointer-events
- * 穿透），届时跳过卸载、只做清理。
+ * 打断：同卡打开中收到关闭 → reverseBookOpen 原地倒放（核心打断场景）；
+ * 同卡关闭中再按返回 → 立即收场并直接关闭（"现在就关"语义）；其它在飞
+ * （点击网格开新作品等）→ 收场后走本次流程。
  */
 export function flyBookClose(
   cardEl: HTMLElement | undefined,
   onClose: () => void,
   isStillClosing: () => boolean = () => true
 ) {
-  if (!cardEl || flyingStage) {
-    // 无元素或已有飞行进行中：跳过动画直接关闭；并令牌 +1 使进行中的
-    // 光盘打开尾部回调失效（关闭后再被其迟到的 onArrive 重新打开）
-    flyToken++
+  const prev = activeFlight
+  if (prev && cardEl && prev.kind === 'book-open' && prev.cardEl === cardEl) {
+    reverseBookOpen(prev, onClose, isStillClosing)
+    return
+  }
+  if (prev) {
+    settleFlight(prev)
+    // 关闭中再关：收场后直接关闭，不再重播一遍关闭动画
+    if (cardEl && prev.kind === 'book-close' && prev.cardEl === cardEl) {
+      onClose()
+      return
+    }
+  }
+  if (!cardEl) {
     onClose()
     return
   }
@@ -382,11 +645,17 @@ export function flyBookClose(
     return
   }
 
-  // 令牌递增：使未完成的其它飞行尾部回调失效（本函数清理无条件执行）
-  flyToken++
   const rect = layoutBoxOf(cardEl)
   const { layer, hostRect } = createFlyingLayer(cardEl)
-  flyingStage = layer
+  const flight: Flight = {
+    kind: 'book-close',
+    cardEl,
+    layer,
+    startTime: performance.now(),
+    timers: [],
+    anims: []
+  }
+  activeFlight = flight
 
   // 内容舞台全屏恒等姿态（阅读器 Teleport 进来矩形一致无跳动），黑色底板
   // 同为恒等；封面克隆摆在 120° 打开姿态且沉在舞台之下（z50）——随内容
@@ -413,46 +682,73 @@ export function flyBookClose(
   cardEl.style.transition = ''
   cardEl.style.transform = ''
 
+  flight.book = {
+    cover,
+    badge,
+    stage,
+    backdrop,
+    wrap,
+    coverClone,
+    banner,
+    coverAnim: null,
+    bannerAnim: null,
+    zoomStarted: true,
+    zoomStartAt: performance.now(),
+    fitTransform: contentStageFitTransform(rect, hostRect),
+    fillBackdrop: contentBackdropTransform(rect, hostRect)
+  }
+
   flyStageEl.value = stage
 
   // 等 Teleport 移入落地后的下一帧再倒放：内容缩回书位（舞台等比保比例、
   // 底板铺满书脸），保持可见直到被封面盖上
   nextTick(() =>
     requestAnimationFrame(() => {
+      if (activeFlight !== flight || !flight.book) return
+      const b = flight.book
       stage.style.transition = `transform ${BOOK_ZOOM}ms ${CLOSE_EASE}`
-      stage.style.transform = contentStageFitTransform(rect, hostRect)
+      stage.style.transform = b.fitTransform
       backdrop.style.transition = `transform ${BOOK_ZOOM}ms ${CLOSE_EASE}`
-      backdrop.style.transform = contentBackdropTransform(rect, hostRect)
+      backdrop.style.transform = b.fillBackdrop
     })
   )
 
   // 封面合上（与内容落位尾部略重叠）：先把封面克隆抬回舞台之上（z200，
   // 此刻内容已缩回书位、与封面不再重叠，切换无感），压着内容合上、
   // 横幅回显
-  window.setTimeout(() => {
-    wrap.style.zIndex = '200'
-    coverClone.animate(
-      [
-        { transform: 'perspective(1200px) rotateY(-120deg)', filter: 'brightness(0.35)' },
-        { transform: 'perspective(1200px) rotateY(0deg)', filter: 'brightness(1)' }
-      ],
-      { duration: BOOK_COVER_SWING, easing: CLOSE_EASE, fill: 'forwards' }
-    )
-    banner?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, fill: 'forwards' })
-  }, BOOK_ZOOM - 50)
+  later(
+    flight,
+    () => {
+      wrap.style.zIndex = '200'
+      runAnim(
+        flight,
+        coverClone,
+        [
+          { transform: 'perspective(1200px) rotateY(-120deg)', filter: 'brightness(0.35)' },
+          { transform: 'perspective(1200px) rotateY(0deg)', filter: 'brightness(1)' }
+        ],
+        { duration: BOOK_COVER_SWING, easing: CLOSE_EASE, fill: 'forwards' }
+      )
+      if (banner) {
+        runAnim(flight, banner, [{ opacity: 0 }, { opacity: 1 }], {
+          duration: 300,
+          fill: 'forwards'
+        })
+      }
+    },
+    BOOK_ZOOM - 50
+  )
 
   // 封面合严后清理：先卸载阅读器（仍是这部在关才卸，合严的封面盖着、
-  // 卸载不可见），再归还 Teleport、拆层、恢复卡片（各步幂等）
-  window.setTimeout(async () => {
-    if (isStillClosing()) onClose()
-    flyStageEl.value = null
-    await nextTick()
-    layer.remove()
-    cover.style.visibility = ''
-    if (badge) badge.style.opacity = ''
-    cardEl.style.pointerEvents = ''
-    flyingStage = null
-  }, BOOK_CLOSE_TOTAL)
+  // 卸载不可见），再归还 Teleport、拆层、恢复卡片（settleFlight 幂等）
+  later(
+    flight,
+    () => {
+      if (isStillClosing()) onClose()
+      settleFlight(flight)
+    },
+    BOOK_CLOSE_TOTAL
+  )
 }
 
 /* ===== 光盘打开：银盘弹出 + 黑洞吞噬 ===== */
@@ -493,10 +789,13 @@ const HOLE_BASE_RADIUS = 10
  * 4. 铺满瞬间 onArrive 打开阅读器（黑底与黑洞无缝衔接），随后恢复卡片、
  *    清理飞行层。
  * 与书本打开不同：阅读器不经 Teleport 挂入舞台，直接由黑洞切入。
+ * 打断：打开途中（阅读器尚未挂载、无返回可按）再点一下盘片或封面克隆
+ * 即取消——reverseDiscOpen 原地倒放合回；被其它打开/关闭顶掉则 settle
+ * 立即收场（真封面走自带过渡柔和合上）。
  */
 export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => void) {
-  if (!cardEl || flyingStage) {
-    flyToken++
+  if (activeFlight) settleFlight(activeFlight)
+  if (!cardEl) {
     onArrive()
     return
   }
@@ -506,7 +805,6 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
     return
   }
 
-  const token = ++flyToken
   const rect = disc.getBoundingClientRect()
   const hostRect =
     cardEl.closest('.reader-host')?.getBoundingClientRect() ??
@@ -521,7 +819,15 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
   layer.style.width = `${hostRect.width}px`
   layer.style.height = `${hostRect.height}px`
   document.body.appendChild(layer)
-  flyingStage = layer
+  const flight: Flight = {
+    kind: 'disc-open',
+    cardEl,
+    layer,
+    startTime: performance.now(),
+    timers: [],
+    anims: []
+  }
+  activeFlight = flight
 
   // 克隆银盘：scoped 样式与伪元素（银光旋转/中心孔）随克隆保留；
   // 定位尺寸内联注入（相对飞行层的坐标，覆盖卡片里的居中定位）；
@@ -582,11 +888,15 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
     cover.style.visibility = 'hidden'
   }
 
+  flight.disc = { disc, cover, clone, hole, coverClone, popAnim: null, holeAnim: null }
+
   // 盘片卡扣回弹：原地朝观察者放大（示例的 translateZ 透视对居中元素等效于
   // 缩放；盘片在网格里偏离透视图心，直接 translateZ 会向旁滑移，故用等效倍率）；
   // 延迟一个封面翻开的时长——盘片等封面完全打开后才起跳，期间透过透明
   // 面板可见其静卧盒中
-  clone.animate(
+  flight.disc.popAnim = runAnim(
+    flight,
+    clone,
     [
       { transform: 'scale(1)', offset: 0 },
       { transform: `scale(${DISC_POP_SCALE_PEAK})`, offset: 0.08, easing: 'ease-out' },
@@ -607,7 +917,9 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
     Math.hypot(hostRect.right - holeCx, hostRect.bottom - holeCy)
   )
   const maxScale = (farthest * 1.3) / HOLE_BASE_RADIUS
-  hole.animate(
+  flight.disc.holeAnim = runAnim(
+    flight,
+    hole,
     [
       { transform: 'translate(-50%, -50%) scale(1)' },
       { transform: `translate(-50%, -50%) scale(${maxScale})` }
@@ -620,31 +932,127 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
     }
   )
 
+  // 打开途中点击盘片/封面克隆：立即取消倒放（层本身指针穿透，只有克隆
+  // 区域可点，不影响网格其余部分）。阅读器尚未打开，无状态需要收尾，
+  // 故 onClose 传空、isStillClosing 恒 false 跳过尾部回调
+  const cancelOpen = () => {
+    if (activeFlight === flight && flight.kind === 'disc-open') {
+      reverseDiscOpen(flight, () => {}, () => false)
+    }
+  }
+  clone.style.pointerEvents = 'auto'
+  clone.style.cursor = 'pointer'
+  clone.addEventListener('click', cancelOpen, { once: true })
+  if (coverClone) {
+    coverClone.style.pointerEvents = 'auto'
+    coverClone.style.cursor = 'pointer'
+    coverClone.addEventListener('click', cancelOpen, { once: true })
+  }
+  // 鼠标侧键同样取消：书本打开时阅读器 0ms 即挂载、其 window mousedown
+  // 监听天然覆盖动画全程；光盘的阅读器要等黑洞铺满才挂载，这里补一个
+  // 临时侧键监听对齐体验（返回手势同语义）。onArrive 前必须先摘除，
+  // 否则与阅读器自己的监听在同一按键上双触发
+  const onSideButton = (e: MouseEvent) => {
+    if (e.button === 3 || e.button === 4) {
+      e.preventDefault()
+      cancelOpen()
+    }
+  }
+  const detachSideButton = () => window.removeEventListener('mousedown', onSideButton)
+  window.addEventListener('mousedown', onSideButton)
+  flight.onSettle = detachSideButton
+
   // 封面克隆下一帧翻开（与真实封面原时机一致：0.6s 过渡由 scoped 样式提供）；
   // 克隆内的横幅同步淡出（真实侧由 disc-opening 驱动）
   requestAnimationFrame(() => {
-    if (!coverClone) return
+    if (activeFlight !== flight || !coverClone) return
     coverClone.style.transform =
       'perspective(1200px) scale(0.976) rotateY(-120deg) translateZ(var(--box-thickness))'
     const banner = coverClone.querySelector('.comic-title-banner') as HTMLElement | null
     if (banner) banner.style.opacity = '0'
   })
 
-  // 黑洞铺满后打开阅读器（黑底无缝接棒）；期间被其它打开/关闭顶掉则只清理
-  window.setTimeout(
+  // 黑洞铺满后打开阅读器（黑底无缝接棒）；期间被顶掉收场则定时器不触发。
+  // 侧键监听先于 onArrive 摘除，交棒给阅读器自身的返回监听
+  later(
+    flight,
     async () => {
-      const stale = token !== flyToken
-      if (!stale) onArrive()
+      detachSideButton()
+      onArrive()
       await nextTick()
-      requestAnimationFrame(() => {
-        layer.remove()
-        disc.style.opacity = ''
-        if (cover) cover.style.visibility = ''
-        cardEl.classList.remove('disc-opening')
-        flyingStage = null
-      })
+      settleFlight(flight)
     },
     Math.max(DISC_OPEN_DURATION, HOLE_DELAY + HOLE_DURATION)
+  )
+}
+
+/**
+ * 光盘打开中途被打断（同卡关闭/点击取消）：复用原飞行层从当前姿态倒放。
+ * 盘片/黑洞（WAAPI，fill:forwards）在 cancelTimeline 前定格插值矩阵：
+ * 盘片以正常关闭手感缩回盒内、黑洞已实质扩张则按剩余比例收拢回盘心。
+ * 封面不做定格倒放——克隆与真封面是同一帧起跑的同一条 0.6s CSS 过渡
+ * （克隆可见、真身隐藏、姿态天然同步），接管瞬间摘掉 disc-opening 让
+ * 真封面从当前姿态自然合上，无接缝。打开期间阅读器尚未挂载（onArrive
+ * 在黑洞铺满后才触发），无需卸载；onClose 仍按 isStillClosing 约定调用
+ * （点击取消路径传恒 false 跳过）。
+ */
+function reverseDiscOpen(f: Flight, onClose: () => void, isStillClosing: () => boolean) {
+  const d = f.disc!
+  const cloneMatrix = getComputedStyle(d.clone).transform
+  const holeP = progressOf(d.holeAnim)
+  const holeMatrix = getComputedStyle(d.hole).transform
+  cancelTimeline(f)
+  f.kind = 'disc-close'
+
+  // 盘片缩回盒内（与正常关闭同手感）；尚未起跳（延迟期内）则无需缩回
+  let settleDur = 0
+  if (cloneMatrix !== 'none' && cloneMatrix !== 'matrix(1, 0, 0, 1, 0, 0)') {
+    d.clone.style.transform = cloneMatrix
+    runAnim(
+      f,
+      d.clone,
+      [{ transform: cloneMatrix }, { transform: 'scale(1)' }],
+      { duration: DISC_CLOSE_RETURN, easing: 'ease-out', fill: 'forwards' }
+    )
+    settleDur = DISC_CLOSE_RETURN
+  }
+
+  // 黑洞已实质扩张：定格后按剩余比例收拢；未起跑（延迟期被取消）或刚
+  // 起步（≈原尺寸小孔，与盘心孔同观感）则保持原样随层清场
+  if (d.holeAnim && holeP > 0.01) {
+    const holeDur = clamp((1 - holeP) * HOLE_DURATION, MIN_REVERSE_MS, HOLE_DURATION)
+    d.hole.style.transform = holeMatrix
+    runAnim(
+      f,
+      d.hole,
+      [{ transform: holeMatrix }, { transform: 'translate(-50%, -50%) scale(1)' }],
+      { duration: holeDur, easing: HOLE_EASE_REVERSE, fill: 'forwards' }
+    )
+    settleDur = Math.max(settleDur, holeDur)
+  }
+
+  // 盘/洞落定后真卡接管：隐藏克隆（封面克隆此刻与真封面同姿态）、恢复
+  // 真盘真封面、摘掉 disc-opening——真封面从当前姿态走自带 0.6s 过渡合上
+  later(
+    f,
+    () => {
+      d.clone.style.display = 'none'
+      d.hole.style.display = 'none'
+      if (d.coverClone) d.coverClone.style.display = 'none'
+      d.disc.style.opacity = ''
+      if (d.cover) d.cover.style.visibility = ''
+      f.cardEl.classList.remove('disc-opening')
+    },
+    settleDur + 50
+  )
+
+  later(
+    f,
+    () => {
+      if (isStillClosing()) onClose()
+      settleFlight(f)
+    },
+    settleDur + 50 + DISC_CLOSE_COVER
   )
 }
 
@@ -654,14 +1062,27 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
  * 无过渡地摆到打开态垫底；随后黑洞收拢回盘心揭开网格、克隆盘原地缩回
  * 盒内，最后移除 disc-opening 让封面绕左缘合上（自带 0.6s 过渡）。
  * 盒底与卡片全程留在原位，不参与任何缩放。
+ * 打断：同卡打开中收到关闭 → reverseDiscOpen 原地倒放；同卡关闭中再关 →
+ * 立即收场直接关闭；其它在飞 → 收场后走本次流程。
  */
 export function flyDiscClose(
   cardEl: HTMLElement | undefined,
   onClose: () => void,
   isStillClosing: () => boolean = () => true
 ) {
-  if (!cardEl || flyingStage) {
-    flyToken++
+  const prev = activeFlight
+  if (prev && cardEl && prev.kind === 'disc-open' && prev.cardEl === cardEl) {
+    reverseDiscOpen(prev, onClose, isStillClosing)
+    return
+  }
+  if (prev) {
+    settleFlight(prev)
+    if (cardEl && prev.kind === 'disc-close' && prev.cardEl === cardEl) {
+      onClose()
+      return
+    }
+  }
+  if (!cardEl) {
     onClose()
     return
   }
@@ -671,8 +1092,6 @@ export function flyDiscClose(
     return
   }
 
-  // 递增令牌：使未完成的光盘打开尾部回调失效（本函数清理无条件执行）
-  flyToken++
   const rect = disc.getBoundingClientRect()
   const hostRect =
     cardEl.closest('.reader-host')?.getBoundingClientRect() ??
@@ -686,7 +1105,15 @@ export function flyDiscClose(
   layer.style.width = `${hostRect.width}px`
   layer.style.height = `${hostRect.height}px`
   document.body.appendChild(layer)
-  flyingStage = layer
+  const flight: Flight = {
+    kind: 'disc-close',
+    cardEl,
+    layer,
+    startTime: performance.now(),
+    timers: [],
+    anims: []
+  }
+  activeFlight = flight
 
   // 克隆银盘就位（弹出的落定姿态）；黑洞直接铺满（无过渡）
   const clone = disc.cloneNode(true) as HTMLElement
@@ -719,21 +1146,28 @@ export function flyDiscClose(
   hole.style.transform = `translate(-50%, -50%) scale(${maxScale})`
   layer.appendChild(clone)
   layer.appendChild(hole)
+  flight.disc = {
+    disc,
+    cover: cardEl.querySelector('.cover-container') as HTMLElement | null,
+    clone,
+    hole,
+    coverClone: null,
+    popAnim: null,
+    holeAnim: null
+  }
 
   // 真实卡无过渡地摆到打开态（封面已翻开、露出空盒），真实盘隐藏
-  const cover = cardEl.querySelector('.cover-container') as HTMLElement | null
+  const cover = flight.disc.cover
   if (cover) cover.style.transition = 'none'
   cardEl.classList.add('disc-opening')
   void cardEl.offsetHeight
   if (cover) cover.style.transition = ''
   disc.style.opacity = '0'
 
-  // 阅读器立即卸载：铺满的黑洞黑面无缝接管。已不是这部在关则撤场直接关
+  // 阅读器立即卸载：铺满的黑洞黑面无缝接管。已不是这部在关则只撤场
+  // （阅读器归属已变，不得经此处的 onClose 误卸载新的）
   if (!isStillClosing()) {
-    layer.remove()
-    disc.style.opacity = ''
-    cardEl.classList.remove('disc-opening')
-    flyingStage = null
+    settleFlight(flight)
     return
   }
   onClose()
@@ -741,14 +1175,19 @@ export function flyDiscClose(
   // 下一帧倒放：黑洞收拢回盘心，随后盘片原地缩回盒内
   nextTick(() =>
     requestAnimationFrame(() => {
-      hole.animate(
+      if (activeFlight !== flight) return
+      runAnim(
+        flight,
+        hole,
         [
           { transform: `translate(-50%, -50%) scale(${maxScale})` },
           { transform: 'translate(-50%, -50%) scale(1)' }
         ],
         { duration: HOLE_DURATION, easing: HOLE_EASE_REVERSE, fill: 'forwards' }
       )
-      clone.animate(
+      runAnim(
+        flight,
+        clone,
         [
           { transform: `scale(${DISC_POP_SCALE_REST})` },
           { transform: 'scale(1)' }
@@ -759,21 +1198,20 @@ export function flyDiscClose(
   )
 
   // 盘已落回：撤克隆与黑洞（已收拢为盘心黑点，随盘一起消失，不留浮点）、
-  // 恢复真实盘，移除打开态让封面合上（0.6s 过渡）。
-  // 清理无条件执行（各步幂等）——若以 token 守卫，关闭中途被新打开顶掉时
-  // 这里被跳过，flyingStage 永不清空，之后所有打开/关闭动画都会失效
-  window.setTimeout(() => {
-    clone.style.display = 'none'
-    hole.style.display = 'none'
-    disc.style.opacity = ''
-    cardEl.classList.remove('disc-opening')
-  }, DISC_CLOSE_COVER)
+  // 恢复真实盘，移除打开态让封面合上（0.6s 过渡）；被打断则 settle 已清场
+  later(
+    flight,
+    () => {
+      clone.style.display = 'none'
+      hole.style.display = 'none'
+      disc.style.opacity = ''
+      cardEl.classList.remove('disc-opening')
+    },
+    DISC_CLOSE_COVER
+  )
 
-  // 封面合上后清理
-  window.setTimeout(() => {
-    layer.remove()
-    flyingStage = null
-  }, DISC_CLOSE_TOTAL)
+  // 封面合上后清理（settleFlight 幂等）
+  later(flight, () => settleFlight(flight), DISC_CLOSE_TOTAL)
 }
 
 /* ===== 封面取色（书脊/光盘切面共用） ===== */
