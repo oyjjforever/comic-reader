@@ -474,6 +474,8 @@ declare global {
       ) => Promise<{
         success: boolean
         videoUrl?: string
+        /** CDN 鉴权请求头（x-cdn-auth / x-cdn-app），下载 m3u8 时需附带 */
+        cdnHeaders?: Record<string, string>
         duration?: number
         title?: string
         error?: string
@@ -485,6 +487,8 @@ declare global {
         quality?: string
         savePath: string
         siteUrl?: string
+        /** CDN 鉴权请求头（来自 getPlayUrl 回包），m3u8 请求需要 */
+        cdnHeaders?: Record<string, string>
       }) => Promise<{
         success: boolean
         error?: string

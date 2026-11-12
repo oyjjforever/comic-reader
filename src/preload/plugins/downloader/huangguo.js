@@ -2,6 +2,7 @@ import Api from './api.js'
 import crypto from 'crypto'
 import { ipcRenderer } from 'electron'
 import HlsDownloader from './hls.js'
+import huangguoEdge from './huangguo-edge.js'
 
 const SITE_ORIGIN = 'https://huangguoai.com'
 
@@ -99,10 +100,18 @@ async function buildHeaders(siteUrl) {
   return headers
 }
 
+/** 从选集网格提取各集编号（视频页 hg-web-play__ep-grid / 详情页 data-ep-grid 共用） */
+function parseEpGrid(html) {
+  const epGridHtml =
+    html.match(/<div[^>]*(?:data-ep-grid|hg-web-play__ep-grid)[^>]*>([\s\S]*?)<\/div>/)?.[1] || ''
+  return [...epGridHtml.matchAll(/data-ep-id="(\d+)"/g)].map((m) => m[1])
+}
+
 /**
  * 解析视频页 / 详情页 HTML
- * 视频页（/video/<id>/）：从 videoInitialData JSON 提取标题、各集 m3u8 地址（含 auth_key）
- * 详情页（/detail/<id>/）：无 videoInitialData，从 data-ep-grid 选集网格提取各集 ID
+ * 视频页（/video/<id>/）：标题从 videoInitialData 提取；epPlaySrcs 自 2026-11 起恒为空
+ * （播放地址改走加密通道），集数回退选集网格，地址留空由下载前 getPlayUrl 实时获取
+ * 详情页（/detail/<id>/）：无 videoInitialData，从选集网格提取各集 ID
  */
 async function getVideoInfo(pageUrl) {
   if (!pageUrl) return { success: false, error: '缺少页面地址' }
@@ -126,25 +135,28 @@ async function getVideoInfo(pageUrl) {
       const title = decodeHtmlEntities(String(data.title || '').trim())
       const contentId = String(data.id || idFromUrl)
 
-      // epPlaySrcs: { "1": m3u8Url, "2": m3u8Url, ... }，键为集数
+      // epPlaySrcs: { "1": m3u8Url, "2": m3u8Url, ... }（旧版站点行为，现恒为空）
       const episodes = Object.entries(data.epPlaySrcs || {})
         .map(([ep, url]) => ({ ep, url: String(url) }))
         .filter((e) => e.url)
         .sort((a, b) => Number(a.ep) - Number(b.ep))
+      if (episodes.length > 0) {
+        const currentEp = String(data.ep ?? '')
+        const m3u8Url =
+          episodes.find((e) => e.ep === currentEp)?.url ||
+          episodes[0]?.url ||
+          String(data.videoSrc || '')
+        return { success: true, title, contentId, m3u8Url, episodes }
+      }
 
-      // 当前集（ep 字段）优先，否则取第一集
-      const currentEp = String(data.ep ?? '')
-      const m3u8Url =
-        episodes.find((e) => e.ep === currentEp)?.url ||
-        episodes[0]?.url ||
-        String(data.videoSrc || '')
-
-      return { success: true, title, contentId, m3u8Url, episodes }
+      // 无内嵌播放地址：集数回退网格解析，地址留空
+      const eps = parseEpGrid(html)
+      if (eps.length === 0) return { success: false, error: '未在页面中解析到视频或选集信息' }
+      return { success: true, title, contentId, m3u8Url: '', episodes: eps.map((ep) => ({ ep, url: '' })) }
     }
 
-    // 详情页：解析选集网格 <div class="hg_web_detail__ep-grid" data-ep-grid>...<a data-ep-id="1">01</a>...
-    const epGridHtml = html.match(/<div[^>]*data-ep-grid[^>]*>([\s\S]*?)<\/div>/)?.[1] || ''
-    const eps = [...epGridHtml.matchAll(/data-ep-id="(\d+)"/g)].map((m) => m[1])
+    // 详情页：解析选集网格
+    const eps = parseEpGrid(html)
     if (eps.length === 0) return { success: false, error: '未在页面中解析到视频或选集信息' }
 
     // 标题回退 og:title / <title>
@@ -155,8 +167,13 @@ async function getVideoInfo(pageUrl) {
     ).trim()
 
     // 各集地址由下载开始前通过 play 接口实时获取（auth_key 有时效）
-    const episodes = eps.map((ep) => ({ ep, url: '' }))
-    return { success: true, title, contentId: idFromUrl, m3u8Url: '', episodes }
+    return {
+      success: true,
+      title,
+      contentId: idFromUrl,
+      m3u8Url: '',
+      episodes: eps.map((ep) => ({ ep, url: '' }))
+    }
   } catch (err) {
     console.error('huangguo 解析视频信息失败:', err?.message)
     return { success: false, error: err?.message || '获取视频信息失败' }
@@ -212,12 +229,35 @@ async function getPageInfo(pageUrl) {
   }
 }
 
+/** 构造 CDN 鉴权请求头（m3u8 请求需要 x-cdn-auth + x-cdn-app；ts/key 当前不需要，多带无害） */
+function buildCdnHeaders(cdn) {
+  if (!cdn?.authKey || !cdn?.authValue || !cdn?.app) return {}
+  return { [cdn.authKey]: String(cdn.authValue), 'x-cdn-app': String(cdn.app) }
+}
+
 /**
- * 调用 play 接口获取指定集的实时播放地址（auth_key 有时效，下载前需实时获取）
- * GET https://huangguoai.com/api/videos/<videoId>/play?ep=<ep>
+ * 获取指定集的实时播放地址（auth_key 有时效，下载/预览前需实时获取）
+ * 主路径：加密通道 POST /api/videos/<videoId>/episodes/<ep>/playback
+ *   → { data: { manifest_method, streams: { main }, cdn: { authKey, authValue, app } } }
+ * 兜底：旧明文接口 GET /api/videos/<videoId>/play（2026-11 起 video_url 恒为空）
  */
 async function getPlayUrl(videoId, ep) {
   if (!videoId) return { success: false, error: '缺少视频 ID' }
+
+  try {
+    const biz = await huangguoEdge.edgeCall(
+      `/api/videos/${videoId}/episodes/${ep ?? 1}/playback`
+    )
+    const data = biz?.data
+    const videoUrl = data?.streams?.main
+    if (data?.manifest_method === 'GET' && videoUrl) {
+      return { success: true, videoUrl, cdnHeaders: buildCdnHeaders(data.cdn) }
+    }
+    console.warn('huangguo 加密通道未返回播放地址:', JSON.stringify(biz).slice(0, 200))
+  } catch (err) {
+    console.warn('huangguo 加密通道获取播放地址失败:', err?.message)
+  }
+
   try {
     const apiUrl = `${SITE_ORIGIN}/api/videos/${videoId}/play?ep=${ep ?? 1}`
     const headers = await buildHeaders(apiUrl)
@@ -249,7 +289,7 @@ function notifyProgress(progress) {
 
 /** 下载 HLS 视频：在 preload 中下载解密片段并封装为 MP4，进度通过 onProgress 订阅回调推送 */
 async function startDownload(payload) {
-  const { m3u8Url, savePath } = payload || {}
+  const { m3u8Url, savePath, cdnHeaders } = payload || {}
   const quality = payload?.quality || '1080p'
   const siteUrl = payload?.siteUrl || m3u8Url
   if (!m3u8Url || !savePath) {
@@ -259,6 +299,8 @@ async function startDownload(payload) {
   try {
     const headers = await buildHeaders(siteUrl)
     headers['User-Agent'] = navigator.userAgent
+    // CDN 鉴权头（x-cdn-auth / x-cdn-app），来自加密通道 playback 回包的 cdn 参数
+    Object.assign(headers, cdnHeaders || {})
     currentDownloader = new HlsDownloader(m3u8Url, headers, {
       concurrency: 8,
       timeout: 60000

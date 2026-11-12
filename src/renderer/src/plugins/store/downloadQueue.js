@@ -714,12 +714,15 @@ async function runHuangguo(task) {
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     let playUrl = m3u8Url
+    let cdnHeaders = {}
     // auth_key 有时效，下载开始前通过 play 接口实时获取播放地址
     if (videoId) {
       try {
         const play = await huangguo.getPlayUrl(videoId, ep)
         if (play?.success && play.videoUrl) {
           playUrl = play.videoUrl
+          // m3u8 请求需要 x-cdn-auth / x-cdn-app 鉴权头（加密通道回包下发）
+          cdnHeaders = play.cdnHeaders || {}
         } else {
           console.warn('huangguo getPlayUrl 失败，回退页面地址:', play?.error)
         }
@@ -765,7 +768,13 @@ async function runHuangguo(task) {
     }
 
     try {
-      const result = await huangguo.startDownload({ m3u8Url: playUrl, quality: quality || '1080p', savePath, siteUrl })
+      const result = await huangguo.startDownload({
+        m3u8Url: playUrl,
+        quality: quality || '1080p',
+        savePath,
+        siteUrl,
+        cdnHeaders
+      })
       if (!result || !result.success) {
         throw new Error(result?.error || '下载失败')
       }

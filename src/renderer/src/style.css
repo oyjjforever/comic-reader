@@ -176,8 +176,12 @@ body .n-modal .n-card,
 body .n-modal.n-dialog,
 body .n-modal .n-dialog {
   /* 斜向白色反光 + 高透白底 + 背景模糊：白而通透，文字区域保白度 */
-  background:
-    linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%, transparent 50%),
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 100%,
+      transparent 50%
+    ),
     rgba(255, 255, 255, 0.78) !important;
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -231,4 +235,31 @@ body .n-modal ::-webkit-scrollbar-corner {
   background: transparent;
   border: none;
   box-shadow: none;
+}
+
+/* ===== n-message：白色毛玻璃吐司（弹窗/抽屉琉璃白同族） ===== */
+/* 斜向白反光 + 高透白底 + 强模糊高饱和；类型图标色由 naive 按
+   info/success/warning/error 内联下发，白底上保留状态语义，只覆盖表面与文字 */
+body .n-message {
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 100%,
+      transparent 50%
+    ),
+    rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(31, 28, 40, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 32px -8px rgba(31, 28, 40, 0.45) !important;
+
+  --n-text-color: #3d3949 !important;
+  --n-border-radius: 12px !important;
+  --n-close-icon-color: #7d7789 !important;
+  --n-close-icon-color-hover: #8a5300 !important;
+  --n-close-icon-color-pressed: #7a4800 !important;
+  --n-close-icon-color-focus: #8a5300 !important;
 }
