@@ -170,10 +170,20 @@ function createRangeServer(filePath: string, contentType: string) {
   return { server }
 }
 
+// 当前投屏拉流服务器：一次只保留一个，新投屏关闭上一个（监听 socket 与
+// fs 读流随之释放）。设备侧停止拉流没有回执，无法感知会话结束，靠替换
+// 收敛上限为 1
+let activeCastServer: { close(): void } | null = null
+
 async function serveAndPlay(deviceName: string, filePath: string) {
   const contentType = (mime.lookup(path.extname(filePath)) as string) || 'video/mp4'
   const lanIP = getLANAddress()
   if (!lanIP) throw new Error('未检测到可用的局域网 IP')
+
+  if (activeCastServer) {
+    activeCastServer.close()
+    activeCastServer = null
+  }
 
   const { server } = createRangeServer(filePath, contentType)
   await new Promise<void>((resolve) => server.listen(0, '0.0.0.0', resolve))
@@ -183,13 +193,11 @@ async function serveAndPlay(deviceName: string, filePath: string) {
     server.close()
     throw new Error('HTTP 服务启动失败')
   }
+  activeCastServer = server
 
   const url = `http://${lanIP}:${port}/media`
   // 投屏
   manager.play(deviceName, url, contentType)
-
-  // 可根据需要在稍后关闭服务；这里暂时保留，交由设备拉流
-  // setTimeout(() => server.close(), 60 * 60 * 1000) // 例如 1 小时后关闭
 
   return true
 }

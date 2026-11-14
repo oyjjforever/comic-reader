@@ -87,6 +87,11 @@ const renderIcon = (icon: Component) => {
 }
 // 定义渲染器
 let rendition: Rendition | null = null
+// epubjs 的 book：rendition.destroy 只销毁 manager，archive 为每张图/CSS/字体
+// 创建的 blob URL 要 book.destroy 才会 revoke，不持有引用就没法在卸载时释放
+let book: any = null
+// 卸载后异步的 readFile 回调不再落地渲染（rendition 容器已随组件销毁）
+let disposed = false
 
 // 定义菜单选项
 const menuOptions = [
@@ -186,51 +191,77 @@ const render = async () => {
     if (err) {
       // 读取文件失败
       console.error(err)
-      message.error('读取文件失败')
+      message.error('读取epub文件失败')
 
       // 返回上一页
       router.back()
+      return
     }
 
-    // 解析epub文件
-    let bookData = await epub.parse(data.buffer)
-    console.log(bookData)
-
-    // 创建渲染器
-    rendition = bookData.book.renderTo('epub-reader', {
-      width: '100%',
-      height: '100%',
-      manager: 'continuous', // 布局方式
-      flow: 'paginated', // 翻页方式
-      spread: 'auto', // 双页显示
-      resizeOnOrientationChange: true, // 屏幕尺寸变化时自动调整
-      allowScriptedContent: true // 允许脚本
-    })
-
-    // 注册主题
-    rendition.themes.register('dark', {
-      body: {
-        color: '#fff',
-        background: '#101014'
+    try {
+      // 解析epub文件
+      const bookData = await epub.parse(data.buffer)
+      console.log(bookData)
+      if (disposed) {
+        // 卸载竞态：阅读器已关，解析出的整本书直接释放（blob URL 全在 book 手里）
+        bookData.book.destroy()
+        return
       }
-    })
-    rendition.themes.register('light', {
-      body: {
-        color: '#000',
-        background: '#fff'
+      book = bookData.book
+
+      // 创建渲染器
+      rendition = bookData.book.renderTo('epub-reader', {
+        width: '100%',
+        height: '100%',
+        manager: 'continuous', // 布局方式
+        flow: 'paginated', // 翻页方式
+        spread: 'auto', // 双页显示
+        resizeOnOrientationChange: true, // 屏幕尺寸变化时自动调整
+        allowScriptedContent: true // 允许脚本
+      })
+
+      // 注册主题
+      rendition.themes.register('dark', {
+        body: {
+          color: '#fff',
+          background: '#101014'
+        }
+      })
+      rendition.themes.register('light', {
+        body: {
+          color: '#000',
+          background: '#fff'
+        }
+      })
+
+      // 设置主题
+      setTheme()
+
+      // 渲染
+      await rendition.display(paginationData.value.page - 1)
+
+      let location: any = rendition.currentLocation()
+      // 写入分页数据
+      paginationData.value.pageCount = bookData.spine.length
+      paginationData.value.displayedTotal = location.start.displayed.total
+    } catch (error: any) {
+      console.error('渲染epub失败:', error)
+      message.error(`渲染epub失败: ${error?.message || error}`)
+      // 解析/渲染中途失败：已建的部分逐层销毁，防整本解压数据悬挂
+      try {
+        rendition?.destroy()
+      } catch (e) {
+        console.warn('销毁 rendition 失败:', e)
       }
-    })
-
-    // 设置主题
-    setTheme()
-
-    // 渲染
-    await rendition.display(paginationData.value.page - 1)
-
-    let location: any = rendition.currentLocation()
-    // 写入分页数据
-    paginationData.value.pageCount = bookData.spine.length
-    paginationData.value.displayedTotal = location.start.displayed.total
+      rendition = null
+      try {
+        book?.destroy()
+      } catch (e) {
+        console.warn('销毁 book 失败:', e)
+      }
+      book = null
+      router.back()
+    }
   })
 }
 
@@ -367,11 +398,21 @@ onMounted(() => {
   render()
 })
 
-// 离开页面时销毁渲染器
+// 离开页面时销毁渲染器与书（book.destroy 才会 revoke archive 的全部 blob URL）
 onUnmounted(() => {
-  if (rendition) {
-    rendition.destroy()
+  disposed = true
+  try {
+    rendition?.destroy()
+  } catch (e) {
+    console.warn('销毁 rendition 失败:', e)
   }
+  rendition = null
+  try {
+    book?.destroy()
+  } catch (e) {
+    console.warn('销毁 book 失败:', e)
+  }
+  book = null
 })
 </script>
 

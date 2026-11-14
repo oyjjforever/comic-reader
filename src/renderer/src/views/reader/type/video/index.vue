@@ -388,22 +388,21 @@ const onSubtitleClick = () => {
 const onGenerateSubtitle = async () => {
   if (!video.value.fullPath) return
 
+  // 注册进度监听（finally 统一注销：generate 抛错时监听器不能留在
+  // ipcRenderer 上累积，闭包持有整个组件作用域）
+  const removeListener = window.subtitle.onGenerateProgress((progress) => {
+    generatePercent.value = progress.percent
+  })
+
   try {
     isSubtitleGenerating.value = true
     generatePercent.value = 0
-
-    // 注册进度监听
-    const removeListener = window.subtitle.onGenerateProgress((progress) => {
-      generatePercent.value = progress.percent
-    })
 
     const vttPath = await window.subtitle.generate(video.value.fullPath, {
       language: subtitleSettings.value.language,
       model: 'small', // 使用默认模型
       force: false
     })
-
-    removeListener()
 
     // 解析 VTT 文件
     subtitleSegments.value = await window.subtitle.parseVtt(vttPath)
@@ -414,6 +413,7 @@ const onGenerateSubtitle = async () => {
   } catch (error: any) {
     message.error(`字幕生成失败: ${error.message}`)
   } finally {
+    removeListener()
     isSubtitleGenerating.value = false
     generatePercent.value = 0
   }
@@ -842,13 +842,35 @@ const fetchData = async () => {
   }
 }
 
+// 停止 video 播放并释放解码资源：Chromium 中脱离 DOM 仍在播放的媒体会
+// 继续出声（幽灵音轨）并驻留解码缓冲，须显式 pause + 摘除 source + load
+const releaseVideoElement = () => {
+  const el = videoRef.value
+  if (!el) return
+  try {
+    if (!el.paused) el.pause()
+    el.removeAttribute('src')
+    el.load()
+  } catch (e) {
+    console.warn('释放视频元素失败:', e)
+  }
+}
+
+// 文件夹内切换视频（:key 重建元素）前先停掉旧元素——pre 回调在 DOM 更新前
+// 执行，此刻旧元素仍挂着
+watch(
+  () => video.value.fullPath,
+  () => releaseVideoElement()
+)
+
 // 组件挂载
 onMounted(() => {
   fetchData()
 })
 
-// 组件卸载时卸载翻译模型
+// 组件卸载时释放视频元素并卸载翻译模型
 onUnmounted(async () => {
+  releaseVideoElement()
   // 卸载翻译模型
   await unloadTranslateModel()
 })

@@ -17,26 +17,56 @@ function getVideoThumbnail(path: string): Promise<string> {
     video.src = toFileUrl(path)
     video.crossOrigin = 'anonymous'
 
-    video.addEventListener('loadedmetadata', () => {
-      video.currentTime = 5
-    })
+    // settled 后统一摘监听 + 释放解码资源；防截帧成功后的迟到 error 二次
+    // settle，也防离屏 video 继续缓冲
+    let settled = false
+    const cleanup = () => {
+      settled = true
+      clearTimeout(timer)
+      video.removeEventListener('loadedmetadata', onLoadedMetadata)
+      video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('error', onError)
+      video.removeAttribute('src')
+      video.load()
+    }
+    // 15s 兜底：坏文件 file:// 元数据既不加载也不报错时事件永不触发，
+    // Promise 与 video 元素会被闭包永久持有、isLoadingCover 卡 true
+    const timer = window.setTimeout(() => {
+      if (settled) return
+      cleanup()
+      reject(new Error('截帧超时'))
+    }, 15000)
 
-    video.addEventListener('seeked', () => {
+    const onLoadedMetadata = () => {
+      video.currentTime = 5
+    }
+
+    const onSeeked = () => {
+      if (settled) return
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
       ctx && ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       try {
-        resolve(canvas.toDataURL('image/jpeg', 0.9))
+        const url = canvas.toDataURL('image/jpeg', 0.9)
+        cleanup()
+        resolve(url)
       } catch (error) {
+        cleanup()
         reject(new Error('Failed to create data URL.'))
       }
-    })
+    }
 
-    video.addEventListener('error', () => {
+    const onError = () => {
+      if (settled) return
+      cleanup()
       reject(new Error('Failed to load video.'))
-    })
+    }
+
+    video.addEventListener('loadedmetadata', onLoadedMetadata)
+    video.addEventListener('seeked', onSeeked)
+    video.addEventListener('error', onError)
   })
 }
 

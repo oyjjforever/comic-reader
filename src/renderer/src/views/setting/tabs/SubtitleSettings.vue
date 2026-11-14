@@ -519,19 +519,19 @@ const loadLlmModuleStatus = async () => {
 
 // 安装 LLM 模块（从 GitHub Releases 远程下载）
 const onDownloadLlmModule = async () => {
+  // 进度监听提到 try 外、finally 统一注销：下载抛错时监听器不能留在
+  // ipcRenderer 上累积（闭包持有整个组件作用域）
+  const removeListener = window.subtitle.onLlmDownloadProgress((progress) => {
+    llmDownloadProgress.value = progress.percent
+    llmDownloadStatus.value = progress.status
+  })
+
   try {
     downloadingLlm.value = true
     llmDownloadStatus.value = 'downloading'
     llmDownloadProgress.value = 0
 
-    const removeListener = window.subtitle.onLlmDownloadProgress((progress) => {
-      llmDownloadProgress.value = progress.percent
-      llmDownloadStatus.value = progress.status
-    })
-
     const result = await window.subtitle.downloadLlmModuleFromRemote()
-
-    removeListener()
 
     if (result.success) {
       llmDownloadStatus.value = 'done'
@@ -546,6 +546,7 @@ const onDownloadLlmModule = async () => {
     llmDownloadStatus.value = 'error'
     message.error(`安装失败: ${error.message}`)
   } finally {
+    removeListener()
     downloadingLlm.value = false
     setTimeout(() => {
       llmDownloadStatus.value = ''
@@ -571,6 +572,19 @@ const onUninstallLlmModule = async () => {
 
 // 下载二进制文件
 const onDownloadBinary = async (binary: 'whisper' | 'ffmpeg') => {
+  // 同 onDownloadLlmModule：disposer 进 finally，失败不累积监听器
+  const removeListener = window.subtitle.onBinaryDownloadProgress((progress) => {
+    if (progress.binary === binary) {
+      if (binary === 'whisper') {
+        whisperDownloadProgress.value = progress.percent
+        whisperDownloadStatus.value = progress.status
+      } else {
+        ffmpegDownloadProgress.value = progress.percent
+        ffmpegDownloadStatus.value = progress.status
+      }
+    }
+  })
+
   try {
     downloadingBinary.value = binary
     if (binary === 'whisper') {
@@ -581,24 +595,10 @@ const onDownloadBinary = async (binary: 'whisper' | 'ffmpeg') => {
       ffmpegDownloadStatus.value = 'downloading'
     }
 
-    const removeListener = window.subtitle.onBinaryDownloadProgress((progress) => {
-      if (progress.binary === binary) {
-        if (binary === 'whisper') {
-          whisperDownloadProgress.value = progress.percent
-          whisperDownloadStatus.value = progress.status
-        } else {
-          ffmpegDownloadProgress.value = progress.percent
-          ffmpegDownloadStatus.value = progress.status
-        }
-      }
-    })
-
     const result =
       binary === 'whisper'
         ? await window.subtitle.downloadWhisper()
         : await window.subtitle.downloadFfmpeg()
-
-    removeListener()
 
     if (result.success) {
       message.success(`${binary === 'whisper' ? 'Whisper.cpp' : 'FFmpeg'} 安装成功`)
@@ -609,6 +609,7 @@ const onDownloadBinary = async (binary: 'whisper' | 'ffmpeg') => {
   } catch (error: any) {
     message.error(`下载失败: ${error.message}`)
   } finally {
+    removeListener()
     downloadingBinary.value = null
     whisperDownloadStatus.value = ''
     ffmpegDownloadStatus.value = ''
@@ -647,24 +648,25 @@ const onResetDataDir = async () => {
 
 // 下载模型
 const onDownloadModel = async (modelName: WhisperModelName) => {
+  // 同 onDownloadLlmModule：disposer 进 finally，失败不累积监听器
+  const removeListener = window.subtitle.onDownloadProgress((progress) => {
+    if (progress.model === modelName) {
+      downloadProgress.value = progress.percent
+    }
+  })
+
   try {
     downloadingModel.value = modelName
     downloadProgress.value = 0
 
-    const removeListener = window.subtitle.onDownloadProgress((progress) => {
-      if (progress.model === modelName) {
-        downloadProgress.value = progress.percent
-      }
-    })
-
     await window.subtitle.downloadModel(modelName)
 
-    removeListener()
     message.success(`模型 ${modelName} 下载完成`)
     await loadModels()
   } catch (error: any) {
     message.error(`模型下载失败: ${error.message}`)
   } finally {
+    removeListener()
     downloadingModel.value = null
     downloadProgress.value = 0
   }
@@ -729,19 +731,18 @@ const loadTranslateModels = async () => {
 
 // 下载翻译模型
 const onDownloadTranslateModel = async (modelAlias: string) => {
+  // 同 onDownloadLlmModule：disposer 进 finally，失败不累积监听器
+  const removeListener = window.subtitle.onTranslateModelDownloadProgress((progress) => {
+    if (progress.modelAlias === modelAlias) {
+      translateModelDownloadProgress.value = progress.percent
+    }
+  })
+
   try {
     downloadingTranslateModel.value = modelAlias
     translateModelDownloadProgress.value = 0
 
-    const removeListener = window.subtitle.onTranslateModelDownloadProgress((progress) => {
-      if (progress.modelAlias === modelAlias) {
-        translateModelDownloadProgress.value = progress.percent
-      }
-    })
-
     const result = await window.subtitle.downloadTranslateModel(modelAlias)
-
-    removeListener()
 
     if (result.success) {
       message.success(`翻译模型下载完成`)
@@ -752,6 +753,7 @@ const onDownloadTranslateModel = async (modelAlias: string) => {
   } catch (error: any) {
     message.error(`下载失败: ${error.message}`)
   } finally {
+    removeListener()
     downloadingTranslateModel.value = null
     translateModelDownloadProgress.value = 0
   }
@@ -779,6 +781,14 @@ onMounted(() => {
   loadBinaryStatus()
   loadTranslateModels()
   loadLlmModuleStatus()
+})
+
+// 卸载时清掉待执行的防抖保存，避免离开设置页后仍多一次 IPC 写
+onBeforeUnmount(() => {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
 })
 </script>
 

@@ -185,32 +185,46 @@ const installUpdate = async () => {
   }
 }
 
-// 监听更新事件
+// 监听更新事件（ipcRenderer.on 返回注销函数，卸载时统一解绑）
+const updateDisposers: Array<() => void> = []
 onMounted(() => {
   // 监听更新可用事件
-  window.electron.ipcRenderer.on('update:available', (event, info) => {
-    updateInfo.value.available = true
-    updateInfo.value.version = info.version
-    updateInfo.value.releaseNotes = info.releaseNotes || '暂无更新说明'
-    showModal.value = true
-  })
+  updateDisposers.push(
+    window.electron.ipcRenderer.on('update:available', (event, info) => {
+      updateInfo.value.available = true
+      updateInfo.value.version = info.version
+      updateInfo.value.releaseNotes = info.releaseNotes || '暂无更新说明'
+      showModal.value = true
+    })
+  )
 
   // 监听下载进度事件
-  window.electron.ipcRenderer.on('update:progress', (event, progress) => {
-    updateInfo.value.downloadProgress = progress.percent.toFixed(2) * 1
-  })
+  updateDisposers.push(
+    window.electron.ipcRenderer.on('update:progress', (event, progress) => {
+      updateInfo.value.downloadProgress = progress.percent.toFixed(2) * 1
+    })
+  )
 
   // 监听下载完成事件
-  window.electron.ipcRenderer.on('update:downloaded', () => {
-    updateInfo.value.downloading = false
-    updateInfo.value.downloaded = true
-  })
+  updateDisposers.push(
+    window.electron.ipcRenderer.on('update:downloaded', () => {
+      updateInfo.value.downloading = false
+      updateInfo.value.downloaded = true
+    })
+  )
 
   // 监听更新错误事件
-  window.electron.ipcRenderer.on('update:error', (event, error) => {
-    updateInfo.value.downloading = false
-    console.error('更新错误:', error)
-  })
+  updateDisposers.push(
+    window.electron.ipcRenderer.on('update:error', (event, error) => {
+      updateInfo.value.downloading = false
+      console.error('更新错误:', error)
+    })
+  )
+})
+
+onUnmounted(() => {
+  updateDisposers.forEach((dispose) => dispose())
+  updateDisposers.length = 0
 })
 
 defineExpose({

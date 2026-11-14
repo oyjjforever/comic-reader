@@ -214,6 +214,7 @@
         <router-view v-slot="{ Component }">
           <keep-alive
             include="library,reader,search,specialAttention,actorVideo,yfantasy,fourkhd,fanqie"
+            :max="10"
           >
             <component
               v-if="!isSiteRoute"
@@ -565,6 +566,7 @@ function onDownloadCloseExit() {
 
 let removeCloseDialogListener: (() => void) | null = null
 let removeDownloadCloseDialogListener: (() => void) | null = null
+let removeClipboardListener: (() => void) | null = null
 
 const isScreenFull = ref(false)
 // 阻断鼠标侧键（后退 3 / 前进 4）的默认历史导航：
@@ -583,15 +585,18 @@ onMounted(async () => {
   if (settingStore.setting.enableUpdateCheck !== false) {
     window.electron.ipcRenderer.invoke('update:check')
   }
-  // 启动剪切板监听
-  window.electron.ipcRenderer.on('clipboard-content-changed', (event, data) => {
-    // console.log('剪切板内容已改变', data)
-    if (!settingStore.setting.enableClipboardMonitor) return
-    window.electron.ipcRenderer.send(
-      'show-clipboard-popup',
-      settingStore.setting.clipboardPopupPosition || 'cursor'
-    )
-  })
+  // 启动剪切板监听（on 返回注销函数，随组件卸载解绑）
+  removeClipboardListener = window.electron.ipcRenderer.on(
+    'clipboard-content-changed',
+    (event, data) => {
+      // console.log('剪切板内容已改变', data)
+      if (!settingStore.setting.enableClipboardMonitor) return
+      window.electron.ipcRenderer.send(
+        'show-clipboard-popup',
+        settingStore.setting.clipboardPopupPosition || 'cursor'
+      )
+    }
+  )
   // 监听关闭确认对话框事件
   removeCloseDialogListener = window.closeConfig.onShowDialog(() => {
     showCloseDialog()
@@ -646,6 +651,10 @@ onUnmounted(() => {
   if (removeCloseDialogListener) {
     removeCloseDialogListener()
     removeCloseDialogListener = null
+  }
+  if (removeClipboardListener) {
+    removeClipboardListener()
+    removeClipboardListener = null
   }
 })
 </script>

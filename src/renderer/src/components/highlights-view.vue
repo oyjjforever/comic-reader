@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
 import { PlayCircle as VideoIcon, Trash as TrashIcon } from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
@@ -112,6 +112,9 @@ const onThumbError = (id?: number) => {
   if (id != null) thumbs.value[id] = ''
 }
 
+// 卸载标记：截帧循环在组件卸载后停止推进（在途的单组由超时自行收尾）
+let disposed = false
+
 // 从同一视频的多个时间点逐帧抓取缩略图（复用单个 video 元素）
 const captureGroup = (videoPath: string, bookmarks: VideoBookmark[]) =>
   new Promise<void>((resolve) => {
@@ -125,11 +128,22 @@ const captureGroup = (videoPath: string, bookmarks: VideoBookmark[]) =>
       video.load()
     }
 
+    // 单组 15s 兜底：坏文件 file:// 元数据既不加载也不报错时事件永不触发，
+    // Promise 与 video 元素会被闭包永久持有（与 thumbnail-panel 同值）
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      cleanup()
+      resolve()
+    }
+    const timer = window.setTimeout(finish, 15000)
+
     let index = 0
     const captureNext = () => {
       if (index >= bookmarks.length) {
-        cleanup()
-        resolve()
+        finish()
         return
       }
       const bm = bookmarks[index]
@@ -160,10 +174,7 @@ const captureGroup = (videoPath: string, bookmarks: VideoBookmark[]) =>
     }
 
     video.addEventListener('loadedmetadata', captureNext)
-    video.addEventListener('error', () => {
-      cleanup()
-      resolve()
-    })
+    video.addEventListener('error', finish)
   })
 
 // 按视频分组，逐个视频抓取其下所有时间点的帧
@@ -174,6 +185,7 @@ const captureThumbs = async () => {
     groups.get(item.video_path)!.push(item)
   }
   for (const [videoPath, group] of groups) {
+    if (disposed) return
     try {
       await captureGroup(videoPath, group)
     } catch {
@@ -226,6 +238,21 @@ const playHighlight = (item: VideoBookmark) => {
 const onLoadedMetadata = () => {
   seekToCurrent()
 }
+
+onBeforeUnmount(() => {
+  disposed = true
+  // 播放器防幽灵音轨：脱离 DOM 仍在播的媒体会继续出声并驻留解码缓冲
+  const el = videoRef.value
+  if (el) {
+    try {
+      if (!el.paused) el.pause()
+      el.removeAttribute('src')
+      el.load()
+    } catch {
+      /* ignore */
+    }
+  }
+})
 
 // 删除精彩片段（带二次确认）
 const confirmDelete = (item: VideoBookmark) => {

@@ -102,6 +102,8 @@ const videoRef = ref(null)
 const videoReady = ref(false)
 const videoError = ref('')
 let hlsInstance = null
+// 卸载标记：在途的异步取图/取帧落地时据此自释放
+let disposed = false
 
 // HLS 播放（huangguo 等加密流媒体站点）
 function destroyHls() {
@@ -177,6 +179,11 @@ const loadImage = async (index) => {
   }
   try {
     const blobUrl = await downloadAndConvertToBlob(props.dialog.data.imageUrls[index])
+    if (disposed) {
+      // 卸载后才返回：组件侧无人再释放，立即回收
+      if (blobUrl?.startsWith('blob:')) URL.revokeObjectURL(blobUrl)
+      return
+    }
     loadedImages[index] = blobUrl
   } catch (error) {
     console.error(`Failed to load image at index ${index}:`, error)
@@ -236,6 +243,15 @@ onMounted(async () => {
   if (props.dialog.data.artworkType === 'GIF') {
     try {
       const frames = await window.pixiv.getUgoiraFrames(props.dialog.data.artworkId)
+      if (disposed) {
+        // 卸载后才返回：frames 是本弹窗的私有数据，落地即释放
+        frames.forEach((f) => {
+          if (typeof f?.url === 'string' && f.url.startsWith('blob:')) {
+            URL.revokeObjectURL(f.url)
+          }
+        })
+        return
+      }
       props.dialog.data.frames = frames
     } catch (e) {
       console.error('加载动图帧失败:', e)
@@ -282,7 +298,25 @@ onMounted(async () => {
   }
 })
 
+// 释放本弹窗创建的全部 blob: URL（图片与动图帧）——preload 与页面同进程，
+// 不 revoke 则 Blob 数据常驻渲染进程内存直至重启。弹窗由父级 v-if 挂载/
+// 卸载，任何关闭路径（按钮/遮罩/ESC）都会走到这里的卸载钩子
+const releaseBlobs = () => {
+  Object.values(loadedImages).forEach((url) => {
+    if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url)
+  })
+  const frames = props.dialog.data?.frames
+  if (Array.isArray(frames)) {
+    frames.forEach((f) => {
+      if (typeof f?.url === 'string' && f.url.startsWith('blob:')) URL.revokeObjectURL(f.url)
+    })
+    // 置空防父级复用 dialog.data 时引用已失效的 URL（下次打开会重新拉帧）
+    frames.length = 0
+  }
+}
+
 onBeforeUnmount(() => {
+  disposed = true
   // 清理观察器
   if (observer.value) {
     observer.value.disconnect()
@@ -291,6 +325,8 @@ onBeforeUnmount(() => {
   destroyHls()
   videoSrc.value = ''
   window.missav.detachStreamHeaders?.()
+  // 释放 blob 内存
+  releaseBlobs()
 })
 </script>
 

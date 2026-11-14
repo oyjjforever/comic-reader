@@ -349,6 +349,14 @@ onUnmounted(() => {
     clearTimeout(settingsHideTimer)
     settingsHideTimer = null
   }
+  if (nextHintTimer) {
+    clearTimeout(nextHintTimer)
+    nextHintTimer = null
+  }
+  if (prevHintTimer) {
+    clearTimeout(prevHintTimer)
+    prevHintTimer = null
+  }
 })
 const handleMouseDown = (e: MouseEvent) => {
   // 鼠标侧键（后退 3 / 前进 4）关闭阅读器，与返回按钮同语义；

@@ -195,6 +195,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  if (jumpToPageTimer) {
+    clearTimeout(jumpToPageTimer)
+    jumpToPageTimer = null
+  }
 })
 </script>
 
