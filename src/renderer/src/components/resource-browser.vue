@@ -1769,17 +1769,24 @@ const confirmPathMigration = (
   })
 }
 
-// 后台移动任务完成后：刷新树/网格并提示结果（含部分失败场景）
+// 移动完成后：刷新树/网格并提示结果（含部分失败场景）
+// itemLabel：提示文案中的条目单位（队列移动为「作品」，单文件直移为「文件」）
+// viaQueue：是否经任务队列执行，决定失败提示是否引导查看队列
 const onMoveTaskFinished = (
   succeeded: Array<{ fullPath: string; name: string }>,
   failCount: number,
-  destFolderPath: string
+  destFolderPath: string,
+  itemLabel = '作品',
+  viaQueue = true
 ) => {
   if (succeeded.length) {
-    message.success(`已移动 ${succeeded.length} 个作品到目标文件夹`)
-    if (failCount > 0) message.error(`${failCount} 个作品移动失败，详情见任务队列`)
+    message.success(`已移动 ${succeeded.length} 个${itemLabel}到目标文件夹`)
+    if (failCount > 0)
+      message.error(
+        viaQueue ? `${failCount} 个${itemLabel}移动失败，详情见任务队列` : `${failCount} 个${itemLabel}移动失败`
+      )
   } else if (failCount > 0) {
-    message.error('移动失败，详情见任务队列')
+    message.error(viaQueue ? '移动失败，详情见任务队列' : '移动失败')
   } else {
     return // 未移动任何作品即取消
   }
@@ -1818,7 +1825,88 @@ const onMoveTaskFinished = (
   }
 }
 
-// 确认移动：将移动任务加入后台队列执行（任务面板显示进度），完成后同步迁移收藏/评分等关联记录
+// 判定移动条目是否为单文件卡片：FileInfo 带 extension 字段直接判定，
+// 收藏/评分视图重建的条目缺该字段时按图片扩展名兜底（其余走队列路径，行为不变）
+const isFileCard = (item: any) => !!item.extension || isImageFilePath(item.fullPath)
+
+// 单文件直移：逐文件 movePath + 关联记录迁移，返回成功列表与失败数（同步执行，不走任务队列）
+const moveFilesDirectly = async (
+  fileItems: Array<{ fullPath: string; name: string }>,
+  destFolderPath: string
+) => {
+  const succeeded: Array<{ fullPath: string; name: string }> = []
+  let failCount = 0
+  for (const item of fileItems) {
+    try {
+      const res = await window.systemInterface.movePath(item.fullPath, destFolderPath)
+      if (!res.success) throw new Error(res.error)
+      succeeded.push(item)
+      // 文件已到位，同步迁移收藏/评分/历史等关联记录（失败不影响移动，仅记日志）
+      try {
+        await window.pathMigration.migrateByMove(item.fullPath, destFolderPath)
+      } catch (e) {
+        console.warn(`迁移关联记录失败: ${item.fullPath}`, e)
+      }
+    } catch (e) {
+      failCount++
+      console.error(`移动文件失败: ${item.fullPath}`, e)
+    }
+  }
+  return { succeeded, failCount }
+}
+
+// 单文件移动后检查各源父文件夹：父文件夹已无同类内容时提示可删除（删除逻辑与目录树右键一致）
+// 视频模块判「剩余视频文件」，漫画模块判「剩余子文件夹（作品）」
+const promptDeleteEmptyParents = async (movedFiles: Array<{ fullPath: string }>) => {
+  const normalizePath = (p: string) => p.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+  // 资源根目录不提示删除
+  const roots = new Set((props.resourcePaths || []).map(normalizePath))
+  const parents = [
+    ...new Set(movedFiles.map((f) => getParentPath(f.fullPath)).filter(Boolean))
+  ]
+  for (const parent of parents) {
+    if (roots.has(normalizePath(parent))) continue
+    let remaining = 0
+    let checkLabel = ''
+    try {
+      if (props.namespace === 'video') {
+        remaining = (await window.media.getFiles(parent, undefined, undefined, 'video')).length
+        checkLabel = '视频文件'
+      } else {
+        remaining = (await window.media.getFolderListBasic(parent)).length
+        checkLabel = '文件夹'
+      }
+    } catch (error) {
+      console.warn(`检查父文件夹剩余内容失败: ${parent}`, error)
+      continue
+    }
+    if (remaining > 0) continue
+    const name = parent.split(/[\\/]/).pop() || parent
+    const confirmed = await new Promise<boolean>((resolve) => {
+      dialog.warning({
+        title: '删除空文件夹',
+        content: () =>
+          h('div', [
+            h('p', `文件夹"${name}"中已没有其他${checkLabel}，是否删除该文件夹？`),
+            h(
+              'p',
+              { style: 'color: #e74c3c;font-weight: bold' },
+              '其中的全部文件与子文件夹将被永久删除，此操作不可撤销。'
+            )
+          ]),
+        positiveText: '删除',
+        negativeText: '保留',
+        onPositiveClick: () => resolve(true),
+        onNegativeClick: () => resolve(false),
+        onClose: () => resolve(false)
+      })
+    })
+    if (confirmed) await performFolderDelete({ name, fullPath: parent })
+  }
+}
+
+// 确认移动：文件夹作品进后台队列执行（任务面板显示进度），完成后同步迁移收藏/评分等关联记录；
+// 纯单文件移动体量小，直接同步执行不走队列，完成后检查源父文件夹是否已无视频文件
 const handleMoveConfirm = async (destFolderPath: string) => {
   const items = moveDialogObject.items
   if (!items.length) return
@@ -1841,7 +1929,18 @@ const handleMoveConfirm = async (destFolderPath: string) => {
     const confirmed = await confirmPathMigration(summary, items.length, fileCount, destFolderPath)
     if (!confirmed) return
 
-    // 加入后台任务队列：逐作品移动并迁移关联记录，任务面板显示进度
+    // 纯单文件移动：直接执行，量小无需队列
+    if (items.every(isFileCard)) {
+      moveDialogObject.moving = true
+      const { succeeded, failCount } = await moveFilesDirectly(items, destFolderPath)
+      onMoveTaskFinished(succeeded, failCount, destFolderPath, '文件', false)
+      moveDialogObject.show = false
+      toggleMultiSelectMode(false)
+      if (succeeded.length) await promptDeleteEmptyParents(succeeded)
+      return
+    }
+
+    // 文件夹（或文件+文件夹混合）移动：加入后台任务队列，逐作品移动并迁移关联记录，任务面板显示进度
     queue.addTask({
       site: 'local-move',
       title: '[文件移动] ' + (items.length > 1 ? `移动 ${items.length} 个作品` : items[0].name),
@@ -2119,8 +2218,43 @@ const cleanupDeletedFolderTags = async (folderPath: string) => {
   }
 }
 
-// 树节点删除：确认后递归删除文件夹及其全部内容（rm -rf 语义），全树剔除
+// 执行文件夹删除与全树清理：递归删除文件夹及其全部内容（rm -rf 语义），全树剔除
 // 节点、清理收藏标签后重建分组；当前浏览目录在被删子树内时切回父目录
+// （树右键删除与单文件移动后的空父文件夹提示共用）
+const performFolderDelete = async (folder: { name: string; fullPath: string }) => {
+  const success = await window.systemInterface.deleteFolder(folder.fullPath)
+  if (!success) {
+    message.error(`删除"${folder.name}"失败`)
+    return
+  }
+  message.success(`"${folder.name}"已删除`)
+  moveDialogRef.value?.invalidateCache()
+  // 全树剔除节点（含收藏分组副本），再清收藏标签、重建分组
+  removeTreeNodeEverywhere(folder.fullPath)
+  await cleanupDeletedFolderTags(folder.fullPath)
+  loadBookmarkGroup()
+  // 父节点重载一次取磁盘事实（分组安全版，不再误刷副本）
+  const parent = getParentPath(folder.fullPath)
+  if (parent) reloadTreeNodeChildren(parent)
+  // 当前浏览目录是被删节点或其子孙：切回父目录；父目录是资源根（或不存在）时不跳转，
+  // 保持原位由用户自行导航（避免删除后强制回到根节点）
+  const norm = (p: string) => p.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+  const gone = folder.fullPath.replace(/[\\/]+$/, '')
+  const cur = tree.currentKey?.replace(/[\\/]+$/, '')
+  if (
+    currentViewMode.value === 'folders' &&
+    cur &&
+    (norm(cur) === norm(gone) || norm(cur).startsWith(norm(gone) + '/'))
+  ) {
+    const parentIsRoot = (props.resourcePaths || []).some((r) => norm(r) === norm(parent))
+    if (parent && !parentIsRoot) {
+      tree.currentKey = parent
+      fetchGridData(parent)
+    }
+  }
+}
+
+// 树节点删除：确认后执行 performFolderDelete
 const confirmTreeDelete = (folder: any) => {
   dialog.warning({
     title: '删除确认',
@@ -2135,37 +2269,7 @@ const confirmTreeDelete = (folder: any) => {
       ]),
     positiveText: '确定',
     negativeText: '取消',
-    onPositiveClick: async () => {
-      const success = await window.systemInterface.deleteFolder(folder.fullPath)
-      if (!success) {
-        message.error(`删除"${folder.name}"失败`)
-        return
-      }
-      message.success(`"${folder.name}"已删除`)
-      moveDialogRef.value?.invalidateCache()
-      // 全树剔除节点（含收藏分组副本），再清收藏标签、重建分组
-      removeTreeNodeEverywhere(folder.fullPath)
-      await cleanupDeletedFolderTags(folder.fullPath)
-      loadBookmarkGroup()
-      // 父节点重载一次取磁盘事实（分组安全版，不再误刷副本）
-      const parent = getParentPath(folder.fullPath)
-      if (parent) reloadTreeNodeChildren(parent)
-      // 当前浏览目录是被删节点或其子孙：切回父目录（父不在树中则回首个根）
-      const norm = (p: string) => p.replaceAll('\\', '/').toLowerCase()
-      const gone = folder.fullPath.replace(/[\\/]+$/, '')
-      const cur = tree.currentKey?.replace(/[\\/]+$/, '')
-      if (
-        currentViewMode.value === 'folders' &&
-        cur &&
-        (norm(cur) === norm(gone) || norm(cur).startsWith(norm(gone) + '/'))
-      ) {
-        const fallback = parent || tree.data[0]?.fullPath
-        if (fallback) {
-          tree.currentKey = fallback
-          fetchGridData(fallback)
-        }
-      }
-    }
+    onPositiveClick: () => performFolderDelete(folder)
   })
 }
 

@@ -55,6 +55,8 @@ export function addTask(taskList) {
       ...task,
       id: uid(),
       status: 'pending',
+      // 入队即带空进度对象，任务卡片初始化时就渲染进度条（0%）
+      progress: task.progress || {},
       createdAt: Date.now(),
       updatedAt: Date.now()
     }))
