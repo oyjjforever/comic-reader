@@ -967,7 +967,7 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
   // 故 onClose 传空、isStillClosing 恒 false 跳过尾部回调
   const cancelOpen = () => {
     if (activeFlight === flight && flight.kind === 'disc-open') {
-      reverseDiscOpen(flight, () => {}, () => false)
+      reverseDiscOpen(flight, () => { }, () => false)
     }
   }
   clone.style.pointerEvents = 'auto'
@@ -1397,32 +1397,36 @@ export function use3DTilt(
 ) {
   let cachedRect: { left: number; top: number; width: number; height: number } | null = null
   let rafId = 0
-  let pendingEvent: MouseEvent | null = null
+  // 指数平滑：目标值（tgt*）由鼠标位置设定，当前值（cur*）逐帧向目标插值。
+  // 从卡片边缘切入时不再瞬间跳到极限倾斜，而是从中性姿态平滑滑过去；
+  // 移出后目标归零，同一循环负责回正——全程不依赖 CSS 过渡，
+  // 避开过渡逐次重启追不上光标的老坑
+  let curX = 0
+  let curY = 0
+  let tgtX = 0
+  let tgtY = 0
+  const SMOOTH = 0.3
 
-  const applyTilt = () => {
+  const frame = () => {
     rafId = 0
     const card = cardRef.value
-    const e = pendingEvent
-    pendingEvent = null
-    if (!card || !e) return
-    if (!cachedRect) {
-      const r = card.getBoundingClientRect()
-      cachedRect = { left: r.left, top: r.top, width: r.width, height: r.height }
-    }
-
-    const centerX = cachedRect.width / 2
-    const centerY = cachedRect.height / 2
-    if (!centerX || !centerY) return
-
-    const x = e.clientX - cachedRect.left
-    const y = e.clientY - cachedRect.top
-    const rotateX = ((y - centerY) / centerY) * -maxTilt
-    const rotateY = ((x - centerX) / centerX) * maxTilt
-
+    if (!card) return
+    curX += (tgtX - curX) * SMOOTH
+    curY += (tgtY - curY) * SMOOTH
     card.style.transition = 'none'
-    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(${10 - getBaseZ()}px)`
-    card.style.setProperty('--gx', `${(x / cachedRect.width) * 100}%`)
-    card.style.setProperty('--gy', `${(y / cachedRect.height) * 100}%`)
+    // translateZ 恒等于基准深度：悬浮只倾斜不抬升，透视下无放大
+    card.style.transform = `rotateX(${curX.toFixed(2)}deg) rotateY(${curY.toFixed(2)}deg) translateZ(${-getBaseZ()}px)`
+    if (Math.abs(tgtX - curX) > 0.02 || Math.abs(tgtY - curY) > 0.02) {
+      rafId = requestAnimationFrame(frame)
+    } else if (tgtX === 0 && tgtY === 0) {
+      // 回正收敛：清内联样式落回样式表基准，下帧停
+      card.style.transition = ''
+      card.style.transform = ''
+    }
+  }
+
+  const kick = () => {
+    if (!rafId) rafId = requestAnimationFrame(frame)
   }
 
   /** 进卡时缓存几何信息（需绑定 @mouseenter） */
@@ -1434,22 +1438,31 @@ export function use3DTilt(
   }
 
   const handle3DTilt = (e: MouseEvent) => {
-    pendingEvent = e
-    if (!rafId) rafId = requestAnimationFrame(applyTilt)
+    if (!cachedRect) {
+      const card = cardRef.value
+      if (!card) return
+      const r = card.getBoundingClientRect()
+      cachedRect = { left: r.left, top: r.top, width: r.width, height: r.height }
+    }
+    const centerX = cachedRect.width / 2
+    const centerY = cachedRect.height / 2
+    if (!centerX || !centerY) return
+
+    const x = e.clientX - cachedRect.left
+    const y = e.clientY - cachedRect.top
+    tgtX = ((y - centerY) / centerY) * -maxTilt
+    tgtY = ((x - centerX) / centerX) * maxTilt
+    cardRef.value?.style.setProperty('--gx', `${(x / cachedRect.width) * 100}%`)
+    cardRef.value?.style.setProperty('--gy', `${(y / cachedRect.height) * 100}%`)
+    kick()
   }
 
-  /** 鼠标移出：恢复过渡并回正 */
+  /** 鼠标移出：目标归零，由同一循环平滑回正 */
   const reset3DTilt = () => {
-    const card = cardRef.value
-    if (!card) return
-    if (rafId) {
-      cancelAnimationFrame(rafId)
-      rafId = 0
-    }
-    pendingEvent = null
+    tgtX = 0
+    tgtY = 0
     cachedRect = null
-    card.style.transition = ''
-    card.style.transform = ''
+    kick()
   }
 
   return { handleTiltEnter, handle3DTilt, reset3DTilt }
