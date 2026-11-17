@@ -142,7 +142,8 @@
     0 2px 3px rgba(0, 0, 0, 0.7),
     0 0 12px rgba(201, 169, 107, 0.35);
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: none;
+  white-space: nowrap;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
