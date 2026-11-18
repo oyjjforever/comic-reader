@@ -9,16 +9,8 @@
       </template>
       <div class="task-list">
         <div v-if="!queue.tasks.length" class="empty">暂无任务</div>
-        <div
-          v-else
-          ref="gridHostRef"
-          class="download-virtual-grid-host"
-          @wheel="markManual"
-          @pointerdown="dragStart"
-          @pointermove="dragMove"
-        >
+        <div v-else class="download-virtual-grid-host">
           <VirtualGrid
-            ref="gridRef"
             :items="queue.tasks"
             :item-width="322"
             :item-height="84"
@@ -37,19 +29,19 @@
 
                 <div class="ticket-rail">
                   <div class="tk-ring">
-                    <svg width="40" height="40" viewBox="0 0 40 40">
-                      <circle class="bg" cx="20" cy="20" r="16" />
+                    <svg width="48" height="48" viewBox="0 0 48 48">
+                      <circle class="bg" cx="24" cy="24" r="19" />
                       <circle
                         class="fg"
                         :class="statusCls(t)"
-                        cx="20"
-                        cy="20"
-                        r="16"
+                        cx="24"
+                        cy="24"
+                        r="19"
                         :stroke-dasharray="RING_C"
                         :stroke-dashoffset="ringOffset(t)"
                       />
                     </svg>
-                    <div class="pct">{{ calcPercent(t) }}</div>
+                    <div class="pct">{{ calcPercent(t) }}%</div>
                   </div>
 
                   <!-- 状态胶囊：失败悬浮错误原因（含部分成功路径），完成态悬浮保存位置，均可点击打开 -->
@@ -75,7 +67,7 @@
                   <n-tooltip
                     v-else-if="['success', 'existed'].includes(t.status) && t.localFilePath"
                     trigger="hover"
-                    placement="top"
+                    placement="top-start"
                   >
                     <template #trigger>
                       <span
@@ -87,7 +79,7 @@
                       </span>
                     </template>
                     <div class="tt-body">
-                      <span class="tt-label">下载位置（点击打开）</span>
+                      <span class="tt-label">下载位置</span>
                       <span class="tt-path" @click="onOpenLocalFile(t.localFilePath)">
                         {{ t.localFilePath }}
                       </span>
@@ -107,7 +99,11 @@
                   </div>
                   <div class="t-bar-row">
                     <div class="t-track">
-                      <div class="t-fill" :class="statusCls(t)" :style="{ width: calcPercent(t) + '%' }"></div>
+                      <div
+                        class="t-fill"
+                        :class="statusCls(t)"
+                        :style="{ width: calcPercent(t) + '%' }"
+                      ></div>
                     </div>
                     <div class="t-acts-slot">
                       <n-button
@@ -184,77 +180,6 @@
 import VirtualGrid from './virtual-grid.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 
-const gridRef = ref()
-const gridHostRef = ref<HTMLElement>()
-
-// ===== 自动追踪下载中卡片：仅用户浏览静默期生效 =====
-// 手动浏览 = 滚轮滚动 / 在列表上按住拖动（滚动条）；静默 3s 后恢复自动追踪，
-// 期间下载任务切换了就改追最新的 running
-const MANUAL_IDLE_MS = 3000
-let manualUntil = 0
-let listDragging = false
-let trackTimer = 0
-
-function markManual() {
-  manualUntil = Date.now() + MANUAL_IDLE_MS
-}
-function dragStart() {
-  listDragging = true
-  markManual()
-}
-function dragMove(e: PointerEvent) {
-  if (listDragging && e.movementY) markManual()
-}
-
-const currentRunningId = () => queue.tasks.find((t) => t.status === 'running')?.id
-
-/** 滚动到正在下载的卡片（已可见时不动；虚拟化离屏时按索引定位） */
-function scrollRunningIntoView(taskId: string) {
-  const host = gridHostRef.value
-  if (!host || !taskId) return
-  const card = host.querySelector(`[data-task-id="${CSS.escape(taskId)}"]`)
-  if (card) {
-    const r = card.getBoundingClientRect()
-    const h = host.getBoundingClientRect()
-    if (r.bottom <= h.bottom && r.top >= h.top) return
-  }
-  const idx = queue.tasks.findIndex((t) => t.id === taskId)
-  if (idx >= 0) gridRef.value?.scrollToIndex(idx)
-}
-
-function trackRunning(taskId?: string) {
-  if (!taskId) return
-  clearTimeout(trackTimer)
-  const attempt = () => {
-    if (Date.now() < manualUntil) {
-      trackTimer = window.setTimeout(
-        () => trackRunning(currentRunningId()),
-        manualUntil - Date.now() + 200
-      )
-      return
-    }
-    void nextTick(() => scrollRunningIntoView(taskId))
-  }
-  attempt()
-}
-
-watch(currentRunningId, (id) => trackRunning(id), { immediate: true })
-
-let detachWindowListeners: (() => void) | null = null
-onMounted(() => {
-  const up = () => (listDragging = false)
-  window.addEventListener('pointerup', up)
-  window.addEventListener('pointercancel', up)
-  detachWindowListeners = () => {
-    window.removeEventListener('pointerup', up)
-    window.removeEventListener('pointercancel', up)
-  }
-})
-onUnmounted(() => {
-  detachWindowListeners?.()
-  clearTimeout(trackTimer)
-})
-
 function statusLabel(s: string, t?: any) {
   // 本地移动任务运行中显示"移动中"
   if (t?.site === 'local-move' && s === 'running') return '移动中'
@@ -302,7 +227,7 @@ function siteIcon(site: string): string | undefined {
 
 // ===== 车票卡片进度 =====
 const DONE_STATUS = ['success', 'error', 'existed']
-const RING_R = 16
+const RING_R = 19
 const RING_C = (2 * Math.PI * RING_R).toFixed(2)
 
 function calcPercent(t: any) {
@@ -353,7 +278,12 @@ function onOpenLocalFile(path) {
   bottom: 5px !important;
   right: 6px !important;
   border-radius: 16px !important;
-  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%, transparent 50%),
+  background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 100%,
+      transparent 50%
+    ),
     rgba(255, 255, 255, 0.78) !important;
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -388,7 +318,7 @@ function onOpenLocalFile(path) {
     border-bottom: 1px solid rgba(74, 70, 86, 0.12) !important;
   }
 
-  // 暗色滚动条：橙色胶囊滑块，槽完全透明
+  // 灰黑色滚动条：胶囊滑块，槽完全透明
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -396,12 +326,12 @@ function onOpenLocalFile(path) {
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 146, 5, 0.45);
+    background: rgba(31, 28, 40, 0.35);
     border-radius: 8px;
-    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 
     &:hover {
-      background: rgba(255, 146, 5, 0.7);
+      background: rgba(31, 28, 40, 0.55);
     }
   }
 
@@ -452,7 +382,7 @@ function onOpenLocalFile(path) {
 // 车票任务卡片
 // ============================================================
 .ticket {
-  --hole: #E1DDDB; // 打孔色 ≈ 抽屉玻璃底合成色
+  --hole: #e1dddb; // 打孔色 ≈ 抽屉玻璃底合成色
   position: relative;
   display: flex;
   width: 100%;
@@ -466,13 +396,16 @@ function onOpenLocalFile(path) {
     box-shadow 0.2s ease,
     border-color 0.2s;
   overflow: hidden;
+  // 卡片整体禁止框选（标题/统计数字等纯展示，拖动选择无意义且误触率高）
+  user-select: none;
+  -webkit-user-select: none;
 
   &:hover {
     transform: translateY(-1px);
     border-color: rgba(255, 146, 5, 0.55);
     box-shadow:
-      0 8px 20px -8px rgba(255, 146, 5, 0.45),
-      0 2px 6px -2px rgba(31, 28, 40, 0.12);
+      0 8px 20px -8px rgba(31, 28, 40, 0.45),
+      0 2px 6px -2px rgba(31, 28, 40, 0.18);
   }
 }
 
@@ -524,7 +457,9 @@ function onOpenLocalFile(path) {
   color: #3d3949;
   opacity: 0.15;
   transform: rotate(-12deg);
-  transition: opacity 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.5s ease;
 
   img {
     width: 100%;
@@ -533,8 +468,10 @@ function onOpenLocalFile(path) {
     display: block;
   }
 }
+// 悬浮时角度回正一点（-12° → -6°，右侧上抬的微「掀起」感）
 .ticket:hover .watermark {
   opacity: 0.22;
+  transform: rotate(-6deg);
 }
 
 // ===== 左侧票根：圆环进度 + 状态胶囊 =====
@@ -550,15 +487,14 @@ function onOpenLocalFile(path) {
   justify-content: center;
   gap: 4px;
   padding: 8px 4px;
-  background:
-    repeating-linear-gradient(0deg, rgba(255, 146, 5, 0.04) 0 1px, transparent 1px 4px),
+  background: repeating-linear-gradient(0deg, rgba(255, 146, 5, 0.04) 0 1px, transparent 1px 4px),
     rgba(255, 250, 240, 0.55);
   border-radius: 12px 0 0 12px;
 }
 .tk-ring {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
 }
 .tk-ring svg {
@@ -602,11 +538,11 @@ function onOpenLocalFile(path) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #3d3949;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.4px;
 }
 
 .rail-status {

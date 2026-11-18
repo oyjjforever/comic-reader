@@ -5,7 +5,7 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-// 车票号：入队时分配的自增序号，任务卡片右上角 NO.xxxx（与排序无关，终身不变）
+// 车票号：入队时分配的自增序号，任务卡片右上角 NO.xxxx，同时作为 FIFO 排序键（终身不变）
 let serialSeed = 0
 
 export const tasks = reactive([])
@@ -17,25 +17,13 @@ function findNextPending() {
 }
 
 function sortTasks() {
-  // 失败置顶（醒目可重试）；活跃组（下载中/队列中/已暂停）合并为一个 FIFO
-  // 序列——暂停/恢复只是状态变化，卡片位置不再跳动；已结束组沉底、较新靠前
-  const weight = {
-    error: 0,
-    running: 1,
-    pending: 1,
-    paused: 1,
-    existed: 2,
-    canceled: 2,
-    success: 2
-  }
-  const wOf = (s) => weight[s] ?? 3
+  // 失败置顶（醒目可重试），其余严格 FIFO：按入队序（serial 自增）排列，
+  // 暂停/恢复/完成等状态变化不再移动卡片位置（同毫秒入队的批次靠 serial 稳定区分）
   tasks.sort((a, b) => {
-    const w = wOf(a.status) - wOf(b.status)
-    if (w !== 0) return w
-    // 活跃组按入队先后（FIFO：先加入先下载，恢复/重试按原入队时间归位）；
-    // 失败/已结束组较新靠前（新失败/新完成更醒目）
-    if (wOf(a.status) === 1) return a.createdAt - b.createdAt
-    return b.createdAt - a.createdAt
+    const ea = a.status === 'error' ? 0 : 1
+    const eb = b.status === 'error' ? 0 : 1
+    if (ea !== eb) return ea - eb
+    return a.serial - b.serial
   })
 }
 
@@ -98,7 +86,8 @@ function formatTaskError(e, context) {
   const raw = String((e && e.message) || e || '').trim()
   let friendly = raw
   if (/已存在/.test(raw)) friendly = raw
-  else if (/timeout|timed\s*out|ETIMEDOUT/i.test(raw)) friendly = '请求超时，网络不通或站点长时间无响应'
+  else if (/timeout|timed\s*out|ETIMEDOUT/i.test(raw))
+    friendly = '请求超时，网络不通或站点长时间无响应'
   else if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(raw)) friendly = '域名解析失败，请检查网络连接'
   else if (/ECONNRESET|ECONNREFUSED|ECONNABORTED|socket hang up|network/i.test(raw))
     friendly = '网络连接中断或被站点拒绝'
@@ -701,7 +690,9 @@ async function runPornhub(task) {
           totalSegments = progress.total
           updateTask(task, { progress: { success: 0, fail: 0, total: totalSegments } })
         } else if (progress.type === 'download_progress') {
-          updateTask(task, { progress: { success: progress.current, fail: 0, total: progress.total } })
+          updateTask(task, {
+            progress: { success: progress.current, fail: 0, total: progress.total }
+          })
         } else if (progress.type === 'mp4_progress') {
           // value 统一为 0-100 百分比口径（与 pixiv 动图/twitter 视频/本地移动一致）
           updateTask(task, { progress: { value: progress.percent || 0, total: 1 } })
@@ -859,7 +850,14 @@ async function runYfantasy(task) {
 }
 
 async function run4khd(task) {
-  const { images: loadedImages = [], url, maxPage = 1, pagesLoaded = 1, title, baseDir } = task.payload
+  const {
+    images: loadedImages = [],
+    url,
+    maxPage = 1,
+    pagesLoaded = 1,
+    title,
+    baseDir
+  } = task.payload
   let stage = '准备下载'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
@@ -1159,7 +1157,7 @@ export const queue = {
 // 直接 push（不走 addTask/startRunner），runner 不会被触发；
 // pending 演示用未知 site「demo-queue」，即便日后被 runner 捡起也只走兜底报错分支
 // ============================================================
-const SEED_DEMO = true
+const SEED_DEMO = false
 if (SEED_DEMO) {
   const demo = [
     {
