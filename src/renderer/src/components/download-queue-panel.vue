@@ -4,23 +4,31 @@
       <template #header>
         <div class="drawer-header">
           <span>任务队列</span>
-          <n-button size="tiny" quaternary @click="onClearFinished">清除已完成</n-button>
+          <n-button size="tiny" quaternary @click="onClearFinished">清除已结束</n-button>
         </div>
       </template>
       <div class="task-list">
         <div v-if="!queue.tasks.length" class="empty">暂无任务</div>
-        <VirtualGrid
+        <div
           v-else
-          :items="queue.tasks"
-          :item-width="322"
-          :item-height="90"
-          :gap="8"
-          key-field="id"
-          :overscan="2"
-          class="download-virtual-grid"
+          ref="gridHostRef"
+          class="download-virtual-grid-host"
+          @wheel="markManual"
+          @pointerdown="dragStart"
+          @pointermove="dragMove"
         >
+          <VirtualGrid
+            ref="gridRef"
+            :items="queue.tasks"
+            :item-width="322"
+            :item-height="104"
+            :gap="8"
+            key-field="id"
+            :overscan="2"
+            class="download-virtual-grid"
+          >
           <template #default="{ item: t }">
-            <div class="task-item">
+            <div class="task-item" :data-task-id="t.id">
               <div class="task-main">
                 <div class="title">
                   <img v-if="siteIcon(t.site)" :src="siteIcon(t.site)" class="site-icon" />
@@ -111,7 +119,7 @@
                 </div>
               </div>
               <div class="progress-text">
-                <template v-if="['success', 'running'].includes(t.status) && t.progress">
+                <template v-if="['success', 'running', 'paused'].includes(t.status) && t.progress">
                   <div style="color: green">{{ t.progress.success || 0 }}</div>
                   /
                   <div style="color: red">{{ t.progress.fail || 0 }}</div>
@@ -131,7 +139,11 @@
                     </span>
                   </div>
                 </template>
-                <div v-if="t.status === 'error' && t.errorMessage" class="error-msg">
+                <div
+                  v-if="t.status === 'error' && t.errorMessage"
+                  class="error-msg"
+                  :title="t.errorMessage"
+                >
                   {{ t.errorMessage }}
                 </div>
                 <n-ellipsis v-if="t.localFilePath" style="max-width: 100%; cursor: pointer">
@@ -140,7 +152,8 @@
               </div>
             </div>
           </template>
-        </VirtualGrid>
+          </VirtualGrid>
+        </div>
       </div>
     </n-drawer-content>
   </n-drawer>
@@ -150,6 +163,77 @@
 import VirtualGrid from './virtual-grid.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
 
+const gridRef = ref()
+const gridHostRef = ref<HTMLElement>()
+
+// ===== 自动追踪下载中卡片：仅用户浏览静默期生效 =====
+// 手动浏览 = 滚轮滚动 / 在列表上按住拖动（滚动条）；静默 3s 后恢复自动追踪，
+// 期间下载任务切换了就改追最新的 running
+const MANUAL_IDLE_MS = 3000
+let manualUntil = 0
+let listDragging = false
+let trackTimer = 0
+
+function markManual() {
+  manualUntil = Date.now() + MANUAL_IDLE_MS
+}
+function dragStart() {
+  listDragging = true
+  markManual()
+}
+function dragMove(e: PointerEvent) {
+  if (listDragging && e.movementY) markManual()
+}
+
+const currentRunningId = () => queue.tasks.find((t) => t.status === 'running')?.id
+
+/** 滚动到正在下载的卡片（已可见时不动；虚拟化离屏时按索引定位） */
+function scrollRunningIntoView(taskId: string) {
+  const host = gridHostRef.value
+  if (!host || !taskId) return
+  const card = host.querySelector(`[data-task-id="${CSS.escape(taskId)}"]`)
+  if (card) {
+    const r = card.getBoundingClientRect()
+    const h = host.getBoundingClientRect()
+    if (r.bottom <= h.bottom && r.top >= h.top) return
+  }
+  const idx = queue.tasks.findIndex((t) => t.id === taskId)
+  if (idx >= 0) gridRef.value?.scrollToIndex(idx)
+}
+
+function trackRunning(taskId?: string) {
+  if (!taskId) return
+  clearTimeout(trackTimer)
+  const attempt = () => {
+    if (Date.now() < manualUntil) {
+      trackTimer = window.setTimeout(
+        () => trackRunning(currentRunningId()),
+        manualUntil - Date.now() + 200
+      )
+      return
+    }
+    void nextTick(() => scrollRunningIntoView(taskId))
+  }
+  attempt()
+}
+
+watch(currentRunningId, (id) => trackRunning(id), { immediate: true })
+
+let detachWindowListeners: (() => void) | null = null
+onMounted(() => {
+  const up = () => (listDragging = false)
+  window.addEventListener('pointerup', up)
+  window.addEventListener('pointercancel', up)
+  detachWindowListeners = () => {
+    window.removeEventListener('pointerup', up)
+    window.removeEventListener('pointercancel', up)
+  }
+})
+onUnmounted(() => {
+  detachWindowListeners?.()
+  clearTimeout(trackTimer)
+})
+
 function statusLabel(s: string, t?: any) {
   // 本地移动任务运行中显示"移动中"
   if (t?.site === 'local-move' && s === 'running') return '移动中'
@@ -158,7 +242,7 @@ function statusLabel(s: string, t?: any) {
     running: '下载中',
     paused: '已暂停',
     success: '已完成',
-    error: '错误',
+    error: '失败',
     canceled: '已取消',
     existed: '已存在'
   }
@@ -431,11 +515,24 @@ function onOpenLocalFile(path) {
   gap: 6px;
 }
 .error-msg {
-  color: #d64545;
-  max-width: 60%;
+  color: #b03a3a;
+  background: rgba(214, 69, 69, 0.1);
+  border: 1px solid rgba(214, 69, 69, 0.18);
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin-top: 4px;
+  max-width: 100%;
+  flex-basis: 100%;
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 16px;
+  word-break: break-all;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: help;
 }
 .move-percent {
   margin-left: 12px;
@@ -464,6 +561,11 @@ function onOpenLocalFile(path) {
 }
 
 /* 虚拟列表样式 */
+.download-virtual-grid-host {
+  flex: 1;
+  min-height: 0;
+}
+
 .download-virtual-grid {
   height: 100%;
   width: 100%;

@@ -26,7 +26,9 @@ function sortTasks() {
   tasks.sort((a, b) => {
     const w = weight[a.status] - weight[b.status]
     if (w !== 0) return w
-    // 同一分组内按创建时间排序，较新靠前
+    // 排队组按入队先后（FIFO：先加入先下载，恢复/重试的任务按原入队时间归位）；
+    // 其余组较新靠前（新失败/新完成更醒目）
+    if (a.status === 'pending') return a.createdAt - b.createdAt
     return b.createdAt - a.createdAt
   })
 }
@@ -66,17 +68,62 @@ export function addTask(taskList) {
   startRunner()
 }
 
+/** 撤掉主进程仍在跑的底层下载：取消/删除/暂停运行中任务、看门狗跳过时立即止血，
+ *  不再等下一个进度事件才生效（pornhub/huangguo 的取消链路原先依赖事件驱动） */
+function killRemoteDownload(t) {
+  try {
+    if (t.site === 'pornhub') pornhub.cancelDownload?.()
+    else if (t.site === 'huangguo') huangguo.cancelDownload?.()
+  } catch (e) {
+    console.warn('中止底层下载失败:', e)
+  }
+}
+
+// 暂停/取消的中止检查：抛错打断执行，由各 runner 的 catch 按 _pause/_cancel 标记收尾
+function abortIfRequested(task) {
+  if (task._cancel) throw new Error('任务已取消')
+  if (task._pause) throw new Error('任务已暂停')
+}
+
+/** 归一化错误信息：常见底层错误翻译为可读中文，原始信息有增量时附在括号里，
+ *  供用户在任务卡片上直接看懂失败原因（context 为阶段前缀，如"获取章节图片失败"） */
+function formatTaskError(e, context) {
+  const raw = String((e && e.message) || e || '').trim()
+  let friendly = raw
+  if (/已存在/.test(raw)) friendly = raw
+  else if (/timeout|timed\s*out|ETIMEDOUT/i.test(raw)) friendly = '请求超时，网络不通或站点长时间无响应'
+  else if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(raw)) friendly = '域名解析失败，请检查网络连接'
+  else if (/ECONNRESET|ECONNREFUSED|ECONNABORTED|socket hang up|network/i.test(raw))
+    friendly = '网络连接中断或被站点拒绝'
+  else if (/\b40[13]\b|unauthorized|forbidden|cookie|登录/i.test(raw))
+    friendly = '鉴权失败，登录态/Cookie 可能已过期，请到站点页面重新登录'
+  else if (/\b404\b|not found|不存在/i.test(raw)) friendly = '资源不存在，地址可能已失效或已删除'
+  else if (/\b5\d{2}\b|internal server|bad gateway|service unavailable/i.test(raw))
+    friendly = '站点服务器错误，稍后重试'
+  else if (/EPERM|EACCES|EISDIR|ENOSPC|no space|权限/i.test(raw))
+    friendly = '写入失败，请检查目录权限或磁盘剩余空间'
+  else if (!raw) friendly = '未知错误'
+  const detail = raw && raw !== friendly ? `（${raw}）` : ''
+  return context ? `${context}：${friendly}${detail}` : `${friendly}${detail}`
+}
+
 export function pauseTask(id) {
   const t = tasks.find((x) => x.id === id)
   if (!t) return
   t._pause = true
-  if (t.status === 'running') updateTask(t, { status: 'paused' })
+  // 暂停 = 中止当前执行（runner 收尾为 paused），恢复时重跑、逐项已存在跳过；
+  // pending 直接置 paused（runner 只捡 pending，不会被覆盖为 running）
+  if (t.status === 'running' || t.status === 'pending') {
+    if (t.status === 'running') killRemoteDownload(t)
+    updateTask(t, { status: 'paused' })
+  }
 }
 
 export function resumeTask(id) {
   const t = tasks.find((x) => x.id === id)
   if (!t) return
   t._pause = false
+  t._cancel = false
   if (t.status === 'paused') updateTask(t, { status: 'pending', errorMessage: undefined })
   startRunner()
 }
@@ -100,37 +147,43 @@ export function cancelTask(id) {
   const t = tasks.find((x) => x.id === id)
   if (!t) return
   t._cancel = true
-  if (t.status === 'running' || t.status === 'paused') updateTask(t, { status: 'canceled' })
+  // pending 一并处理：不改状态的话任务仍会被 runner 捡起并执行前置请求
+  if (['pending', 'running', 'paused'].includes(t.status)) {
+    if (t.status === 'running') killRemoteDownload(t)
+    updateTask(t, { status: 'canceled' })
+  }
 }
 
 export function deleteTask(id) {
   const idx = tasks.findIndex((x) => x.id === id)
   if (idx !== -1) {
-    // 若在运行，先标记取消
+    // 若在运行，先止血并标记取消（飞行中的请求有界，落地后自行退出）
+    killRemoteDownload(tasks[idx])
     tasks[idx]._cancel = true
     tasks.splice(idx, 1)
     reportActiveDownloads()
   }
 }
 export function clearCompletedTask() {
-  tasks.filter((t) => ['success', 'existed'].includes(t.status)).map((t) => deleteTask(t.id))
-}
-async function waitWhilePaused(task) {
-  while (task._pause && !task._cancel) {
-    await new Promise((r) => setTimeout(r, 300))
-  }
+  // 已结束的任务统一清理（成功/已存在/失败/已取消），活跃（排队/运行/暂停）不动
+  tasks
+    .filter((t) => ['success', 'existed', 'error', 'canceled'].includes(t.status))
+    .map((t) => deleteTask(t.id))
 }
 
-// 通用并发执行器：按 limit 并发处理 items，支持暂停/取消与进度回调
+// 通用并发执行器：按 limit 并发处理 items。暂停/取消为"中止执行"而非挂起——
+// worker 在 item 之间检查标记并抛错退出，恢复时由 runner 重跑、配合逐项已存在
+// 跳过避免重复下载；进度回调 100ms 节流（updateTask 触发全队列排序，高频事件
+// 会拖垮渲染），全部完成时必发一次最终值
 async function runWithConcurrency(items, task, onItem, onProgress) {
   const limit = 20
   let next = 0
   let success = 0,
     fail = 0
+  let lastProgressAt = 0
   async function worker() {
     while (true) {
-      if (task._cancel) throw new Error('任务已取消')
-      await waitWhilePaused(task)
+      abortIfRequested(task)
       const i = next
       if (i >= items.length) break
       next++
@@ -142,9 +195,12 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
           break
         } catch (e) {
           lastError = e
+          // 暂停/取消时不再进入重试退避，尽快退出
+          if (task._cancel || task._pause) break
           if (attempt < 5) {
             console.log(`🚀 ~ worker ~ retry ${attempt}/5 for item ${i}:`, e)
             await new Promise((r) => setTimeout(r, 1000 * attempt))
+            if (task._cancel || task._pause) break
           }
         }
       }
@@ -154,13 +210,18 @@ async function runWithConcurrency(items, task, onItem, onProgress) {
       } else {
         success++
       }
-      onProgress?.(success, fail, items.length)
+      const now = Date.now()
+      if (now - lastProgressAt >= 100 || success + fail === items.length) {
+        lastProgressAt = now
+        onProgress?.(success, fail, items.length)
+      }
     }
   }
   const workers = Array(Math.min(limit, items.length))
     .fill(0)
     .map(() => worker())
   await Promise.all(workers)
+  return { success, fail }
 }
 async function isPathExists(path, task) {
   if (await file.pathExists(path)) {
@@ -184,8 +245,7 @@ async function runLocalMove(task) {
     fail = 0
   const succeededItems = []
   for (const item of items) {
-    if (task._cancel) break
-    await waitWhilePaused(task)
+    if (task._cancel || task._pause) break
     // 当前作品字节进度折算进总进度：value = (已完成作品数 + 当前作品复制比例) / 总数
     const onProgress = (p) => {
       const frac = p.totalBytes > 0 ? Math.min(1, p.bytes / p.totalBytes) : 0
@@ -235,6 +295,9 @@ async function runLocalMove(task) {
   }
   if (task._cancel) {
     updateTask(task, { status: 'canceled' })
+  } else if (task._pause) {
+    // 暂停：已完成项的移动与记录迁移均已落地，恢复时重跑（幂等跳过已移项）
+    updateTask(task, { status: 'paused' })
   } else if (fail === 0) {
     updateTask(task, {
       status: 'success',
@@ -249,7 +312,10 @@ async function runLocalMove(task) {
       }
     })
   } else if (success === 0) {
-    updateTask(task, { status: 'error', errorMessage: items.find((i) => i.error)?.error })
+    updateTask(task, {
+      status: 'error',
+      errorMessage: formatTaskError(items.find((i) => i.error)?.error, '作品移动失败')
+    })
   } else {
     updateTask(task, {
       status: 'error',
@@ -261,18 +327,24 @@ async function runLocalMove(task) {
 }
 async function runJmtt(task) {
   const { chapter, comicInfo, baseDir } = task.payload
+  // 阶段标记：错误信息里指明失败发生在哪一步
+  let stage = '准备下载'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}\\${file.simpleSanitize(comicInfo.author)}\\${file.simpleSanitize(comicInfo.name)}`
     const chapterFolder =
       (comicInfo.chapter_infos?.length || 0) > 1 ? `${workDir}/第${chapter.index}章` : workDir
     await isPathExists(chapterFolder, task)
+    stage = '获取章节图片'
     const images = await jmtt.getChapterImages(chapter.id)
-    await runWithConcurrency(
+    stage = '下载章节图片'
+    const { fail } = await runWithConcurrency(
       images,
       task,
       async (_img, i) => {
         const savePath = `${chapterFolder}\\${i.toString().padStart(5, '0')}.webp`
+        // 逐项已存在跳过：暂停恢复/重试重跑时不重复下载
+        if (await file.pathExists(savePath)) return
         await jmtt.downloadImage(savePath, images[i])
       },
       (success, fail, total) => {
@@ -286,6 +358,16 @@ async function runJmtt(task) {
         task.onSuccess?.()
       }
     )
+    if (fail > 0) {
+      // 部分图片失败：明确置为失败并说明数量（重试时逐项已存在跳过、只补失败部分）
+      updateTask(task, {
+        from: 'jmtt',
+        status: 'error',
+        errorMessage: `${fail}/${images.length} 张图片下载失败，重试只会补下失败部分`,
+        localFilePath: chapterFolder
+      })
+      return
+    }
     updateTask(task, { from: 'jmtt', status: 'success', localFilePath: chapterFolder })
 
     // 保存到下载历史
@@ -296,24 +378,32 @@ async function runJmtt(task) {
       // 取消不提示
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   } finally {
-    // 章间暂停 5s 避免频繁请求
-    await new Promise((r) => setTimeout(r, 5000))
+    // 章间暂停 5s 避免频繁请求（中止/暂停退出时跳过，不占用执行器）
+    if (!task._cancel && !task._pause) {
+      await new Promise((r) => setTimeout(r, 5000))
+    }
   }
 }
 
 async function runPixiv(task) {
   const { artworkId, artworkInfo, baseDir } = task.payload
+  let stage = '准备下载'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}\\${file.simpleSanitize(artworkInfo.author)}\\${file.simpleSanitize(artworkInfo.title)}`
     // 动图下载
     if (artworkInfo.illustType === 2) {
       await isPathExists(`${workDir}\\${artworkId}.mp4`, task)
+      stage = '下载动图'
       updateTask(task, { progress: { total: 1 } })
       try {
         await pixiv.downloadGif(artworkId, workDir, (value) => {
@@ -335,7 +425,8 @@ async function runPixiv(task) {
         throw new Error(`${workDir} [${artworkId}] 已存在`)
       }
       const images = await pixiv.getArtworkImages(artworkId)
-      await runWithConcurrency(
+      stage = '下载作品图片'
+      const { fail } = await runWithConcurrency(
         images.map((_) => _.urls.original),
         task,
         async (url, i) => {
@@ -348,6 +439,16 @@ async function runPixiv(task) {
           task.onSuccess?.()
         }
       )
+      if (fail > 0) {
+        // 部分图片失败：明确置为失败并说明数量（重试时逐项已存在跳过、只补失败部分）
+        updateTask(task, {
+          from: 'pixiv',
+          status: 'error',
+          errorMessage: `${fail}/${images.length} 张图片下载失败，重试只会补下失败部分`,
+          localFilePath: workDir
+        })
+        return
+      }
     }
     updateTask(task, { from: 'pixiv', status: 'success', localFilePath: workDir })
   } catch (e) {
@@ -357,15 +458,20 @@ async function runPixiv(task) {
       // 取消不提示
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   }
 }
 
 async function runTwitter(task) {
   const { author, userId, baseDir, artworkInfo, videoUrl } = task.payload
+  let stage = '准备下载'
   try {
     let workDir
     updateTask(task, { status: 'running', errorMessage: undefined })
@@ -373,6 +479,8 @@ async function runTwitter(task) {
     if (videoUrl) {
       workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${task.payload.twitterId}.mp4`
       await isPathExists(workDir, task)
+      abortIfRequested(task)
+      stage = '下载视频'
       task.type = 'video'
       try {
         await twitter.downloadImage(videoUrl, workDir, (value) => {
@@ -389,6 +497,8 @@ async function runTwitter(task) {
     else if (artworkInfo) {
       workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${file.simpleSanitize(artworkInfo.title)}`
       await isPathExists(workDir, task)
+      abortIfRequested(task)
+      stage = '下载图片'
       await twitter.downloadImage(artworkInfo.url, workDir)
       updateTask(task, { progress: { success: 1, total: 1 } })
       task.onSuccess?.()
@@ -398,7 +508,9 @@ async function runTwitter(task) {
       workDir = `${baseDir}\\${file.simpleSanitize(author)}`
       let images = [],
         cursor = null
+      stage = '获取媒体列表'
       while (true) {
+        abortIfRequested(task)
         const res = await twitter.getMediaPerPage(userId, cursor, 50)
         const _images = twitter.extractItemsFromJson(res)
         cursor = twitter.extractBottomCursorValues(res)
@@ -407,7 +519,8 @@ async function runTwitter(task) {
         if (!_images || _images.length < 20) break
       }
       if (!images.length) throw new Error('未解析到可下载的媒体')
-      await runWithConcurrency(
+      stage = '下载媒体'
+      const { fail } = await runWithConcurrency(
         images,
         task,
         async (image, _i) => {
@@ -421,6 +534,15 @@ async function runTwitter(task) {
           task.onSuccess?.()
         }
       )
+      if (fail > 0) {
+        updateTask(task, {
+          from: 'twitter',
+          status: 'error',
+          errorMessage: `${fail}/${images.length} 个媒体下载失败，重试只会补下失败部分`,
+          localFilePath: workDir
+        })
+        return
+      }
     }
     updateTask(task, { from: 'twitter', status: 'success', localFilePath: workDir })
   } catch (e) {
@@ -429,20 +551,27 @@ async function runTwitter(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   }
 }
 async function runWeibo(task) {
   const { author, userId, baseDir, artworkInfo, videoUrl } = task.payload
+  let stage = '准备下载'
   try {
     let workDir
     updateTask(task, { status: 'running', errorMessage: undefined })
     if (artworkInfo) {
       workDir = `${baseDir}\\${file.simpleSanitize(author)}\\${file.simpleSanitize(artworkInfo.title)}.jpg`
       await isPathExists(workDir, task)
+      abortIfRequested(task)
+      stage = '下载图片'
       await weibo.downloadImage(artworkInfo.url, workDir)
       updateTask(task, { progress: { success: 1, total: 1 } })
       task.onSuccess?.()
@@ -453,7 +582,9 @@ async function runWeibo(task) {
       await isPathExists(workDir, task)
       let images = [],
         cursor = null
+      stage = '获取媒体列表'
       while (true) {
+        abortIfRequested(task)
         const res = await weibo.getMediaPerPage(userId, cursor)
         const _images = res.data.list.filter((_) => _.pid)
         cursor = res.data.since_id
@@ -462,12 +593,15 @@ async function runWeibo(task) {
         if (!cursor) break
       }
       if (!images.length) throw new Error('未解析到可下载的媒体')
-      await runWithConcurrency(
+      stage = '下载媒体'
+      const { fail } = await runWithConcurrency(
         images,
         task,
         async (image, _i) => {
           const fileName = file.simpleSanitize(image.title || `unknow_${_i}.jpg`)
           const savePath = `${workDir}\\${fileName}`
+          // 逐项已存在跳过：暂停恢复/重试重跑时不重复下载
+          if (await file.pathExists(savePath)) return
           await weibo.downloadImage(image.pid, savePath)
         },
         (success, fail, total) => {
@@ -475,6 +609,15 @@ async function runWeibo(task) {
           task.onSuccess?.()
         }
       )
+      if (fail > 0) {
+        updateTask(task, {
+          from: 'weibo',
+          status: 'error',
+          errorMessage: `${fail}/${images.length} 个媒体下载失败，重试只会补下失败部分`,
+          localFilePath: workDir
+        })
+        return
+      }
     }
     updateTask(task, { from: 'weibo', status: 'success', localFilePath: workDir })
   } catch (e) {
@@ -483,20 +626,26 @@ async function runWeibo(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   }
 }
 async function runPornhub(task) {
   let { videoUrl, format, quality, fileName } = task.payload
   const { pageUrl, baseDir } = task.payload
+  let stage = '准备下载'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
 
     // 批量任务入队时未解析直链：下载开始时再解析（避免 token 过期）
     if (!videoUrl) {
+      stage = '解析视频地址'
       const info = await pornhub.getVideoInfo(pageUrl)
       if (!info?.success || !info.sources?.length) {
         throw new Error(info?.error || '未解析到播放地址')
@@ -507,6 +656,8 @@ async function runPornhub(task) {
       quality = best.quality || 0
       fileName = fileName || [info.uploader, info.title].filter(Boolean).join('--')
     }
+    abortIfRequested(task)
+    stage = '下载视频'
 
     const safeName = file.simpleSanitize(fileName || `pornhub_${Date.now()}`)
     // 批量下载时按用户名建子目录（downloadPath/<用户名>/<文件名>），单个下载直接存根目录
@@ -528,8 +679,8 @@ async function runPornhub(task) {
     let unsubscribe = () => {}
     try {
       unsubscribe = pornhub.onProgress((progress) => {
-        if (task._cancel) {
-          // 任务被取消：主动中断底层下载，令 startDownload 抛错走取消收尾
+        if (task._cancel || task._pause) {
+          // 任务被取消/暂停：主动中断底层下载，令 startDownload 抛错走收尾
           pornhub.cancelDownload?.()
           return
         }
@@ -584,27 +735,34 @@ async function runPornhub(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   }
 }
 
 async function runPicaman(task) {
   const { comicInfo, baseDir } = task.payload
+  let stage = '下载图片'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}\\${file.simpleSanitize(comicInfo.author)}\\${file.simpleSanitize(comicInfo.title || 'unknown')}`
     await isPathExists(workDir, task)
     const images = comicInfo.imgList || []
     if (!images.length) throw new Error('未找到可下载的图片')
-    await runWithConcurrency(
+    const { fail } = await runWithConcurrency(
       images,
       task,
       async (img, i) => {
         const ext = img.url.split('.').pop() || 'jpg'
         const savePath = `${workDir}\\${i.toString().padStart(5, '0')}.${ext}`
+        // 逐项已存在跳过：暂停恢复/重试重跑时不重复下载
+        if (await file.pathExists(savePath)) return
         await picaman.downloadImage(savePath, img.url)
       },
       (success, fail, total) => {
@@ -618,6 +776,15 @@ async function runPicaman(task) {
         task.onSuccess?.()
       }
     )
+    if (fail > 0) {
+      updateTask(task, {
+        from: 'picaman',
+        status: 'error',
+        errorMessage: `${fail}/${images.length} 张图片下载失败，重试只会补下失败部分`,
+        localFilePath: workDir
+      })
+      return
+    }
     updateTask(task, { from: 'picaman', status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ runPicaman ~ e:', e)
@@ -625,26 +792,33 @@ async function runPicaman(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   }
 }
 
 async function runYfantasy(task) {
   const { segments, title, baseDir } = task.payload
+  let stage = '下载视频片段'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}\\${file.simpleSanitize(title)}`
     if (!segments || !segments.length) throw new Error('无可下载的片段')
-    await runWithConcurrency(
+    const { fail } = await runWithConcurrency(
       segments,
       task,
       async (seg) => {
         if (!seg.url) throw new Error('片段地址为空')
         const fileName = `${file.simpleSanitize(title)}_seg_${seg.segmentIndex}.mp4`
         const savePath = `${workDir}\\${fileName}`
+        // 逐项已存在跳过：暂停恢复/重试重跑时不重复下载
+        if (await file.pathExists(savePath)) return
         await yfantasy.downloadSegment(seg.url, savePath)
       },
       (success, fail, total) => {
@@ -652,6 +826,15 @@ async function runYfantasy(task) {
         task.onSuccess?.()
       }
     )
+    if (fail > 0) {
+      updateTask(task, {
+        from: 'yfantasy',
+        status: 'error',
+        errorMessage: `${fail}/${segments.length} 个片段下载失败，重试只会补下失败部分`,
+        localFilePath: workDir
+      })
+      return
+    }
     updateTask(task, { from: 'yfantasy', status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ runYfantasy ~ e:', e)
@@ -659,12 +842,17 @@ async function runYfantasy(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
-    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
+    updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
   }
 }
 
 async function run4khd(task) {
   const { images: loadedImages = [], url, maxPage = 1, pagesLoaded = 1, title, baseDir } = task.payload
+  let stage = '准备下载'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     const workDir = `${baseDir}\\${file.simpleSanitize(title)}`
@@ -672,9 +860,11 @@ async function run4khd(task) {
     // 详情页滚动加载只读了部分分页时，下载前自动补齐剩余分页（分批并发）
     let images = [...loadedImages]
     if (url && maxPage > 1 && pagesLoaded < maxPage) {
+      stage = '补充分页'
       const pages = []
       for (let p = pagesLoaded + 1; p <= maxPage; p++) pages.push(p)
       for (let i = 0; i < pages.length; i += 5) {
+        abortIfRequested(task)
         const batch = pages.slice(i, i + 5)
         const results = await Promise.all(
           batch.map((p) => fourkhd.fetchDetailPage(url, p).catch(() => ({ images: [] })))
@@ -684,12 +874,15 @@ async function run4khd(task) {
       images = [...new Set(images)]
     }
     if (!images.length) throw new Error('未找到可下载的图片')
-    await runWithConcurrency(
+    stage = '下载图片'
+    const { fail } = await runWithConcurrency(
       images,
       task,
       async (url, i) => {
         const ext = (url.split('?')[0].split('.').pop() || 'jpg').toLowerCase()
         const savePath = `${workDir}\\${i.toString().padStart(5, '0')}.${ext}`
+        // 逐项已存在跳过：暂停恢复/重试重跑时不重复下载
+        if (await file.pathExists(savePath)) return
         await fourkhd.downloadFile(url, savePath)
       },
       (success, fail, total) => {
@@ -697,6 +890,15 @@ async function run4khd(task) {
         task.onSuccess?.()
       }
     )
+    if (fail > 0) {
+      updateTask(task, {
+        from: '4khd',
+        status: 'error',
+        errorMessage: `${fail}/${images.length} 张图片下载失败，重试只会补下失败部分`,
+        localFilePath: workDir
+      })
+      return
+    }
     updateTask(task, { from: '4khd', status: 'success', localFilePath: workDir })
   } catch (e) {
     console.log('🚀 ~ run4khd ~ e:', e)
@@ -704,21 +906,27 @@ async function run4khd(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
+    if (task._pause) {
+      updateTask(task, { status: 'paused' })
+      return
+    }
     // isPathExists 抛出的「已存在」已把任务置为 existed，这里仅覆盖真实下载错误
     if (task.status !== 'existed') {
-      updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+      updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
     }
   }
 }
 
 async function runHuangguo(task) {
   const { m3u8Url, title, baseDir, quality, siteUrl, videoId, ep, fileName } = task.payload
+  let stage = '准备下载'
   try {
     updateTask(task, { status: 'running', errorMessage: undefined })
     let playUrl = m3u8Url
     let cdnHeaders = {}
     // auth_key 有时效，下载开始前通过 play 接口实时获取播放地址
     if (videoId) {
+      stage = '获取播放地址'
       try {
         const play = await huangguo.getPlayUrl(videoId, ep)
         if (play?.success && play.videoUrl) {
@@ -733,6 +941,8 @@ async function runHuangguo(task) {
       }
     }
     if (!playUrl) throw new Error('未解析到 m3u8 地址')
+    abortIfRequested(task)
+    stage = '下载视频'
 
     // baseDir 已含标题父文件夹，文件命名：第n集.mp4
     const safeName = file.simpleSanitize(fileName || title || `huangguo_${Date.now()}`)
@@ -750,7 +960,11 @@ async function runHuangguo(task) {
     let unsubscribe = () => {}
     try {
       unsubscribe = huangguo.onProgress((progress) => {
-        if (task._cancel) return
+        if (task._cancel || task._pause) {
+          // 取消/暂停：主动中断底层下载（原先只 return，删除任务后会后台跑完）
+          huangguo.cancelDownload?.()
+          return
+        }
         if (progress.type === 'download_start') {
           totalSegments = progress.total
           updateTask(task, { progress: { success: 0, fail: 0, total: totalSegments } })
@@ -807,7 +1021,12 @@ async function runHuangguo(task) {
       updateTask(task, { status: 'canceled' })
       return
     }
-    updateTask(task, { status: 'error', errorMessage: e?.message || String(e) })
+    if (task._pause) {
+      huangguo.cancelDownload?.()
+      updateTask(task, { status: 'paused' })
+      return
+    }
+    updateTask(task, { status: 'error', errorMessage: formatTaskError(e, `${stage}失败`) })
   }
 }
 
@@ -844,15 +1063,54 @@ async function executeTask(task) {
       await runLocalMove(task)
       break
     default:
-      updateTask(task, { status: 'error' })
+      updateTask(task, { status: 'error', errorMessage: `未知任务类型「${task.site}」` })
   }
   // 本地移动不是下载，不记入下载历史
   if (task.site === 'local-move') return
+  // 只记真实完成的任务；执行期间被删除（对象已脱离 tasks）的旧执行也不写
+  if (task.status !== 'success' && task.status !== 'existed') return
+  if (!task.localFilePath || !tasks.includes(task)) return
   try {
     await window.downloadHistory.addDownloadHistory(task.localFilePath, task.type || 'book')
   } catch (error) {
     console.error('保存下载历史失败:', error)
   }
+}
+
+/** 执行器看门狗：任务被删除/置为取消或暂停、或长时间无进展（updatedAt 停滞）
+ *  时释放执行器，避免挂死的 await 永久占住队列。释放时以克隆对象顶替数组项，
+ *  旧执行（可能仍挂起）后续的 updateTask 全部落在脱离数组的旧对象上，不再影响队列 */
+const STALL_TIMEOUT_MS = 5 * 60 * 1000
+const GUARD_TICK_MS = 5000
+
+function releaseTaskFromRunner(task, reason) {
+  const idx = tasks.findIndex((t) => t.id === task.id)
+  if (idx === -1) return // 已删除，无需顶替
+  if (reason === 'stalled') {
+    killRemoteDownload(task)
+    task.status = 'error'
+    task.errorMessage = '长时间无进展，已自动跳过（可重试）'
+  }
+  tasks[idx] = { ...task }
+  tasks[idx].updatedAt = Date.now()
+  sortTasks()
+  reportActiveDownloads()
+}
+
+function runUnderGuard(task, execPromise) {
+  let timer = 0
+  const guard = new Promise((resolve) => {
+    timer = setInterval(() => {
+      if (!tasks.some((t) => t.id === task.id)) resolve('deleted')
+      else if (task.status === 'canceled' || task.status === 'paused') resolve('aborted')
+      else if (Date.now() - (task.updatedAt || Date.now()) > STALL_TIMEOUT_MS) resolve('stalled')
+    }, GUARD_TICK_MS)
+  })
+  return Promise.race([execPromise, guard])
+    .finally(() => clearInterval(timer))
+    .then((outcome) => {
+      if (typeof outcome === 'string') releaseTaskFromRunner(task, outcome)
+    })
 }
 
 async function startRunner() {
@@ -868,7 +1126,7 @@ async function startRunner() {
       if (!tasks.find((t) => t.id === next.id)) continue
       // 变更为 running 将在具体 run 内部再次设置，确保状态一致
       updateTask(next, { status: 'running', errorMessage: undefined })
-      await executeTask(next)
+      await runUnderGuard(next, executeTask(next))
       // 任务完成或错误后继续下一项
     }
   } finally {

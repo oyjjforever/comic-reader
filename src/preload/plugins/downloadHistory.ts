@@ -30,6 +30,11 @@ const getMaxDownloadCount = async (): Promise<number> => {
  */
 const addDownloadHistory = async (fullPath: string, module: string): Promise<boolean> => {
     try {
+        // 空值防护：取消/失败/删除的任务可能以 undefined 路径调用，不落库
+        if (!fullPath || typeof fullPath !== 'string' || !module) {
+            console.warn('下载历史写入参数无效，已跳过:', fullPath, module)
+            return false
+        }
         const db = await sqlite.openDatabase()
         const now = new Date().toISOString()
 
