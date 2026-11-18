@@ -112,7 +112,7 @@ const flyOpen = (i: MediaItem) => {
 const { rating, handleCardClick } = useMediaCardMeta(itemRef, ns, (i) => flyOpen(i))
 const { handleTiltEnter, handle3DTilt, reset3DTilt } = use3DTilt(
   cardRef,
-  20,
+  15,
   () => bookThickness.value
 )
 
@@ -235,14 +235,11 @@ const thicknessStyle = computed(() => ({ '--book-thickness': `${bookThickness.va
   position: relative;
   z-index: 2;
   filter: brightness(0.94) contrast(1.06) saturate(1.05);
-  transition:
-    filter 0.4s ease,
-    transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: filter 0.4s ease;
 }
 
 .media-card:hover .cover-container .cover-image {
   filter: brightness(1) contrast(1.1) saturate(1.08);
-  transform: scale(1.015);
 }
 
 /* 封面暗角 + 上下边缘压暗 */
