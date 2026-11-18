@@ -21,137 +21,158 @@
             ref="gridRef"
             :items="queue.tasks"
             :item-width="322"
-            :item-height="104"
-            :gap="8"
+            :item-height="84"
+            :gap="10"
             key-field="id"
             :overscan="2"
             class="download-virtual-grid"
           >
-          <template #default="{ item: t }">
-            <div class="task-item" :data-task-id="t.id">
-              <div class="task-main">
-                <div class="title">
-                  <img v-if="siteIcon(t.site)" :src="siteIcon(t.site)" class="site-icon" />
-                  <n-icon
-                    v-else
-                    :component="FolderArrowRight24Regular"
-                    size="20"
-                    class="site-icon-fallback"
-                  />
-                  <n-ellipsis class="name" style="max-width: 250px">
-                    {{ t.title }}
-                  </n-ellipsis>
-                  <n-tag
-                    size="small"
-                    :bordered="false"
-                    :type="statusType(t.status)"
-                    class="status-tag"
-                    >{{ statusLabel(t.status, t) }}</n-tag
-                  >
+            <template #default="{ item: t }">
+              <div class="ticket" :data-task-id="t.id">
+                <!-- 右下角站点水印（非站点任务回退移动图标） -->
+                <div class="watermark">
+                  <img v-if="siteIcon(t.site)" :src="siteIcon(t.site)" alt="" />
+                  <n-icon v-else :component="FolderArrowRight24Regular" :size="56" />
                 </div>
-              </div>
 
-              <div class="progress-actions">
-                <n-progress
-                  v-if="t.progress"
-                  class="progress-flex"
-                  type="line"
-                  :show-indicator="false"
-                  :percentage="
-                    ['success', 'error', 'existed'].includes(t.status) ? 100 : calcPercent(t)
-                  "
-                  :show-info="false"
-                  :status="progressStatus(t)"
-                  :height="6"
-                />
-                <div class="actions-inline">
-                  <n-button
-                    v-if="t.status === 'running'"
-                    quaternary
-                    circle
-                    size="tiny"
-                    @click="onPause(t)"
-                    title="暂停"
+                <div class="ticket-rail">
+                  <div class="tk-ring">
+                    <svg width="40" height="40" viewBox="0 0 40 40">
+                      <circle class="bg" cx="20" cy="20" r="16" />
+                      <circle
+                        class="fg"
+                        :class="statusCls(t)"
+                        cx="20"
+                        cy="20"
+                        r="16"
+                        :stroke-dasharray="RING_C"
+                        :stroke-dashoffset="ringOffset(t)"
+                      />
+                    </svg>
+                    <div class="pct">{{ calcPercent(t) }}</div>
+                  </div>
+
+                  <!-- 状态胶囊：失败悬浮错误原因（含部分成功路径），完成态悬浮保存位置，均可点击打开 -->
+                  <n-tooltip
+                    v-if="t.status === 'error' && t.errorMessage"
+                    trigger="hover"
+                    placement="top"
                   >
-                    <n-icon size="16"><PauseOutline /></n-icon>
-                  </n-button>
-                  <n-button
-                    v-if="t.status === 'paused'"
-                    quaternary
-                    circle
-                    size="tiny"
-                    @click="onResume(t)"
-                    title="继续"
+                    <template #trigger>
+                      <span class="rail-status error">{{ statusLabel(t.status, t) }}</span>
+                    </template>
+                    <div class="tt-body">
+                      <div class="tt-text">{{ t.errorMessage }}</div>
+                      <span
+                        v-if="t.localFilePath"
+                        class="tt-path"
+                        @click="onOpenLocalFile(t.localFilePath)"
+                      >
+                        {{ t.localFilePath }}
+                      </span>
+                    </div>
+                  </n-tooltip>
+                  <n-tooltip
+                    v-else-if="['success', 'existed'].includes(t.status) && t.localFilePath"
+                    trigger="hover"
+                    placement="top"
                   >
-                    <n-icon size="16"><PlayOutline /></n-icon>
-                  </n-button>
-                  <n-button
-                    v-if="['error', 'canceled'].includes(t.status)"
-                    quaternary
-                    circle
-                    size="tiny"
-                    @click="onRetry(t)"
-                    title="重试"
-                  >
-                    <n-icon size="16"><RefreshOutline /></n-icon>
-                  </n-button>
-                  <!-- <n-button
-                    v-if="t.status === 'running'"
-                    quaternary
-                    circle
-                    size="tiny"
-                    type="warning"
-                    @click="onCancel(t)"
-                    title="取消"
-                  >
-                    <n-icon size="16"><CloseCircleOutline /></n-icon>
-                  </n-button> -->
-                  <n-button
-                    quaternary
-                    circle
-                    size="tiny"
-                    type="error"
-                    @click="onDelete(t)"
-                    title="删除"
-                  >
-                    <n-icon size="16"><TrashOutline /></n-icon>
-                  </n-button>
+                    <template #trigger>
+                      <span
+                        class="rail-status openable"
+                        :class="t.status"
+                        @click="onOpenLocalFile(t.localFilePath)"
+                      >
+                        {{ statusLabel(t.status, t) }}
+                      </span>
+                    </template>
+                    <div class="tt-body">
+                      <span class="tt-label">下载位置（点击打开）</span>
+                      <span class="tt-path" @click="onOpenLocalFile(t.localFilePath)">
+                        {{ t.localFilePath }}
+                      </span>
+                    </div>
+                  </n-tooltip>
+                  <span v-else class="rail-status" :class="t.status">
+                    {{ statusLabel(t.status, t) }}
+                  </span>
                 </div>
-              </div>
-              <div class="progress-text">
-                <template v-if="['success', 'running', 'paused'].includes(t.status) && t.progress">
-                  <div style="color: green">{{ t.progress.success || 0 }}</div>
-                  /
-                  <div style="color: red">{{ t.progress.fail || 0 }}</div>
-                  /
-                  <div>{{ t.progress.total || 0 }}</div>
-                  <div
-                    v-if="
-                      t.site === 'local-move' &&
-                      ['running', 'paused'].includes(t.status) &&
-                      t.progress.value !== undefined
-                    "
-                    class="move-percent"
-                  >
-                    <span v-if="t.progress.sizeTotal > 0" class="move-size">
+
+                <div class="divider"></div>
+
+                <div class="ticket-main">
+                  <div class="t-head">
+                    <n-ellipsis class="t-title">{{ t.title }}</n-ellipsis>
+                    <span class="t-no">{{ ticketNo(t) }}</span>
+                  </div>
+                  <div class="t-bar-row">
+                    <div class="t-track">
+                      <div class="t-fill" :class="statusCls(t)" :style="{ width: calcPercent(t) + '%' }"></div>
+                    </div>
+                    <div class="t-acts-slot">
+                      <n-button
+                        v-if="t.status === 'running'"
+                        quaternary
+                        circle
+                        size="tiny"
+                        title="暂停"
+                        @click="onPause(t)"
+                      >
+                        <n-icon size="15"><PauseOutline /></n-icon>
+                      </n-button>
+                      <n-button
+                        v-if="t.status === 'paused'"
+                        quaternary
+                        circle
+                        size="tiny"
+                        title="继续"
+                        @click="onResume(t)"
+                      >
+                        <n-icon size="15"><PlayOutline /></n-icon>
+                      </n-button>
+                      <n-button
+                        v-if="['error', 'canceled'].includes(t.status)"
+                        quaternary
+                        circle
+                        size="tiny"
+                        title="重试"
+                        @click="onRetry(t)"
+                      >
+                        <n-icon size="15"><RefreshOutline /></n-icon>
+                      </n-button>
+                      <n-button
+                        quaternary
+                        circle
+                        size="tiny"
+                        type="error"
+                        title="删除"
+                        @click="onDelete(t)"
+                      >
+                        <n-icon size="15"><TrashOutline /></n-icon>
+                      </n-button>
+                    </div>
+                  </div>
+                  <div v-if="t.progress && (t.progress.total || t.progress.value)" class="t-meta">
+                    <span class="stat ok">{{ t.progress.success || 0 }}</span>
+                    <span class="sep">/</span>
+                    <span class="stat fail">{{ t.progress.fail || 0 }}</span>
+                    <span class="sep">/</span>
+                    <span class="stat total">{{ t.progress.total || 0 }}</span>
+                    <span
+                      v-if="
+                        t.site === 'local-move' &&
+                        ['running', 'paused'].includes(t.status) &&
+                        t.progress.sizeTotal > 0
+                      "
+                      class="sz"
+                    >
                       {{ formatFileSize(t.progress.sizeDone || 0) }} /
                       {{ formatFileSize(t.progress.sizeTotal) }}
                     </span>
                   </div>
-                </template>
-                <div
-                  v-if="t.status === 'error' && t.errorMessage"
-                  class="error-msg"
-                  :title="t.errorMessage"
-                >
-                  {{ t.errorMessage }}
                 </div>
-                <n-ellipsis v-if="t.localFilePath" style="max-width: 100%; cursor: pointer">
-                  <span @click="onOpenLocalFile(t.localFilePath)">{{ t.localFilePath }}</span>
-                </n-ellipsis>
               </div>
-            </div>
-          </template>
+            </template>
           </VirtualGrid>
         </div>
       </div>
@@ -249,20 +270,7 @@ function statusLabel(s: string, t?: any) {
   return map[s] || s
 }
 
-function statusType(s: string) {
-  const map: Record<string, any> = {
-    pending: 'default',
-    running: 'info',
-    paused: 'warning',
-    success: 'success',
-    error: 'error',
-    canceled: 'warning',
-    existed: 'success'
-  }
-  return map[s] || 'default'
-}
-
-// 站点图标（与 layout 中相同资源）
+// 站点图标（任务卡片右下角水印用）
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -272,42 +280,49 @@ import huangguoImg from '@renderer/assets/huangguo.png'
 import yfantasyImg from '@renderer/assets/yfantasy.png'
 import pornhubImg from '@renderer/assets/pornhub.ico'
 import fourkhdImg from '@renderer/assets/4khd.png'
-import {
-  PauseOutline,
-  PlayOutline,
-  CloseCircleOutline,
-  TrashOutline,
-  RefreshOutline
-} from '@vicons/ionicons5'
+import { PauseOutline, PlayOutline, TrashOutline, RefreshOutline } from '@vicons/ionicons5'
 import { FolderArrowRight24Regular } from '@vicons/fluent'
 import { formatFileSize } from '@renderer/utils/format'
 
-function siteIcon(site: string): string | undefined {
-  // 本地移动等非站点任务无图标，模板回退为通用图标
-  if (site === 'local-move') return undefined
-  if (site === 'jmtt') return jmttImg
-  if (site === 'pixiv') return pixivImg
-  if (site === 'twitter') return twitterImg
-  if (site === 'weibo') return weiboImg
-  if (site === 'picaman') return picamanImg
-  if (site === 'huangguo') return huangguoImg
-  if (site === 'yfantasy') return yfantasyImg
-  if (site === '4khd') return fourkhdImg
-  if (site === 'pornhub') return pornhubImg
-  return undefined
+const SITE_ICONS: Record<string, string> = {
+  jmtt: jmttImg,
+  pixiv: pixivImg,
+  twitter: twitterImg,
+  weibo: weiboImg,
+  picaman: picamanImg,
+  huangguo: huangguoImg,
+  yfantasy: yfantasyImg,
+  '4khd': fourkhdImg,
+  pornhub: pornhubImg
 }
+function siteIcon(site: string): string | undefined {
+  // 本地移动等非站点任务无图标，模板回退为通用移动图标
+  return SITE_ICONS[site]
+}
+
+// ===== 车票卡片进度 =====
+const DONE_STATUS = ['success', 'error', 'existed']
+const RING_R = 16
+const RING_C = (2 * Math.PI * RING_R).toFixed(2)
 
 function calcPercent(t: any) {
   const p = t?.progress || {}
-  if (p.value) return p.value
+  if (p.value) return Math.min(100, Math.round(p.value))
   if (!p.total) return 0
   const completed = (p.success || 0) + (p.fail || 0)
   return Math.min(100, Math.floor((completed / p.total) * 100))
 }
-function progressStatus(t: any) {
-  if (t.status === 'success') return 'success'
-  if (t.status === 'error') return 'error'
-  return 'info'
+function ringOffset(t: any) {
+  const pc = DONE_STATUS.includes(t.status) ? 100 : calcPercent(t)
+  return (Number(RING_C) * (1 - pc / 100)).toFixed(2)
+}
+/** 状态类：圆环/进度条与状态胶囊共用同一套配色（existed 归入 success 色） */
+function statusCls(t: any) {
+  if (['success', 'existed'].includes(t.status)) return 'success'
+  return t.status
+}
+function ticketNo(t: any) {
+  return 'NO.' + String(t.serial || 0).padStart(4, '0')
 }
 
 function onPause(t: any) {
@@ -318,9 +333,6 @@ function onResume(t: any) {
 }
 function onRetry(t: any) {
   queue.retryTask(t.id)
-}
-function onCancel(t: any) {
-  queue.cancelTask(t.id)
 }
 function onDelete(t: any) {
   queue.deleteTask(t.id)
@@ -372,12 +384,6 @@ function onOpenLocalFile(path) {
     --n-icon-color-focus: #8a5300 !important;
   }
 
-  .n-progress {
-    --n-rail-color: rgba(74, 70, 86, 0.12) !important;
-    /* 默认态（进行中）的填充换品牌橙；success/error 状态色不受影响 */
-    --n-color: #ff9205 !important;
-  }
-
   .n-drawer-header {
     border-bottom: 1px solid rgba(74, 70, 86, 0.12) !important;
   }
@@ -416,7 +422,6 @@ function onOpenLocalFile(path) {
 .task-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   height: 100%;
   overflow: hidden;
 }
@@ -424,140 +429,6 @@ function onOpenLocalFile(path) {
   color: #7d7789;
   text-align: center;
   padding: 24px 0;
-}
-// 任务条：浅色玻璃 chip，悬停描边泛橙
-.task-item {
-  background: rgba(74, 70, 86, 0.06);
-  border: 1px solid rgba(74, 70, 86, 0.1);
-  border-radius: 10px;
-  transition:
-    border-color 0.2s,
-    background-color 0.2s;
-
-  &:hover {
-    border-color: rgba(255, 146, 5, 0.4);
-    background-color: rgba(255, 146, 5, 0.08);
-  }
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-}
-.task-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.title {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.site-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-.site-icon-fallback {
-  flex-shrink: 0;
-  color: #7d7789;
-}
-.name {
-  font-weight: 700;
-  width: 100%;
-  color: #26232f;
-}
-.progress {
-  font-size: 12px;
-  color: #7d7789;
-}
-.progress-bar {
-  margin-top: 4px;
-}
-.progress-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.progress-flex {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.actions-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.progress-text {
-  font-size: 12px;
-  color: #5c5668;
-  margin-top: 3px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  div {
-    white-space: nowrap;
-    &:nth-child(3) {
-      margin-right: 20px;
-    }
-  }
-}
-.status-tag {
-  margin-left: auto;
-}
-.actions {
-  display: flex;
-  gap: 6px;
-}
-.error-msg {
-  color: #b03a3a;
-  background: rgba(214, 69, 69, 0.1);
-  border: 1px solid rgba(214, 69, 69, 0.18);
-  border-radius: 6px;
-  padding: 3px 8px;
-  margin-top: 4px;
-  max-width: 100%;
-  flex-basis: 100%;
-  flex-shrink: 0;
-  font-size: 12px;
-  line-height: 16px;
-  word-break: break-all;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  cursor: help;
-}
-.move-percent {
-  margin-left: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  color: #3d3949;
-}
-.move-size {
-  margin-left: 6px;
-  color: #7d7789;
-  font-weight: 400;
-}
-.n-drawer-header__main {
-  width: 100%;
-}
-.drawer-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  span {
-    color: #26232f;
-    font-weight: 600;
-  }
 }
 
 /* 虚拟列表样式 */
@@ -577,9 +448,378 @@ function onOpenLocalFile(path) {
   margin: 0;
 }
 
-/* 覆盖虚拟网格的默认样式以适应下载队列 */
-.download-virtual-grid .virtual-grid {
-  padding: 0;
-  gap: 8px;
+// ============================================================
+// 车票任务卡片
+// ============================================================
+.ticket {
+  --hole: #E1DDDB; // 打孔色 ≈ 抽屉玻璃底合成色
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: #fffdf8;
+  // border: 1px solid rgba(74, 70, 86, 0.12);
+  box-shadow: 0 2px 6px -2px rgba(31, 28, 40, 0.12);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s;
+  overflow: hidden;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 146, 5, 0.55);
+    box-shadow:
+      0 8px 20px -8px rgba(255, 146, 5, 0.45),
+      0 2px 6px -2px rgba(31, 28, 40, 0.12);
+  }
+}
+
+// 左侧分隔线上的上下打孔（半圆咬口）
+.ticket::before,
+.ticket::after {
+  content: '';
+  position: absolute;
+  left: 58px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--hole);
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+}
+.ticket::before {
+  top: -8px;
+}
+.ticket::after {
+  bottom: -8px;
+}
+
+.ticket .divider {
+  position: absolute;
+  left: 58px;
+  top: 8px;
+  bottom: 8px;
+  width: 0;
+  border-left: 1.5px dashed rgba(74, 70, 86, 0.28);
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+// 右下角站点图标水印：保留站点原色，低透明度压暗，悬浮微亮
+.ticket .watermark {
+  position: absolute;
+  right: -6px;
+  bottom: -8px;
+  width: 64px;
+  height: 64px;
+  z-index: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3d3949;
+  opacity: 0.15;
+  transform: rotate(-12deg);
+  transition: opacity 0.2s;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+}
+.ticket:hover .watermark {
+  opacity: 0.22;
+}
+
+// ===== 左侧票根：圆环进度 + 状态胶囊 =====
+// 圆环类名必须用 tk-ring：项目带 Tailwind，模板里写 class="ring" 会被 JIT
+// 识别为 ring 工具类，生成 --tw-ring-shadow 的方形描边套在圆环外
+.ticket-rail {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 146, 5, 0.04) 0 1px, transparent 1px 4px),
+    rgba(255, 250, 240, 0.55);
+  border-radius: 12px 0 0 12px;
+}
+.tk-ring {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.tk-ring svg {
+  transform: rotate(-90deg);
+  display: block;
+}
+.tk-ring .bg {
+  fill: none;
+  stroke: rgba(74, 70, 86, 0.14);
+  stroke-width: 4;
+}
+.tk-ring .fg {
+  fill: none;
+  stroke: #ff9205;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 0.4s ease,
+    stroke 0.2s;
+}
+// 状态配色与 rail-status 胶囊同源：运行蓝、暂停/取消琥珀、等待灰紫、完成绿、失败红
+.tk-ring .fg.running {
+  stroke: #0b6b9c;
+}
+.tk-ring .fg.paused,
+.tk-ring .fg.canceled {
+  stroke: #9a6b00;
+}
+.tk-ring .fg.pending {
+  stroke: #6b6577;
+}
+.tk-ring .fg.success {
+  stroke: #2e9e5b;
+}
+.tk-ring .fg.error {
+  stroke: #b03a3a;
+}
+.tk-ring .pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #3d3949;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+
+.rail-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  white-space: nowrap;
+  color: #6b6577;
+  background: rgba(74, 70, 86, 0.1);
+  line-height: 1.5;
+}
+.rail-status.running {
+  color: #0b6b9c;
+  background: rgba(32, 128, 192, 0.15);
+}
+.rail-status.success,
+.rail-status.existed {
+  color: #2e9e5b;
+  background: rgba(46, 158, 91, 0.15);
+}
+.rail-status.error {
+  color: #b03a3a;
+  background: rgba(214, 69, 69, 0.15);
+  cursor: help;
+}
+.rail-status.paused,
+.rail-status.canceled {
+  color: #9a6b00;
+  background: rgba(240, 160, 32, 0.18);
+}
+.rail-status.openable {
+  cursor: pointer;
+}
+
+// ===== 右侧主区 =====
+.ticket-main {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 10px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.t-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 22px;
+}
+.t-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 22px;
+  color: #26232f;
+}
+.t-no {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #a29cae;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4px;
+}
+
+// 第二行：进度条 + 操作按钮（同一行，按钮槽固定宽度）
+.t-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+}
+.t-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(74, 70, 86, 0.12);
+  overflow: hidden;
+}
+.t-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(-45deg, #ff9205 0 5px, #ffb04d 5px 10px);
+  transition: width 0.3s ease;
+}
+// 状态配色与 rail-status 胶囊同源（运行中保留条纹示「进行」，亮纹取胶囊底色）
+.t-fill.running {
+  background: repeating-linear-gradient(-45deg, #0b6b9c 0 5px, #2080c0 5px 10px);
+}
+.t-fill.paused,
+.t-fill.canceled {
+  background: #9a6b00;
+}
+.t-fill.pending {
+  background: #6b6577;
+}
+.t-fill.success {
+  background: #2e9e5b;
+}
+.t-fill.error {
+  background: #b03a3a;
+}
+
+.t-acts-slot {
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  opacity: 0.8;
+  transition: opacity 0.18s;
+
+  .n-button {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    // 图标加深一档：抽屉级默认 #7d7789 在卡片上偏浅
+    --n-icon-color: #5c5668 !important;
+    --n-icon-color-hover: #8a5300 !important;
+    --n-icon-color-pressed: #7a4800 !important;
+    --n-icon-color-focus: #8a5300 !important;
+  }
+  // 删除按钮保持红色系（抽屉级覆盖会把 error 按钮也染灰）
+  .n-button.n-button--error-type {
+    --n-icon-color: #c05050 !important;
+    --n-icon-color-hover: #d64545 !important;
+    --n-icon-color-pressed: #b03a3a !important;
+    --n-icon-color-focus: #d64545 !important;
+  }
+}
+.ticket:hover .t-acts-slot {
+  opacity: 1;
+}
+
+.t-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #7d7789;
+  height: 18px;
+
+  .stat {
+    font-variant-numeric: tabular-nums;
+  }
+  .sep {
+    color: #a29cae;
+  }
+  .ok {
+    color: #2e9e5b;
+  }
+  .fail {
+    color: #d64545;
+  }
+  .total {
+    color: #5c5668;
+  }
+  .sz {
+    margin-left: auto;
+    font-size: 11px;
+    color: #5c5668;
+    white-space: nowrap;
+  }
+}
+
+// ===== n-tooltip 内容（tooltip 传送至 body，样式须全局） =====
+.tt-body {
+  max-width: 240px;
+  font-size: 11px;
+  line-height: 1.45;
+  word-break: break-all;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+.tt-text {
+  color: rgba(255, 255, 255, 0.92);
+  white-space: pre-wrap;
+}
+.tt-label {
+  font-size: 10px;
+  color: #b9b4c2;
+}
+.tt-path {
+  color: #ffd08a;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: #ffb04d;
+  }
+}
+
+.n-drawer-header__main {
+  width: 100%;
+}
+.drawer-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  span {
+    color: #26232f;
+    font-weight: 600;
+  }
 }
 </style>

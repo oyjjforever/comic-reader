@@ -5,6 +5,9 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+// 车票号：入队时分配的自增序号，任务卡片右上角 NO.xxxx（与排序无关，终身不变）
+let serialSeed = 0
+
 export const tasks = reactive([])
 
 let runnerActive = false
@@ -14,21 +17,24 @@ function findNextPending() {
 }
 
 function sortTasks() {
+  // 失败置顶（醒目可重试）；活跃组（下载中/队列中/已暂停）合并为一个 FIFO
+  // 序列——暂停/恢复只是状态变化，卡片位置不再跳动；已结束组沉底、较新靠前
   const weight = {
     error: 0,
     running: 1,
-    pending: 2,
-    paused: 3,
-    existed: 4,
-    canceled: 5,
-    success: 6
+    pending: 1,
+    paused: 1,
+    existed: 2,
+    canceled: 2,
+    success: 2
   }
+  const wOf = (s) => weight[s] ?? 3
   tasks.sort((a, b) => {
-    const w = weight[a.status] - weight[b.status]
+    const w = wOf(a.status) - wOf(b.status)
     if (w !== 0) return w
-    // 排队组按入队先后（FIFO：先加入先下载，恢复/重试的任务按原入队时间归位）；
-    // 其余组较新靠前（新失败/新完成更醒目）
-    if (a.status === 'pending') return a.createdAt - b.createdAt
+    // 活跃组按入队先后（FIFO：先加入先下载，恢复/重试按原入队时间归位）；
+    // 失败/已结束组较新靠前（新失败/新完成更醒目）
+    if (wOf(a.status) === 1) return a.createdAt - b.createdAt
     return b.createdAt - a.createdAt
   })
 }
@@ -56,6 +62,7 @@ export function addTask(taskList) {
     ...taskList.map((task) => ({
       ...task,
       id: uid(),
+      serial: ++serialSeed,
       status: 'pending',
       // 入队即带空进度对象，任务卡片初始化时就渲染进度条（0%）
       progress: task.progress || {},
@@ -696,7 +703,8 @@ async function runPornhub(task) {
         } else if (progress.type === 'download_progress') {
           updateTask(task, { progress: { success: progress.current, fail: 0, total: progress.total } })
         } else if (progress.type === 'mp4_progress') {
-          updateTask(task, { progress: { value: (progress.percent || 0) / 100, total: 1 } })
+          // value 统一为 0-100 百分比口径（与 pixiv 动图/twitter 视频/本地移动一致）
+          updateTask(task, { progress: { value: progress.percent || 0, total: 1 } })
         } else if (progress.type === 'merge') {
           updateTask(task, {
             progress: { success: progress.total, fail: 0, total: progress.total }
@@ -1144,4 +1152,111 @@ export const queue = {
   deleteTask,
   clearCompletedTask,
   startRunner
+}
+
+// ============================================================
+// ⚠️ 临时演示数据：车票卡片样式联调用，看完把 SEED_DEMO 置 false
+// 直接 push（不走 addTask/startRunner），runner 不会被触发；
+// pending 演示用未知 site「demo-queue」，即便日后被 runner 捡起也只走兜底报错分支
+// ============================================================
+const SEED_DEMO = true
+if (SEED_DEMO) {
+  const demo = [
+    {
+      site: 'pixiv',
+      title: '这是一个很长很长的作品标题用来测试省略号与悬浮提示的显示效果',
+      status: 'running',
+      progress: { success: 12, fail: 1, total: 20 }
+    },
+    {
+      site: 'pornhub',
+      title: '视频直链下载（mp4 断点续传）',
+      status: 'running',
+      progress: { value: 37, total: 1 }
+    },
+    {
+      site: 'local-move',
+      title: '本地作品移动（含字节进度）',
+      status: 'running',
+      progress: { value: 53, success: 8, fail: 0, total: 15, sizeDone: 3355443, sizeTotal: 8912896 }
+    },
+    {
+      site: 'twitter',
+      title: '短标题任务',
+      status: 'paused',
+      progress: { success: 3, fail: 0, total: 10 }
+    },
+    {
+      site: 'demo-queue',
+      title: '队列中等待的任务',
+      status: 'pending',
+      progress: { success: 0, fail: 0, total: 30 }
+    },
+    {
+      site: 'jmtt',
+      title: '已存在跳过的任务',
+      status: 'existed',
+      progress: {},
+      localFilePath: 'D:\\Downloads\\Comics\\禁漫天堂\\某作者\\第01话'
+    },
+    {
+      site: 'yfantasy',
+      title: '已取消的任务',
+      status: 'canceled',
+      progress: { success: 2, fail: 0, total: 8 }
+    },
+    {
+      site: 'weibo',
+      title: '已完成的任务示例',
+      status: 'success',
+      progress: { success: 50, fail: 0, total: 50 },
+      localFilePath: 'D:\\Downloads\\Comics\\某作者\\作品合集'
+    },
+    {
+      site: 'huangguo',
+      title: '失败任务示例（长错误信息）',
+      status: 'error',
+      progress: { success: 5, fail: 3, total: 10 },
+      errorMessage:
+        '下载视频失败：网络连接超时，请检查代理设置后重试。服务器返回 502 Bad Gateway（upstream connect error or disconnect/reset before headers）'
+    },
+    {
+      site: '4khd',
+      title: '部分失败带路径的任务',
+      status: 'error',
+      progress: { success: 5, fail: 5, total: 10 },
+      errorMessage: '5/10 张图片下载失败，重试只会补下失败部分',
+      localFilePath: 'D:\\Downloads\\Comics\\4K高清\\套图A'
+    }
+  ]
+  const now = Date.now()
+  tasks.push(
+    ...demo.map((d, i) => ({
+      ...d,
+      id: uid(),
+      serial: ++serialSeed,
+      createdAt: now - (demo.length - i) * 60000,
+      updatedAt: now
+    }))
+  )
+  sortTasks()
+  reportActiveDownloads()
+  // running 任务模拟进度推进，观察圆环/进度条动效；全部饱和后自停
+  const demoTimer = setInterval(() => {
+    let pendingTick = false
+    for (const t of tasks) {
+      if (t.status !== 'running') continue
+      const p = t.progress || {}
+      if (p.total === 1 && p.value !== undefined) {
+        if (p.value < 100) {
+          pendingTick = true
+          updateTask(t, { progress: { ...p, value: Math.min(100, p.value + 1) } })
+        }
+      } else if ((p.success || 0) + (p.fail || 0) < (p.total || 0)) {
+        pendingTick = true
+        updateTask(t, { progress: { ...p, success: (p.success || 0) + 1 } })
+      }
+    }
+    if (!pendingTick) clearInterval(demoTimer)
+  }, 800)
 }
