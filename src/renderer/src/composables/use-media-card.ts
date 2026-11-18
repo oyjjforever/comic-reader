@@ -303,7 +303,10 @@ function settleFlight(f: Flight) {
     void nextTick().then(() => f.layer.remove())
     b.cover.style.visibility = ''
     if (b.badge) b.badge.style.opacity = ''
+    // 归还起手压掉的内联 transition/transform，卡片回到样式表驱动的常态
     f.cardEl.style.pointerEvents = ''
+    f.cardEl.style.transition = ''
+    f.cardEl.style.transform = ''
   } else {
     const d = f.disc!
     d.clone.style.display = 'none'
@@ -317,10 +320,21 @@ function settleFlight(f: Flight) {
   f.onSettle?.()
 }
 
-/** 还原元素的未变换布局盒：悬浮倾斜下 getBoundingClientRect 是旋转后的
- *  外接矩形，比卡身大一圈，拿去定位会让克隆/舞台与卡错位。旋转与透视缩放
- *  都绕卡心（shell 的 perspective-origin 即卡心），外接矩形中心恒等于卡心，
- *  用不受 transform 影响的布局尺寸（offsetWidth/Height）从中反推 */
+/** 活跃的悬浮倾斜跟动（卡片元素 → 停止函数）。飞行动画起手同步停掉：
+ *  use3DTilt 的 rAF 平滑循环不知道动画已接管卡片，会在飞行清掉 transform
+ *  后继续把倾斜写回去——书身回倾而封面克隆停在平放位，两者错位 */
+const tiltStoppers = new WeakMap<HTMLElement, () => void>()
+
+/** 停掉指定卡片上的倾斜跟动（未挂跟动的卡片无操作） */
+function stopCardTilt(cardEl: HTMLElement) {
+  tiltStoppers.get(cardEl)?.()
+}
+
+/** 还原元素的未变换布局盒。调用前提：卡上已停倾斜并回平到基准姿态——
+ *  此时透视缩放与封面/铭牌的前后推挤都对称于卡心（shell 的
+ *  perspective-origin 即卡心），外接矩形中心恒等于卡心，用不受 transform
+ *  影响的布局尺寸（offsetWidth/Height）从中反推即精确。带着旋转反推则
+ *  不准：整书先退一个厚度再旋转，投影中心偏离卡心约 厚度×sin(倾角) */
 function layoutBoxOf(el: HTMLElement): DOMRect {
   const aabb = el.getBoundingClientRect()
   return new DOMRect(
@@ -429,6 +443,12 @@ export function flyBookOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
     return
   }
 
+  // 起手停掉悬浮倾斜并瞬间回平再量布局盒：倾斜跟动的 rAF 循环会把清掉的
+  // 倾斜写回（书身回倾、克隆停在平放位即错位）；且带着倾斜反推布局盒
+  // 本身也有厚度×倾角的偏差（见 layoutBoxOf）。回平后反推即精确
+  stopCardTilt(cardEl)
+  cardEl.style.transition = 'none'
+  cardEl.style.transform = ''
   const rect = layoutBoxOf(cardEl)
   const { layer, hostRect } = createFlyingLayer(cardEl)
   const flight: Flight = {
@@ -467,13 +487,11 @@ export function flyBookOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
   )
   layer.appendChild(wrap)
 
-  // 真实卡进入打开态：封面让位给克隆、铭牌淡出
+  // 真实卡进入打开态：封面让位给克隆、铭牌淡出、禁指针（倾斜已在前停掉）
   cover.style.visibility = 'hidden'
   const badge = cardEl.querySelector('.stamp-badge') as HTMLElement | null
   if (badge) badge.style.opacity = '0'
   cardEl.style.pointerEvents = 'none'
-  cardEl.style.transition = ''
-  cardEl.style.transform = ''
 
   flight.book = {
     cover,
@@ -675,6 +693,10 @@ export function flyBookClose(
     return
   }
 
+  // 同打开：先停倾斜并瞬间回平再量布局盒（封面克隆与合书落位都以平放姿态为基准）
+  stopCardTilt(cardEl)
+  cardEl.style.transition = 'none'
+  cardEl.style.transform = ''
   const rect = layoutBoxOf(cardEl)
   const { layer, hostRect } = createFlyingLayer(cardEl)
   const flight: Flight = {
@@ -709,8 +731,6 @@ export function flyBookClose(
   const badge = cardEl.querySelector('.stamp-badge') as HTMLElement | null
   if (badge) badge.style.opacity = '0'
   cardEl.style.pointerEvents = 'none'
-  cardEl.style.transition = ''
-  cardEl.style.transform = ''
 
   flight.book = {
     cover,
@@ -1464,6 +1484,23 @@ export function use3DTilt(
     cachedRect = null
     kick()
   }
+
+  /** 外部停止（飞行动画起手接管卡片时同步调用）：取消 rAF、目标与当前角
+   *  归零。内联 transform 由调用方紧接着清掉，此后不得再有帧写回倾斜 */
+  const stopTilt = () => {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+    tgtX = 0
+    tgtY = 0
+    curX = 0
+    curY = 0
+    cachedRect = null
+  }
+
+  onMounted(() => {
+    const card = cardRef.value
+    if (card) tiltStoppers.set(card, stopTilt)
+  })
 
   return { handleTiltEnter, handle3DTilt, reset3DTilt }
 }
