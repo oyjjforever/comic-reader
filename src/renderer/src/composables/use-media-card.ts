@@ -71,9 +71,9 @@ function getVideoThumbnail(path: string): Promise<string> {
 }
 
 /**
- * 媒体卡片共用封面逻辑：解析策略链 coverUrl（在线）→ coverPath（本地图片）→
- * videoPath（截帧并走缓存）→ 默认占位图，配合视口懒加载。
- * 书本卡与光盘盒卡共用。
+ * 媒体卡片共用封面逻辑：解析策略链 coverUrl（在线，原样）→ coverPath
+ * （本地图片，走缩略图缓存，见 generateCoverThumbnail）→ videoPath（截帧
+ * 并走缓存）→ 默认占位图，配合视口懒加载。书本卡与光盘盒卡共用。
  */
 export function useMediaCardCover(item: Ref<MediaItem>, cardRef: Ref<HTMLElement | undefined>) {
   const imageError = ref(false)
@@ -94,7 +94,18 @@ export function useMediaCardCover(item: Ref<MediaItem>, cardRef: Ref<HTMLElement
       if (media.coverUrl) {
         coverImageSrc.value = media.coverUrl
       } else if (media.coverPath) {
-        coverImageSrc.value = toFileUrl(media.coverPath)
+        // 本地图片封面走缩略图缓存（解码内存比原图降一个数量级，缓存实现在
+        // 主进程 image-cover 服务）：命中直接用缓存；未命中先用原图立即显示
+        // （与无缓存时无异），后台生成缩略图入缓存——本实例不换图（避免可见
+        // 闪变，大位图交给浏览器 LRU 自然淘汰），下次挂载即命中
+        const cached = await window.imageCover.get(media.coverPath).catch(() => null)
+        if (cached) {
+          coverImageSrc.value = toFileUrl(cached)
+        } else {
+          const originalUrl = toFileUrl(media.coverPath)
+          coverImageSrc.value = originalUrl
+          void generateCoverThumbnail(media.coverPath, originalUrl).catch(() => {})
+        }
       } else if (media.videoPath) {
         const cachedCover = await window.videoCover.get(media.videoPath)
         if (cachedCover) {
@@ -1413,6 +1424,50 @@ export function loadImage(url: string): Promise<HTMLImageElement | null> {
     img.onerror = () => resolve(null)
     img.src = url
   })
+}
+
+/* ===== 图片封面缩略图（网格卡片专用，解码内存降一个数量级） ===== */
+
+/** 网格卡片显示尺寸上限（responsive-virtual-grid：maxItemWidth 240、
+ *  aspectRatio 0.75 → 240×320）与 DPR 余量 */
+const COVER_CARD_W = 240
+const COVER_CARD_H = 320
+const COVER_DPR = 2
+/** 生成宽度上限：全景横图防失控（1600×640 解码约 4MB，仍远小于原图） */
+const COVER_THUMB_MAX_W = 1600
+
+/**
+ * 生成封面缩略图并写入主进程缓存（键=md5(路径)+mtime，内容变更自动失效；
+ * fire-and-forget，失败静默——下次挂载未命中会再试）。
+ * 尺寸按"cover 显示宽 × DPR"取：竖图=卡宽×2；横图（光盘卡悬浮平移有
+ * 横向富余、显示宽超出卡宽）=卡高×宽高比×2，上限封顶。等比缩放不裁切，
+ * 宽高比与 pan 的富余语义不变。canvas 与卡片显示走同一 Chromium 解码
+ * 路径，EXIF 方向一致；透明 PNG 压成 JPEG 后透区变黑（卡片底色本就深）。
+ */
+async function generateCoverThumbnail(imagePath: string, originalUrl: string): Promise<void> {
+  const img = await loadImage(originalUrl)
+  if (!img || !img.naturalWidth || !img.naturalHeight) return
+  const aspect = img.naturalWidth / img.naturalHeight
+  const targetW = Math.min(
+    Math.round(Math.max(COVER_CARD_W, COVER_CARD_H * aspect) * COVER_DPR),
+    COVER_THUMB_MAX_W
+  )
+  const scale = Math.min(1, targetW / img.naturalWidth)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+  let dataUrl: string
+  try {
+    dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+  } catch {
+    return
+  }
+  window.imageCover
+    .saveFromDataUrl(imagePath, dataUrl)
+    .catch((err) => console.warn('缓存封面缩略图失败:', err))
 }
 
 /**

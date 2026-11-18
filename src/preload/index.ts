@@ -22,6 +22,7 @@ import downloadHistory from './plugins/downloadHistory'
 import databaseBackup from './plugins/databaseBackup'
 import subtitle from './plugins/subtitle'
 import videoCover from './plugins/video-cover'
+import imageCover from './plugins/image-cover'
 import videoTranscoder from './plugins/video-transcoder'
 import missav from './plugins/missav'
 import huangguo from './plugins/downloader/huangguo'
@@ -101,6 +102,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('windowManager', windowManager)
     contextBridge.exposeInMainWorld('subtitle', subtitle)
     contextBridge.exposeInMainWorld('videoCover', videoCover)
+    contextBridge.exposeInMainWorld('imageCover', imageCover)
     contextBridge.exposeInMainWorld('videoTranscoder', videoTranscoder)
     contextBridge.exposeInMainWorld('missav', missav)
     contextBridge.exposeInMainWorld('huangguo', huangguo)

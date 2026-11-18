@@ -138,6 +138,15 @@ import {
   renameCoverByPaths
 } from './services/video-cover'
 import {
+  getCoverPathIfExists as getImageCoverPathIfExists,
+  saveCoverFromDataUrl as saveImageCoverFromDataUrl,
+  deleteCover as deleteImageCover,
+  clearAllCovers as clearAllImageCovers,
+  getCoverDir as getImageCoverDir,
+  getCoverDirSize as getImageCoverDirSize,
+  renameCoverByPaths as renameImageCoverByPaths
+} from './services/image-cover'
+import {
   transcodeVideo,
   cancelTranscode,
   replaceWithFixed,
@@ -894,6 +903,46 @@ app.whenReady().then(async () => {
   // IPC: 批量按路径迁移封面缓存（作品移动后同步缓存文件名）
   ipcMain.handle('videoCover:renameByPaths', (_event, pairs: Array<[string, string]>) => {
     return renameCoverByPaths(pairs)
+  })
+
+  // ========== 图片封面缩略图缓存 IPC（存储层，生成在渲染层 canvas） ==========
+
+  // IPC: 检查缩略图缓存是否存在（键含源文件 mtime，命中即新鲜）
+  ipcMain.handle('imageCover:get', (_event, imagePath: string) => {
+    return getImageCoverPathIfExists(imagePath)
+  })
+
+  // IPC: 渲染层生成的缩略图 data URL 写入缓存
+  ipcMain.handle('imageCover:saveFromDataUrl', (_event, imagePath: string, dataUrl: string) => {
+    try {
+      return saveImageCoverFromDataUrl(imagePath, dataUrl)
+    } catch (err: any) {
+      log.error('[Main] 保存图片封面失败:', err?.message)
+      return null
+    }
+  })
+
+  // IPC: 删除单个图片的全部缩略图缓存（含历史 mtime 条目）
+  ipcMain.handle('imageCover:delete', (_event, imagePath: string) => {
+    return deleteImageCover(imagePath)
+  })
+
+  // IPC: 清空所有图片封面缓存
+  ipcMain.handle('imageCover:clearAll', () => {
+    return clearAllImageCovers()
+  })
+
+  // IPC: 获取缩略图缓存目录信息
+  ipcMain.handle('imageCover:getInfo', () => {
+    return {
+      coverDir: getImageCoverDir(),
+      size: getImageCoverDirSize()
+    }
+  })
+
+  // IPC: 批量按路径迁移缩略图缓存（作品移动后同步缓存文件名）
+  ipcMain.handle('imageCover:renameByPaths', (_event, pairs: Array<[string, string]>) => {
+    return renameImageCoverByPaths(pairs)
   })
 
   // ========== 视频转码修复 IPC（修复异常 GOP 导致的播放掉帧抖动） ==========

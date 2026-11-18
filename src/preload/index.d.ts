@@ -376,6 +376,14 @@ declare global {
       clearAll: () => Promise<number>
       getInfo: () => Promise<{ coverDir: string; size: number }>
     }
+    imageCover: {
+      get: (imagePath: string) => Promise<string | null>
+      saveFromDataUrl: (imagePath: string, dataUrl: string) => Promise<string | null>
+      delete: (imagePath: string) => Promise<boolean>
+      clearAll: () => Promise<number>
+      getInfo: () => Promise<{ coverDir: string; size: number }>
+      renameByPaths: (pairs: Array<[string, string]>) => Promise<number>
+    }
     videoTranscoder: {
       transcode: (
         inputPath: string
