@@ -102,9 +102,15 @@ export function useMediaCardCover(item: Ref<MediaItem>, cardRef: Ref<HTMLElement
         } else {
           const thumbnailDataUrl = await getVideoThumbnail(media.videoPath)
           coverImageSrc.value = thumbnailDataUrl
-          // 异步写入缓存，不阻塞渲染
+          // 异步写入缓存，不阻塞渲染；成功后把 dataURL 换成缓存文件路径——
+          // 释放大字符串（几十~几百 KB/张），重挂载行为与缓存命中一致
           window.videoCover
             .saveFromDataUrl(media.videoPath, thumbnailDataUrl)
+            .then((saved) => {
+              if (saved && coverImageSrc.value === thumbnailDataUrl) {
+                coverImageSrc.value = toFileUrl(saved)
+              }
+            })
             .catch((err) => console.warn('缓存视频封面失败:', err))
         }
       } else {
@@ -315,6 +321,10 @@ function settleFlight(f: Flight) {
     d.disc.style.opacity = ''
     if (d.cover) d.cover.style.visibility = ''
     f.cardEl.classList.remove('disc-opening')
+    // 归还起手停倾斜/禁指针压掉的内联样式，卡片回样式表常态
+    f.cardEl.style.pointerEvents = ''
+    f.cardEl.style.transition = ''
+    f.cardEl.style.transform = ''
     f.layer.remove()
   }
   f.onSettle?.()
@@ -855,6 +865,12 @@ export function flyDiscOpen(cardEl: HTMLElement | undefined, onArrive: () => voi
     return
   }
 
+  // 同书本飞行：停掉悬浮倾斜并瞬间回平，克隆按平放姿态定位（动画期间盒身
+  // 姿态静止，不随鼠标漂移）；禁指针防倾斜跟动在动画中重启
+  stopCardTilt(cardEl)
+  cardEl.style.transition = 'none'
+  cardEl.style.transform = ''
+  cardEl.style.pointerEvents = 'none'
   const rect = disc.getBoundingClientRect()
   const hostRect =
     cardEl.closest('.reader-host')?.getBoundingClientRect() ??
@@ -1142,6 +1158,11 @@ export function flyDiscClose(
     return
   }
 
+  // 同打开：停倾斜并瞬间回平再量矩形、禁指针（settle 时归还内联样式）
+  stopCardTilt(cardEl)
+  cardEl.style.transition = 'none'
+  cardEl.style.transform = ''
+  cardEl.style.pointerEvents = 'none'
   const rect = disc.getBoundingClientRect()
   const hostRect =
     cardEl.closest('.reader-host')?.getBoundingClientRect() ??
@@ -1358,6 +1379,31 @@ export function boostColor(r: number, g: number, b: number, factor = 1.15) {
   return { r: clamp(nr), g: clamp(ng), b: clamp(nb) }
 }
 
+/** 取色结果：CSS 变量名 → 颜色字符串（如 { '--spine-color': 'rgb(…)' }） */
+export type CoverColors = Record<string, string>
+
+/** 封面取色缓存（键=媒体路径）。虚拟滚动卸载/重挂卡片时跳过重复的 canvas
+ *  采样与离屏解码（光盘卡一次 4 条带 + 1 次解码，是重挂风暴里最贵的一段）；
+ *  失败结果（跨域/解码不出）同样缓存，防止每次重挂徒劳重试。键取媒体路径
+ *  而非封面 URL——视频封面首载是 dataURL，拿它做键会把大字符串钉在缓存里。
+ *  超出上限按插入序淘汰最旧（Map 迭代序即插入序），防长会话无限增长 */
+const coverColorCache = new Map<string, CoverColors>()
+const COVER_COLOR_CACHE_MAX = 1000
+
+/** 读缓存的取色结果（未命中返回 undefined） */
+export function getCoverColors(key: string): CoverColors | undefined {
+  return coverColorCache.get(key)
+}
+
+/** 写入取色结果（带容量淘汰） */
+export function setCoverColors(key: string, colors: CoverColors): void {
+  if (coverColorCache.size >= COVER_COLOR_CACHE_MAX) {
+    const oldest = coverColorCache.keys().next().value
+    if (oldest !== undefined) coverColorCache.delete(oldest)
+  }
+  coverColorCache.set(key, colors)
+}
+
 /** 离屏加载图片（不进 DOM、命中缓存）：封面以 CSS 变量单份渲染的卡片
  *  （光盘盒，无 <img>）用它取色；加载失败返回 null */
 export function loadImage(url: string): Promise<HTMLImageElement | null> {
@@ -1387,12 +1433,13 @@ export function useMediaCardMeta(
     }
   })
 
-  const handleCardClick = async () => {
-    try {
-      await window.browseHistory.addBrowseHistory(item.value.path || '', ns.value)
-    } catch (error) {
-      console.error('记录浏览历史失败:', error)
-    }
+  const handleCardClick = () => {
+    // 浏览历史异步记录即可，不等 IPC 往返——飞行动画立即起手
+    void window.browseHistory
+      .addBrowseHistory(item.value.path || '', ns.value)
+      .catch((error) => {
+        console.error('记录浏览历史失败:', error)
+      })
     onOpen(item.value)
   }
 
@@ -1425,6 +1472,9 @@ export function use3DTilt(
   let curY = 0
   let tgtX = 0
   let tgtY = 0
+  // 高光坐标目标（%）：与倾斜同帧落笔，mousemove 只记目标不写样式
+  let tgtGx = 50
+  let tgtGy = 50
   const SMOOTH = 0.3
 
   const frame = () => {
@@ -1436,6 +1486,8 @@ export function use3DTilt(
     card.style.transition = 'none'
     // translateZ 恒等于基准深度：悬浮只倾斜不抬升，透视下无放大
     card.style.transform = `rotateX(${curX.toFixed(2)}deg) rotateY(${curY.toFixed(2)}deg) translateZ(${-getBaseZ()}px)`
+    card.style.setProperty('--gx', `${tgtGx.toFixed(1)}%`)
+    card.style.setProperty('--gy', `${tgtGy.toFixed(1)}%`)
     if (Math.abs(tgtX - curX) > 0.02 || Math.abs(tgtY - curY) > 0.02) {
       rafId = requestAnimationFrame(frame)
     } else if (tgtX === 0 && tgtY === 0) {
@@ -1472,8 +1524,8 @@ export function use3DTilt(
     const y = e.clientY - cachedRect.top
     tgtX = ((y - centerY) / centerY) * -maxTilt
     tgtY = ((x - centerX) / centerX) * maxTilt
-    cardRef.value?.style.setProperty('--gx', `${(x / cachedRect.width) * 100}%`)
-    cardRef.value?.style.setProperty('--gy', `${(y / cachedRect.height) * 100}%`)
+    tgtGx = (x / cachedRect.width) * 100
+    tgtGy = (y / cachedRect.height) * 100
     kick()
   }
 
@@ -1501,6 +1553,10 @@ export function use3DTilt(
     const card = cardRef.value
     if (card) tiltStoppers.set(card, stopTilt)
   })
+
+  // 悬浮中被虚拟滚动卸载不会触发 mouseleave（元素直接移除），主动停掉
+  // 平滑循环，别让它对着脱离 DOM 的元素继续写到收敛
+  onUnmounted(() => stopTilt())
 
   return { handleTiltEnter, handle3DTilt, reset3DTilt }
 }

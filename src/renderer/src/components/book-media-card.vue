@@ -68,7 +68,9 @@ import {
   useMediaCardMeta,
   use3DTilt,
   extractDominantColor,
-  boostColor
+  boostColor,
+  getCoverColors,
+  setCoverColors
 } from '@renderer/composables/use-media-card'
 
 interface Props {
@@ -130,11 +132,18 @@ const onImageLoad = (e: Event) => {
 }
 
 const applySpineColor = (img: HTMLImageElement) => {
-  if (!cardRef.value) return
-  const color = extractDominantColor(img)
-  if (!color) return
-  const boosted = boostColor(color.r, color.g, color.b)
-  cardRef.value.style.setProperty('--spine-color', `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`)
+  const card = cardRef.value
+  if (!card) return
+  const key = props.item.path
+  // 重挂载命中缓存时跳过 canvas 采样（缓存说明见 use-media-card）
+  let colors = key ? getCoverColors(key) : undefined
+  if (!colors) {
+    const color = extractDominantColor(img)
+    const boosted = color ? boostColor(color.r, color.g, color.b) : null
+    colors = boosted ? { '--spine-color': `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})` } : {}
+    if (key) setCoverColors(key, colors)
+  }
+  for (const [prop, value] of Object.entries(colors)) card.style.setProperty(prop, value)
 }
 
 // ===== 书本厚度：基础 20px + 每 10 页 0.5px，上限 70px（无页数信息按最薄处理） =====

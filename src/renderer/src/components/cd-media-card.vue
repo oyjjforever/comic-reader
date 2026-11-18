@@ -15,7 +15,7 @@
       <!-- 盒底：深色薄板 -->
       <div class="case-back"></div>
 
-      <!-- 银光盘片：夹在盒底与面板之间，银光持续旋转 -->
+      <!-- 银光盘片：夹在盒底与面板之间，银光悬浮时旋转（默认停转省合成） -->
       <div class="cd-disc">
         <!-- 外圈光弧：贴盘缘的亮弧带，与银光同相位同速旋转（子元素随
              cloneNode 进飞行层，伪元素已用完故落成真实节点） -->
@@ -80,6 +80,8 @@ import {
   extractDominantColor,
   boostColor,
   loadImage,
+  getCoverColors,
+  setCoverColors,
   type CoverColorRegion
 } from '@renderer/composables/use-media-card'
 
@@ -112,25 +114,37 @@ const { coverImageSrc, isLoadingCover, imageError } = useMediaCardCover(itemRef,
 // ===== 四切面自动取色（类似书脊取色法） =====
 /** 封面在卡上只有 --cover-image 一份 CSS 引用、无 <img>，离屏加载（命中
  *  缓存）取色：四个切面各取封面对应边缘条带（14% 宽）的主色注入，切面
- *  颜色延续封面画；跨域/加载失败保持 CSS 默认塑料色 */
+ *  颜色延续封面画；跨域/加载失败保持 CSS 默认塑料色。
+ *  结果按媒体路径走模块级缓存（见 use-media-card）——虚拟滚动重挂载时
+ *  直接命中，跳过离屏解码与 4 条带采样 */
 watch(
   coverImageSrc,
   async (url) => {
     if (!url || imageError.value) return
-    const img = await loadImage(url)
-    if (!img) return
-    const band = 0.14
-    const regions: Array<[string, CoverColorRegion]> = [
-      ['--edge-left', { x: 0, y: 0, w: band, h: 1 }],
-      ['--edge-right', { x: 1 - band, y: 0, w: band, h: 1 }],
-      ['--edge-top', { x: 0, y: 0, w: 1, h: band }],
-      ['--edge-bottom', { x: 0, y: 1 - band, w: 1, h: band }]
-    ]
-    for (const [prop, region] of regions) {
-      const color = extractDominantColor(img, region)
-      if (!color) continue
-      const boosted = boostColor(color.r, color.g, color.b, 1.2)
-      cardRef.value?.style.setProperty(prop, `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`)
+    const key = props.item.path
+    let colors = key ? getCoverColors(key) : undefined
+    if (!colors) {
+      const img = await loadImage(url)
+      const band = 0.14
+      const regions: Array<[string, CoverColorRegion]> = [
+        ['--edge-left', { x: 0, y: 0, w: band, h: 1 }],
+        ['--edge-right', { x: 1 - band, y: 0, w: band, h: 1 }],
+        ['--edge-top', { x: 0, y: 0, w: 1, h: band }],
+        ['--edge-bottom', { x: 0, y: 1 - band, w: 1, h: band }]
+      ]
+      colors = {}
+      if (img) {
+        for (const [prop, region] of regions) {
+          const color = extractDominantColor(img, region)
+          if (!color) continue
+          const boosted = boostColor(color.r, color.g, color.b, 1.2)
+          colors[prop] = `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`
+        }
+      }
+      if (key) setCoverColors(key, colors)
+    }
+    for (const [prop, value] of Object.entries(colors)) {
+      cardRef.value?.style.setProperty(prop, value)
     }
   },
   { immediate: true }
@@ -234,6 +248,12 @@ const onCardLeave = () => {
   panTgt = 50
   kickPan()
 }
+
+// 悬浮中被虚拟滚动卸载不会触发 mouseleave，停掉 pan 平滑循环
+onUnmounted(() => {
+  cancelAnimationFrame(panRaf)
+  panRaf = 0
+})
 
 /** 评分铭牌材质：5星金、4星银、其余铜 */
 const ratingMetal = computed(() =>
@@ -354,7 +374,10 @@ const coverVarStyle = computed(() =>
   z-index: 2;
 }
 
-/* 银光旋转：高透锥形高光 + 低透彩虹衍射双层一起转动（真实光盘的虹彩感） */
+/* 银光旋转：高透锥形高光 + 低透彩虹衍射双层一起转动（真实光盘的虹彩感）。
+   默认停转：每张卡两个持续旋转的合成层是网格待机的 GPU 常驻大头，悬浮
+   起转（paused→running 从暂停帧续转、不重跳）；飞行克隆脱离悬浮上下文，
+   由 style.css 的飞行层规则单独保持转动 */
 .cd-disc::after {
   content: '';
   position: absolute;
@@ -382,6 +405,7 @@ const coverVarStyle = computed(() =>
       transparent 100%
     );
   animation: cd-disc-spin var(--disc-spin-dur, 4s) linear infinite;
+  animation-play-state: paused;
   z-index: 1;
   pointer-events: none;
 }
@@ -414,7 +438,14 @@ const coverVarStyle = computed(() =>
     transparent 100%
   );
   animation: cd-disc-spin var(--disc-spin-dur, 4s) linear infinite;
+  animation-play-state: paused;
   pointer-events: none;
+}
+
+/* 悬浮起转：银光与外圈光弧一起（同动画同变量，暂停/续转同帧保持相位同步） */
+.media-card:hover .cd-disc::after,
+.media-card:hover .disc-ring-light {
+  animation-play-state: running;
 }
 
 @keyframes cd-disc-spin {

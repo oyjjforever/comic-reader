@@ -23,6 +23,13 @@
   will-change: transform;
 }
 
+/* 飞行克隆的银光保持转动：克隆不在 .media-card 悬浮上下文里，scoped 的
+   默认停转规则对它同样生效，这里显式起转 */
+.flying-disc-layer .cloned-disc::after,
+.flying-disc-layer .cloned-disc .disc-ring-light {
+  animation-play-state: running;
+}
+
 /* 中心黑洞：飞行层直接子节点，锚点由 JS 按盘心注入（left/top），
    z300 压过封面克隆（z200）与盘片（z100）——吞噬时全部盖掉。
    渐变几乎全实心：四角落点（约 77% 半径处）必须不透缝 */
