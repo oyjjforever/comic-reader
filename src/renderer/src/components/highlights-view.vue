@@ -1,85 +1,104 @@
 <template>
   <div class="highlights-view">
-    <!-- 左侧：精彩片段列表 -->
-    <aside class="highlights-list">
-      <div class="list-header">
-        <span class="list-title">精彩片段</span>
-        <span class="list-count">{{ filteredHighlights.length }}</span>
+    <!-- 主区：影院黑底播放器 -->
+    <section class="cinema-stage">
+      <video
+        v-if="current"
+        ref="videoRef"
+        class="stage-video"
+        controls
+        autoplay
+        :src="`file://${current.video_path}`"
+        @loadedmetadata="onLoadedMetadata"
+      />
+      <div v-else class="stage-empty">
+        <n-empty description="点击下方胶片选择精彩片段开始播放" />
       </div>
 
-      <div class="list-body">
-        <div v-if="filteredHighlights.length === 0" class="empty-state">
-          <n-empty :description="loading ? '加载中...' : '暂无精彩片段'" />
+      <!-- 同视频片段标记轨：按时间点打点（原生 controls 无法注入标记，独立细轨代之） -->
+      <div v-if="current && chapterMarks.length > 1" class="chapter-rail">
+        <span class="rail-time">{{ formatTs(videoDuration) }}</span>
+        <div class="rail-track">
+          <button
+            v-for="m in chapterMarks"
+            :key="m.item.id"
+            class="rail-mark"
+            :class="{ active: m.item.id === current?.id }"
+            :style="{ left: m.pct + '%' }"
+            :title="`${formatTs(m.item.time_point)}${m.item.title ? ' ' + m.item.title : ''}`"
+            @click="playHighlight(m.item)"
+          />
         </div>
+      </div>
 
+    </section>
+
+    <!-- 底部胶片带：放大缩略图 + 时间戳角标，两端箭头上/下一个片段（选中项自动居中） -->
+    <footer class="filmstrip">
+      <button class="strip-nav" :disabled="!hasPrev" title="上一个片段" @click="step(-1)">
+        <n-icon :component="ChevronBack" :size="18" />
+      </button>
+
+      <div ref="stripRef" class="strip-scroll" @wheel="onStripWheel">
+        <div v-if="filteredHighlights.length === 0" class="strip-empty">
+          {{ loading ? '加载中...' : '暂无精彩片段' }}
+        </div>
         <div
           v-for="item in filteredHighlights"
           :key="item.id"
-          class="highlight-item"
+          :data-id="item.id"
+          class="strip-cell"
           :class="{ active: current?.id === item.id }"
           @click="playHighlight(item)"
         >
-          <div class="thumb">
+          <div class="cell-thumb">
             <img
               v-if="thumbOf(item)"
               :src="thumbOf(item)"
               :alt="getVideoName(item.video_path)"
               @error="onThumbError(item.id)"
             />
-            <div v-else class="thumb-placeholder">
-              <n-icon :component="VideoIcon" :size="24" />
+            <div v-else class="cell-placeholder">
+              <n-icon :component="VideoIcon" :size="22" />
             </div>
+            <span class="cell-stamp">{{ formatTs(item.time_point) }}</span>
+            <!-- 删除：缩略图右上角，悬浮显示 -->
+            <n-button
+              class="cell-del"
+              quaternary
+              circle
+              size="tiny"
+              :focusable="false"
+              title="删除片段"
+              @click.stop="confirmDelete(item)"
+            >
+              <template #icon>
+                <n-icon :component="TrashIcon" />
+              </template>
+            </n-button>
           </div>
-
-          <div class="meta">
-            <div class="title" :title="item.title || getVideoName(item.video_path)">
-              {{ item.title || getVideoName(item.video_path) }}
-            </div>
-            <div class="video-name" :title="getVideoName(item.video_path)">
-              {{ getVideoName(item.video_path) }}
-            </div>
+          <div class="cell-title" :title="item.title || getVideoName(item.video_path)">
+            {{ item.title || getVideoName(item.video_path) }}
           </div>
-
-          <n-button
-            class="delete-btn"
-            quaternary
-            circle
-            size="tiny"
-            :focusable="false"
-            @click.stop="confirmDelete(item)"
-          >
-            <template #icon>
-              <n-icon :component="TrashIcon" />
-            </template>
-          </n-button>
         </div>
       </div>
-    </aside>
 
-    <!-- 右侧：视频播放器 -->
-    <section class="highlights-player">
-      <template v-if="current">
-        <video
-          ref="videoRef"
-          class="player-video"
-          controls
-          autoplay
-          :src="`file://${current.video_path}`"
-          @loadedmetadata="onLoadedMetadata"
-        />
-      </template>
-
-      <div v-else class="player-empty">
-        <n-empty description="选择左侧的精彩片段开始播放" />
-      </div>
-    </section>
+      <button class="strip-nav" :disabled="!hasNext" title="下一个片段" @click="step(1)">
+        <n-icon :component="ChevronForward" :size="18" />
+      </button>
+    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
-import { PlayCircle as VideoIcon, Trash as TrashIcon } from '@vicons/ionicons5'
+import {
+  PlayCircle as VideoIcon,
+  Trash as TrashIcon,
+  ChevronBack,
+  ChevronForward
+} from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
 
 const props = defineProps<{
@@ -93,6 +112,8 @@ const highlights = ref<VideoBookmark[]>([])
 const thumbs = ref<Record<number, string>>({})
 const current = ref<VideoBookmark | null>(null)
 const videoRef = ref<HTMLVideoElement>()
+const stripRef = ref<HTMLElement>()
+const videoDuration = ref(0)
 
 const filteredHighlights = computed(() => {
   const kw = (props.searchKeyword || '').trim().toLowerCase()
@@ -104,7 +125,36 @@ const filteredHighlights = computed(() => {
   })
 })
 
+// 当前片段在胶片带中的位置（驱动两端箭头的可用性）
+const idxOfCurrent = computed(() =>
+  filteredHighlights.value.findIndex((i) => i.id === current.value?.id)
+)
+const hasPrev = computed(() => idxOfCurrent.value > 0)
+const hasNext = computed(
+  () => idxOfCurrent.value >= 0 && idxOfCurrent.value < filteredHighlights.value.length - 1
+)
+
+// 同视频片段 → 时间轴打点（原生进度条注入不了标记，独立细轨呈现）
+const chapterMarks = computed(() => {
+  if (!current.value || !videoDuration.value) return []
+  return filteredHighlights.value
+    .filter((i) => i.video_path === current.value!.video_path)
+    .map((item) => ({
+      item,
+      pct: Math.min(100, Math.max(0, (item.time_point / videoDuration.value) * 100))
+    }))
+})
+
 const getVideoName = (path: string) => path.split(/[/\\]/).pop() || path
+
+/** 秒 → m:ss / h:mm:ss（角标/打点统一格式） */
+const formatTs = (sec?: number) => {
+  const s = Math.max(0, Math.floor(sec || 0))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = String(s % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
 
 const thumbOf = (item: VideoBookmark) => (item.id != null ? thumbs.value[item.id] : '')
 
@@ -203,12 +253,10 @@ const reload = async () => {
     thumbs.value = {}
     captureThumbs()
 
-    // 默认选中并播放第一个
-    // if (list.length > 0) {
-    //   current.value = list[0]
-    // } else {
-    //   current.value = null
-    // }
+    // 默认不自动播放，等用户点胶片（保持上次浏览位置由外部记忆时再恢复）
+    if (current.value && !list.some((i) => i.id === current.value?.id)) {
+      current.value = null
+    }
   } catch (error: any) {
     message.error(`加载精彩片段失败: ${error.message}`)
   } finally {
@@ -235,9 +283,39 @@ const playHighlight = (item: VideoBookmark) => {
   }
 }
 
+const step = (dir: 1 | -1) => {
+  const target = filteredHighlights.value[idxOfCurrent.value + dir]
+  if (target) playHighlight(target)
+}
+
+// 竖直滚轮 → 胶片带横向滚动（'instant' 强制立即：'auto' 会跟随 CSS 的 smooth，
+// 每个滚轮增量都启动一次平滑动画且互相打断，表现为滚动发卡）
+const onStripWheel = (e: WheelEvent) => {
+  const el = stripRef.value
+  if (!el) return
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+  if (!delta) return
+  e.preventDefault()
+  el.scrollTo({ left: el.scrollLeft + delta, behavior: 'instant' })
+}
+
 const onLoadedMetadata = () => {
+  videoDuration.value = videoRef.value?.duration || 0
   seekToCurrent()
 }
+
+// 选中项变化 → 胶片带平滑居中（仅在用户主动切换时触发，不存在下载队列那种抢滚动问题）
+watch(
+  () => current.value?.id,
+  (id) => {
+    if (id == null) return
+    void nextTick(() => {
+      stripRef.value
+        ?.querySelector(`[data-id="${CSS.escape(String(id))}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    })
+  }
+)
 
 onBeforeUnmount(() => {
   disposed = true
@@ -271,9 +349,11 @@ const deleteHighlight = async (item: VideoBookmark) => {
     await window.videoBookmarks.deleteVideoBookmark(item.id)
     highlights.value = highlights.value.filter((h) => h.id !== item.id)
     delete thumbs.value[item.id]
-    // 删除的若是当前播放项，则切换到列表第一项
+    // 删除的若是当前播放项，优先落到邻位片段（先向后，再向前）
     if (current.value?.id === item.id) {
-      current.value = highlights.value[0] || null
+      const idx = filteredHighlights.value.findIndex((h) => h.id === item.id)
+      current.value =
+        filteredHighlights.value[idx] || filteredHighlights.value[idx - 1] || null
     }
     message.success('已删除')
   } catch (error: any) {
@@ -289,172 +369,284 @@ defineExpose({ reload })
 </script>
 
 <style lang="scss" scoped>
+// 影院胶片式：黑底大画幅播放器 + 底部横向胶片带
+// 配色沿用全站暖橙（#ff9205 系）压暗底（#0e0c12 系），与 reader 黑底同族
 .highlights-view {
   display: flex;
+  flex-direction: column;
   flex: 1;
   width: 100%;
   height: 100%;
   min-width: 0;
   overflow: hidden;
+  // 四周圆角：与侧栏/抽屉的玻璃面板同语言（main-content 自带 8px 内边距，圆角可见）
+  border-radius: 16px;
+  background: #0e0c12;
+}
 
-  .highlights-list {
-    width: 280px;
+.cinema-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+
+  .stage-video {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    background: #000;
+  }
+
+  .stage-empty {
+    flex: 1;
     display: flex;
-    flex-direction: column;
-    background-color: #f9fafb;
-    border-right: 1px solid #e5e7eb;
+    align-items: center;
+    justify-content: center;
+    background: #16131c;
+
+    :deep(.n-empty__description) {
+      color: #8b8394;
+    }
+  }
+
+  // ===== 同视频片段标记轨 =====
+  .chapter-rail {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 16px 0;
+    background: #000;
 
-    .list-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      border-bottom: 1px solid #e5e7eb;
+    .rail-time {
       flex-shrink: 0;
-
-      .list-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: #1f2937;
-      }
-
-      .list-count {
-        font-size: 12px;
-        color: #6b7280;
-        background: #e5e7eb;
-        padding: 2px 8px;
-        border-radius: 12px;
-      }
+      font-size: 10px;
+      color: #6f6878;
+      font-variant-numeric: tabular-nums;
     }
 
-    .list-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px;
-
-      &::-webkit-scrollbar {
-        width: 6px;
-      }
-      &::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.15);
-        border-radius: 3px;
-      }
-    }
-
-    .empty-state {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-    }
-
-    .highlight-item {
+    .rail-track {
       position: relative;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px;
-      margin-bottom: 6px;
-      border-radius: 8px;
+      flex: 1;
+      height: 16px;
+
+      // 细轴线
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 2px;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 1px;
+      }
+    }
+
+    .rail-mark {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border-radius: 50%;
+      background: #4a4452;
+      border: 1.5px solid #0e0c12;
       cursor: pointer;
-      transition: background-color 0.15s ease;
-      border: 2px solid transparent;
+      transition:
+        background 0.15s,
+        transform 0.15s,
+        box-shadow 0.15s;
 
       &:hover {
-        background-color: #f3f4f6;
+        background: #ffb04d;
       }
 
       &.active {
-        background-color: rgba(24, 160, 88, 0.1);
-        border-color: #18a058;
-      }
-
-      .delete-btn {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        opacity: 0;
-        color: #f56565;
-        transition: opacity 0.15s ease;
-      }
-
-      &:hover .delete-btn,
-      &.active .delete-btn {
-        opacity: 1;
-      }
-
-      .thumb {
-        position: relative;
-        width: 72px;
-        height: 48px;
-        border-radius: 6px;
-        overflow: hidden;
-        background: #000;
-        flex-shrink: 0;
-
-        img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .thumb-placeholder {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #9ca3af;
-          background: #1f2937;
-        }
-      }
-
-      .meta {
-        flex: 1;
-        min-width: 0;
-
-        .title {
-          font-size: 13px;
-          font-weight: 500;
-          color: #1f2937;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .video-name {
-          margin-top: 2px;
-          font-size: 12px;
-          color: #6b7280;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
+        background: #ff9205;
+        transform: translate(-50%, -50%) scale(1.35);
+        box-shadow: 0 0 0 3px rgba(255, 146, 5, 0.25);
       }
     }
   }
 
-  .highlights-player {
+}
+
+// ===== 底部胶片带 =====
+.filmstrip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  background: #14111a;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+
+  .strip-nav {
+    flex-shrink: 0;
+    width: 26px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #b9b2c2;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 146, 5, 0.18);
+      color: #ffb04d;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+  }
+
+  .strip-scroll {
     flex: 1;
     min-width: 0;
     display: flex;
-    flex-direction: column;
-    background-color: #000;
+    align-items: flex-start;
+    gap: 10px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 3px 2px;
 
-    .player-video {
-      width: 100%;
-      flex: 1;
-      min-height: 0;
-      background-color: #000;
+    &::-webkit-scrollbar {
+      height: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  }
+
+  .strip-empty {
+    align-self: center;
+    margin: 0 auto;
+    font-size: 13px;
+    color: #8b8394;
+  }
+
+  .strip-cell {
+    flex-shrink: 0;
+    width: 132px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+
+    .cell-thumb {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1c1824;
+      border: 2px solid transparent;
+      transition:
+        border-color 0.15s,
+        transform 0.15s,
+        box-shadow 0.15s;
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .cell-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #585060;
+        background: #1c1824;
+      }
+
+      // 时间戳角标：右下暗底胶囊
+      .cell-stamp {
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #ffe9cf;
+        background: rgba(14, 12, 18, 0.75);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+
+      // 删除按钮：右上角小圆片，与时间戳角标同配色（暗底暖白）
+      .cell-del {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        opacity: 0;
+        // 图标继承 currentColor，color 过渡即图标渐变（naive 自带的 transition
+        // 是运行时注入，顺序在后，需 !important 才能接管）
+        transition:
+          opacity 0.15s,
+          color 0.25s ease,
+          background-color 0.25s ease !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+
+        // naive 按钮无 --n-icon-color：图标继承 color:var(--n-text-color)，
+        // 染色须走 text-color 系（内联下发，需 !important）
+        --n-text-color: #ffe9cf !important;
+        --n-text-color-hover: #ff6f6f !important;
+        --n-text-color-pressed: #ff8a80 !important;
+        --n-text-color-focus: #ff6f6f !important;
+        --n-color: rgba(14, 12, 18, 0.75) !important;
+        --n-color-hover: rgba(14, 12, 18, 0.9) !important;
+        --n-color-pressed: rgba(14, 12, 18, 0.6) !important;
+        --n-color-focus: rgba(14, 12, 18, 0.9) !important;
+      }
     }
 
-    .player-empty {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-color: #1f2937;
+    &:hover .cell-del {
+      opacity: 1;
+    }
+
+    .cell-title {
+      margin-top: 5px;
+      font-size: 12.5px;
+      line-height: 1.4;
+      color: #ded9e2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+
+    &:hover .cell-thumb {
+      border-color: rgba(255, 146, 5, 0.35);
+    }
+
+    &.active {
+      .cell-thumb {
+        border-color: #ff9205;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.8);
+      }
+
+      .cell-title {
+        color: #ffb04d;
+      }
     }
   }
 }
