@@ -1,7 +1,7 @@
 <template>
   <div class="highlights-view">
-    <!-- 主区：影院黑底播放器 -->
-    <section class="cinema-stage">
+    <!-- 主区：影院黑底播放器（滚轮步进上一个/下一个片段） -->
+    <section class="cinema-stage" @wheel="onStageWheel">
       <video
         v-if="current"
         ref="videoRef"
@@ -12,7 +12,7 @@
         @loadedmetadata="onLoadedMetadata"
       />
       <div v-else class="stage-empty">
-        <n-empty description="点击下方胶片选择精彩片段开始播放" />
+        <n-empty description="点击右侧缩略图选择精彩片段开始播放" />
       </div>
 
       <!-- 同视频片段标记轨：按时间点打点（原生 controls 无法注入标记，独立细轨代之） -->
@@ -30,76 +30,30 @@
           />
         </div>
       </div>
-
     </section>
 
-    <!-- 底部胶片带：放大缩略图 + 时间戳角标，两端箭头上/下一个片段（选中项自动居中） -->
-    <footer class="filmstrip">
-      <button class="strip-nav" :disabled="!hasPrev" title="上一个片段" @click="step(-1)">
-        <n-icon :component="ChevronBack" :size="18" />
-      </button>
-
-      <div ref="stripRef" class="strip-scroll" @wheel="onStripWheel">
-        <div v-if="filteredHighlights.length === 0" class="strip-empty">
-          {{ loading ? '加载中...' : '暂无精彩片段' }}
-        </div>
-        <div
-          v-for="item in filteredHighlights"
-          :key="item.id"
-          :data-id="item.id"
-          class="strip-cell"
-          :class="{ active: current?.id === item.id }"
-          @click="playHighlight(item)"
-        >
-          <div class="cell-thumb">
-            <img
-              v-if="thumbOf(item)"
-              :src="thumbOf(item)"
-              :alt="getVideoName(item.video_path)"
-              @error="onThumbError(item.id)"
-            />
-            <div v-else class="cell-placeholder">
-              <n-icon :component="VideoIcon" :size="22" />
-            </div>
-            <span class="cell-stamp">{{ formatTs(item.time_point) }}</span>
-            <!-- 删除：缩略图右上角，悬浮显示 -->
-            <n-button
-              class="cell-del"
-              quaternary
-              circle
-              size="tiny"
-              :focusable="false"
-              title="删除片段"
-              @click.stop="confirmDelete(item)"
-            >
-              <template #icon>
-                <n-icon :component="TrashIcon" />
-              </template>
-            </n-button>
-          </div>
-          <div class="cell-title" :title="item.title || getVideoName(item.video_path)">
-            {{ item.title || getVideoName(item.video_path) }}
-          </div>
-        </div>
-      </div>
-
-      <button class="strip-nav" :disabled="!hasNext" title="下一个片段" @click="step(1)">
-        <n-icon :component="ChevronForward" :size="18" />
-      </button>
-    </footer>
+    <!-- 缩略图抽屉：整体复用阅读器的 thumbnail-panel（拉手/单列/全屏三态交互一致），
+         仅数据源不同 —— 这里是精彩片段条目，缩略图为时间点截帧而非文件封面 -->
+    <thumbnail-panel
+      :items="panelItems"
+      :resolve="resolveClipThumb"
+      title="精彩片段"
+      empty-text="暂无精彩片段"
+      :current-keys="activeKeys"
+      thumb-ratio="16 / 9"
+      removable
+      initial-mode="column"
+      @jump="onPanelJump"
+      @remove="onPanelRemove"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
-import {
-  PlayCircle as VideoIcon,
-  Trash as TrashIcon,
-  ChevronBack,
-  ChevronForward
-} from '@vicons/ionicons5'
 import type { VideoBookmark } from '@/typings/video-bookmarks'
+import ThumbnailPanel from '@renderer/components/thumbnail-panel.vue'
 
 const props = defineProps<{
   searchKeyword?: string
@@ -109,10 +63,8 @@ const message = useMessage()
 const dialog = useDialog()
 const loading = ref(false)
 const highlights = ref<VideoBookmark[]>([])
-const thumbs = ref<Record<number, string>>({})
 const current = ref<VideoBookmark | null>(null)
 const videoRef = ref<HTMLVideoElement>()
-const stripRef = ref<HTMLElement>()
 const videoDuration = ref(0)
 
 const filteredHighlights = computed(() => {
@@ -124,15 +76,6 @@ const filteredHighlights = computed(() => {
     return name.includes(kw) || title.includes(kw)
   })
 })
-
-// 当前片段在胶片带中的位置（驱动两端箭头的可用性）
-const idxOfCurrent = computed(() =>
-  filteredHighlights.value.findIndex((i) => i.id === current.value?.id)
-)
-const hasPrev = computed(() => idxOfCurrent.value > 0)
-const hasNext = computed(
-  () => idxOfCurrent.value >= 0 && idxOfCurrent.value < filteredHighlights.value.length - 1
-)
 
 // 同视频片段 → 时间轴打点（原生进度条注入不了标记，独立细轨呈现）
 const chapterMarks = computed(() => {
@@ -147,6 +90,11 @@ const chapterMarks = computed(() => {
 
 const getVideoName = (path: string) => path.split(/[/\\]/).pop() || path
 
+const extOf = (path: string) => {
+  const i = path.lastIndexOf('.')
+  return i === -1 ? '' : path.slice(i).toLowerCase()
+}
+
 /** 秒 → m:ss / h:mm:ss（角标/打点统一格式） */
 const formatTs = (sec?: number) => {
   const s = Math.max(0, Math.floor(sec || 0))
@@ -156,104 +104,146 @@ const formatTs = (sec?: number) => {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-const thumbOf = (item: VideoBookmark) => (item.id != null ? thumbs.value[item.id] : '')
+// ===== 缩略图数据源：片段 → thumbnail-panel 外部条目 =====
+// key = 书签 id；name 进 tooltip（时间点 + 标题 + 视频名）；caption 是图下说明行；
+// ext 供占位符显示
+const panelItems = computed(() =>
+  filteredHighlights.value.map((item) => ({
+    key: String(item.id),
+    name: `${formatTs(item.time_point)}${item.title ? ` ${item.title}` : ''} · ${getVideoName(item.video_path)}`,
+    ext: extOf(item.video_path),
+    isVideo: true,
+    caption: item.title || getVideoName(item.video_path)
+  }))
+)
 
-const onThumbError = (id?: number) => {
-  if (id != null) thumbs.value[id] = ''
+const activeKeys = computed(() =>
+  current.value?.id != null ? [String(current.value.id)] : []
+)
+
+const findBookmark = (key: string) =>
+  filteredHighlights.value.find((i) => String(i.id) === key)
+
+/** 外部条目缩略图：进入视口时在片段时间点截帧 */
+const resolveClipThumb = (panelItem: { key: string }) => {
+  const bm = findBookmark(panelItem.key)
+  return bm ? captureFrame(bm.video_path, bm.time_point) : Promise.resolve('')
 }
 
-// 卸载标记：截帧循环在组件卸载后停止推进（在途的单组由超时自行收尾）
-let disposed = false
+const onPanelJump = (key: string) => {
+  const bm = findBookmark(key)
+  if (bm) playHighlight(bm)
+}
 
-// 从同一视频的多个时间点逐帧抓取缩略图（复用单个 video 元素）
-const captureGroup = (videoPath: string, bookmarks: VideoBookmark[]) =>
-  new Promise<void>((resolve) => {
+const onPanelRemove = (key: string) => {
+  const bm = findBookmark(key)
+  if (bm) confirmDelete(bm)
+}
+
+// ===== 截帧：每视频一个共享 video 元素，串行队列 + 闲置释放 =====
+// 同视频的片段在列表里相邻，会同时进入视口；各自开元素会把同一文件解码 N 遍
+// （内存峰值 = N × 解码缓冲），队列排空 5s 后释放元素。
+interface FrameWorker {
+  video: HTMLVideoElement
+  queue: Promise<unknown>
+  pending: number
+  idleTimer: number
+}
+const frameWorkers = new Map<string, FrameWorker>()
+
+const releaseWorker = (videoPath: string) => {
+  const w = frameWorkers.get(videoPath)
+  if (!w) return
+  frameWorkers.delete(videoPath)
+  w.video.removeAttribute('src')
+  w.video.load()
+}
+
+/** 在 videoPath 的 timePoint 处截一帧（≤200px 宽 JPEG dataURL） */
+const captureFrame = (videoPath: string, timePoint: number): Promise<string> => {
+  let w = frameWorkers.get(videoPath)
+  if (!w) {
     const video = document.createElement('video')
     video.preload = 'auto'
     video.muted = true
     video.src = `file://${videoPath}`
+    w = { video, queue: Promise.resolve(), pending: 0, idleTimer: 0 }
+    frameWorkers.set(videoPath, w)
+  }
+  const { video } = w
+  clearTimeout(w.idleTimer)
+  w.pending++
 
-    const cleanup = () => {
-      video.removeAttribute('src')
-      video.load()
-    }
-
-    // 单组 15s 兜底：坏文件 file:// 元数据既不加载也不报错时事件永不触发，
-    // Promise 与 video 元素会被闭包永久持有（与 thumbnail-panel 同值）
-    let settled = false
-    const finish = () => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      cleanup()
-      resolve()
-    }
-    const timer = window.setTimeout(finish, 15000)
-
-    let index = 0
-    const captureNext = () => {
-      if (index >= bookmarks.length) {
-        finish()
-        return
-      }
-      const bm = bookmarks[index]
-      const onSeeked = () => {
-        video.removeEventListener('seeked', onSeeked)
-        try {
-          const ratio = video.videoWidth ? video.videoHeight / video.videoWidth : 0.5625
-          const w = Math.min(200, video.videoWidth || 200)
-          const h = Math.round(w * ratio)
-          const canvas = document.createElement('canvas')
-          canvas.width = w
-          canvas.height = h
-          const ctx = canvas.getContext('2d')
-          ctx?.drawImage(video, 0, 0, w, h)
-          if (bm.id != null) thumbs.value[bm.id] = canvas.toDataURL('image/jpeg', 0.8)
-        } catch {
-          // ignore capture failure
+  const job = w.queue.then(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        // 单帧 15s 兜底：坏文件 file:// 元数据既不加载也不报错时事件永不触发，
+        // Promise 与 video 元素会被闭包永久持有
+        const timer = window.setTimeout(() => {
+          cleanup()
+          reject(new Error('截帧超时'))
+        }, 15000)
+        const cleanup = () => {
+          clearTimeout(timer)
+          video.removeEventListener('loadedmetadata', onMeta)
+          video.removeEventListener('seeked', onSeeked)
+          video.removeEventListener('error', onError)
         }
-        index++
-        captureNext()
+        const seek = () => {
+          const target =
+            timePoint > 0 && isFinite(video.duration) && timePoint < video.duration
+              ? timePoint
+              : 0
+          video.currentTime = target
+        }
+        const onMeta = () => seek()
+        const onSeeked = () => {
+          try {
+            const ratio = video.videoWidth ? video.videoHeight / video.videoWidth : 0.5625
+            const cw = Math.min(200, video.videoWidth || 200)
+            const ch = Math.round(cw * ratio)
+            const canvas = document.createElement('canvas')
+            canvas.width = cw
+            canvas.height = ch
+            canvas.getContext('2d')?.drawImage(video, 0, 0, cw, ch)
+            cleanup()
+            resolve(canvas.toDataURL('image/jpeg', 0.8))
+          } catch (e) {
+            cleanup()
+            reject(e)
+          }
+        }
+        const onError = () => {
+          cleanup()
+          reject(new Error('视频加载失败'))
+        }
+        video.addEventListener('loadedmetadata', onMeta)
+        video.addEventListener('seeked', onSeeked)
+        video.addEventListener('error', onError)
+        // 元数据可能早于入队就已就绪（同视频的后续帧），直接 seek
+        if (video.readyState >= 1) seek()
+      })
+  )
+  // 单帧失败不断链（后续帧继续）；队列排空后调度闲置释放
+  w.queue = job
+    .catch(() => undefined)
+    .then(() => {
+      w.pending--
+      if (w.pending === 0 && frameWorkers.get(videoPath) === w) {
+        w.idleTimer = window.setTimeout(() => releaseWorker(videoPath), 5000)
       }
-      video.addEventListener('seeked', onSeeked)
-      const target =
-        bm.time_point > 0 && isFinite(video.duration) && bm.time_point < video.duration
-          ? bm.time_point
-          : 0
-      video.currentTime = target
-    }
-
-    video.addEventListener('loadedmetadata', captureNext)
-    video.addEventListener('error', finish)
-  })
-
-// 按视频分组，逐个视频抓取其下所有时间点的帧
-const captureThumbs = async () => {
-  const groups = new Map<string, VideoBookmark[]>()
-  for (const item of highlights.value) {
-    if (!groups.has(item.video_path)) groups.set(item.video_path, [])
-    groups.get(item.video_path)!.push(item)
-  }
-  for (const [videoPath, group] of groups) {
-    if (disposed) return
-    try {
-      await captureGroup(videoPath, group)
-    } catch {
-      // ignore group failure
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20))
-  }
+    })
+  return job
 }
 
 const reload = async () => {
   loading.value = true
   try {
     const list = await window.videoBookmarks.getAllVideoBookmarks('created_at DESC')
+    // 缩略图按 key 懒加载：已有 id 沿用缓存，新增项进入视口时截帧
     highlights.value = list
-    thumbs.value = {}
-    captureThumbs()
 
-    // 默认不自动播放，等用户点胶片（保持上次浏览位置由外部记忆时再恢复）
+    // 默认不自动播放，等用户在缩略图抽屉里点选
     if (current.value && !list.some((i) => i.id === current.value?.id)) {
       current.value = null
     }
@@ -283,42 +273,48 @@ const playHighlight = (item: VideoBookmark) => {
   }
 }
 
-const step = (dir: 1 | -1) => {
-  const target = filteredHighlights.value[idxOfCurrent.value + dir]
-  if (target) playHighlight(target)
-}
-
-// 竖直滚轮 → 胶片带横向滚动（'instant' 强制立即：'auto' 会跟随 CSS 的 smooth，
-// 每个滚轮增量都启动一次平滑动画且互相打断，表现为滚动发卡）
-const onStripWheel = (e: WheelEvent) => {
-  const el = stripRef.value
-  if (!el) return
-  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-  if (!delta) return
-  e.preventDefault()
-  el.scrollTo({ left: el.scrollLeft + delta, behavior: 'instant' })
-}
-
 const onLoadedMetadata = () => {
   videoDuration.value = videoRef.value?.duration || 0
   seekToCurrent()
 }
 
-// 选中项变化 → 胶片带平滑居中（仅在用户主动切换时触发，不存在下载队列那种抢滚动问题）
-watch(
-  () => current.value?.id,
-  (id) => {
-    if (id == null) return
-    void nextTick(() => {
-      stripRef.value
-        ?.querySelector(`[data-id="${CSS.escape(String(id))}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-    })
+// ===== 滚轮步进：滚轮切上一个/下一个片段 =====
+// 累计增量过阈值才算一次手势（触控板的小增量流不误触）；步进后冷却期内
+// 丢弃事件（一次滚动不跨多格）。缩略图面板内部滚轮已被其 wheel.stop 拦截。
+let wheelAccum = 0
+let wheelLockUntil = 0
+
+const step = (dir: 1 | -1) => {
+  const idx = filteredHighlights.value.findIndex((i) => i.id === current.value?.id)
+  // 未开播时向下滚动从第一个片段起步
+  const target = filteredHighlights.value[idx + dir]
+  if (target) playHighlight(target)
+}
+
+const onStageWheel = (e: WheelEvent) => {
+  // ctrl+滚轮是缩放手势，不抢
+  if (!e.deltaY || e.ctrlKey) return
+  e.preventDefault()
+  if (Date.now() < wheelLockUntil) {
+    wheelAccum = 0
+    return
   }
-)
+  wheelAccum += e.deltaY
+  if (Math.abs(wheelAccum) < 60) return
+  const dir = wheelAccum > 0 ? 1 : -1
+  wheelAccum = 0
+  wheelLockUntil = Date.now() + 260
+  step(dir)
+}
 
 onBeforeUnmount(() => {
-  disposed = true
+  // 释放所有截帧 worker：脱离 DOM 的 video 仍占着解码缓冲
+  for (const w of frameWorkers.values()) {
+    clearTimeout(w.idleTimer)
+    w.video.removeAttribute('src')
+    w.video.load()
+  }
+  frameWorkers.clear()
   // 播放器防幽灵音轨：脱离 DOM 仍在播的媒体会继续出声并驻留解码缓冲
   const el = videoRef.value
   if (el) {
@@ -348,7 +344,6 @@ const deleteHighlight = async (item: VideoBookmark) => {
   try {
     await window.videoBookmarks.deleteVideoBookmark(item.id)
     highlights.value = highlights.value.filter((h) => h.id !== item.id)
-    delete thumbs.value[item.id]
     // 删除的若是当前播放项，优先落到邻位片段（先向后，再向前）
     if (current.value?.id === item.id) {
       const idx = filteredHighlights.value.findIndex((h) => h.id === item.id)
@@ -369,9 +364,11 @@ defineExpose({ reload })
 </script>
 
 <style lang="scss" scoped>
-// 影院胶片式：黑底大画幅播放器 + 底部横向胶片带
+// 影院胶片式：黑底大画幅播放器 + 右侧缩略图抽屉（复用 thumbnail-panel）
 // 配色沿用全站暖橙（#ff9205 系）压暗底（#0e0c12 系），与 reader 黑底同族
 .highlights-view {
+  // position 供 thumbnail-panel 的绝对定位抽屉作包含块
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -469,183 +466,6 @@ defineExpose({ reload })
         background: #ff9205;
         transform: translate(-50%, -50%) scale(1.35);
         box-shadow: 0 0 0 3px rgba(255, 146, 5, 0.25);
-      }
-    }
-  }
-
-}
-
-// ===== 底部胶片带 =====
-.filmstrip {
-  flex-shrink: 0;
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 10px 12px 12px;
-  background: #14111a;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-
-  .strip-nav {
-    flex-shrink: 0;
-    width: 26px;
-    border: none;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #b9b2c2;
-    cursor: pointer;
-    transition:
-      background 0.15s,
-      color 0.15s;
-
-    &:hover:not(:disabled) {
-      background: rgba(255, 146, 5, 0.18);
-      color: #ffb04d;
-    }
-
-    &:disabled {
-      opacity: 0.3;
-      cursor: default;
-    }
-  }
-
-  .strip-scroll {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    overflow-x: auto;
-    scroll-behavior: smooth;
-    padding: 3px 2px;
-
-    &::-webkit-scrollbar {
-      height: 6px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 3px;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.25);
-      }
-    }
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-  }
-
-  .strip-empty {
-    align-self: center;
-    margin: 0 auto;
-    font-size: 13px;
-    color: #8b8394;
-  }
-
-  .strip-cell {
-    flex-shrink: 0;
-    width: 132px;
-    cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
-
-    .cell-thumb {
-      position: relative;
-      aspect-ratio: 16 / 9;
-      border-radius: 8px;
-      overflow: hidden;
-      background: #1c1824;
-      border: 2px solid transparent;
-      transition:
-        border-color 0.15s,
-        transform 0.15s,
-        box-shadow 0.15s;
-
-      img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-      }
-
-      .cell-placeholder {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #585060;
-        background: #1c1824;
-      }
-
-      // 时间戳角标：右下暗底胶囊
-      .cell-stamp {
-        position: absolute;
-        right: 4px;
-        bottom: 4px;
-        font-size: 10px;
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        color: #ffe9cf;
-        background: rgba(14, 12, 18, 0.75);
-        padding: 1px 5px;
-        border-radius: 5px;
-      }
-
-      // 删除按钮：右上角小圆片，与时间戳角标同配色（暗底暖白）
-      .cell-del {
-        position: absolute;
-        top: 3px;
-        right: 3px;
-        opacity: 0;
-        // 图标继承 currentColor，color 过渡即图标渐变（naive 自带的 transition
-        // 是运行时注入，顺序在后，需 !important 才能接管）
-        transition:
-          opacity 0.15s,
-          color 0.25s ease,
-          background-color 0.25s ease !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-
-        // naive 按钮无 --n-icon-color：图标继承 color:var(--n-text-color)，
-        // 染色须走 text-color 系（内联下发，需 !important）
-        --n-text-color: #ffe9cf !important;
-        --n-text-color-hover: #ff6f6f !important;
-        --n-text-color-pressed: #ff8a80 !important;
-        --n-text-color-focus: #ff6f6f !important;
-        --n-color: rgba(14, 12, 18, 0.75) !important;
-        --n-color-hover: rgba(14, 12, 18, 0.9) !important;
-        --n-color-pressed: rgba(14, 12, 18, 0.6) !important;
-        --n-color-focus: rgba(14, 12, 18, 0.9) !important;
-      }
-    }
-
-    &:hover .cell-del {
-      opacity: 1;
-    }
-
-    .cell-title {
-      margin-top: 5px;
-      font-size: 12.5px;
-      line-height: 1.4;
-      color: #ded9e2;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      transition: color 0.15s;
-    }
-
-    &:hover .cell-thumb {
-      border-color: rgba(255, 146, 5, 0.35);
-    }
-
-    &.active {
-      .cell-thumb {
-        border-color: #ff9205;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.8);
-      }
-
-      .cell-title {
-        color: #ffb04d;
       }
     }
   }

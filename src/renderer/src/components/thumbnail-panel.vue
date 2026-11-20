@@ -1,3 +1,20 @@
+<script lang="ts">
+/** 缩略图面板的条目形状（数据源由外部提供：目录文件、精彩片段等） */
+export interface ThumbPanelItem {
+  /** 条目唯一标识：点击 jump / 高亮 currentKeys / 删除 remove 均用它 */
+  key: string
+  /** tooltip 文案 */
+  name: string
+  /** 占位符文案来源（如 '.mp4'，截取去点后大写显示） */
+  ext: string
+  isVideo: boolean
+  /** 缩略图右下角角标文本（超长省略），如片段标题 */
+  stamp?: string
+  /** 缩略图下方说明行（超长省略），缺省显示序号 */
+  caption?: string
+}
+</script>
+
 <template>
   <div ref="rootEl" class="tp-root">
     <!-- 右缘拉手：收起态一个（拉开）；单列态两个（上：收起，下：全屏）；全屏态隐藏 -->
@@ -6,7 +23,7 @@
       v-show="handleVisible"
       class="tp-handle tp-handle--solo"
       title="打开缩略图"
-      @click="mode = 'column'; if (items.length === 0) load()"
+      @click="mode = 'column'"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z" />
@@ -32,7 +49,7 @@
       @wheel.stop
     >
       <div class="tp-header">
-        <span class="tp-header__title" :title="folderName">{{ folderName || '缩略图' }}</span>
+        <span class="tp-header__title" :title="title || '缩略图'">{{ title || '缩略图' }}</span>
         <span class="tp-header__count">{{ items.length }} 项</span>
         <div class="tp-header__ops">
           <n-button v-if="mode === 'full'" size="tiny" quaternary title="收起为侧栏" @click="mode = 'column'">
@@ -55,31 +72,59 @@
         <div v-if="items.length" class="tp-list" :class="{ 'tp-list--full': mode === 'full' }">
           <div
             v-for="(item, i) in items"
-            :key="item.fullPath"
+            :key="item.key"
             class="tp-item"
-            :data-path="item.fullPath"
-            :class="{ 'tp-item--current': currentPaths?.includes(item.fullPath) }"
+            :data-key="item.key"
+            :class="{ 'tp-item--current': currentKeys?.includes(item.key) }"
             :title="item.name"
-            @click="onItemClick(item.fullPath)"
+            @click="onItemClick(item.key)"
           >
-            <div class="tp-item__thumb" :ref="(el) => collectThumb(el, i)">
-              <img v-if="item.src" :src="item.src" referrerpolicy="no-referrer" />
-              <div v-else-if="item.loading" class="tp-item__placeholder">
+            <div
+              class="tp-item__thumb"
+              :style="thumbRatio ? { aspectRatio: thumbRatio } : undefined"
+              :ref="(el) => registerThumb(el, item)"
+            >
+              <img
+                v-if="thumb(item).src"
+                :src="thumb(item).src"
+                referrerpolicy="no-referrer"
+                @error="onImgError(item)"
+              />
+              <div v-else-if="thumb(item).loading" class="tp-item__placeholder">
                 <n-spin size="small" />
               </div>
               <div v-else class="tp-item__placeholder tp-item__placeholder--file">
                 <span>{{ item.ext.toUpperCase().slice(1) || 'FILE' }}</span>
               </div>
-              <span v-if="item.isVideo" class="tp-item__video-badge">
+              <!-- 右下角角标：暗底胶囊，超长省略 -->
+              <span v-if="item.stamp" class="tp-item__stamp">{{ item.stamp }}</span>
+              <!-- 可删除列表：角标位让给悬浮删除按钮 -->
+              <span v-if="item.isVideo && !removable" class="tp-item__video-badge">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M4 5h13a2 2 0 0 1 2 2v2.5l4-2.5v10l-4-2.5V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
                 </svg>
               </span>
+              <n-button
+                v-if="removable"
+                class="tp-item__del"
+                quaternary
+                circle
+                size="tiny"
+                :focusable="false"
+                title="删除"
+                @click.stop="emit('remove', item.key)"
+              >
+                <template #icon>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                </template>
+              </n-button>
             </div>
-            <span class="tp-item__index">{{ i + 1 }}</span>
+            <span class="tp-item__index">{{ item.caption || i + 1 }}</span>
           </div>
         </div>
-        <div v-else-if="!loading" class="tp-empty">该作品下没有可显示的媒体文件</div>
+        <div v-else-if="!loading" class="tp-empty">{{ emptyText || '暂无内容' }}</div>
       </n-spin>
     </div>
   </div>
@@ -87,43 +132,41 @@
 
 <script setup lang="ts">
 import { NButton, NSpin } from 'naive-ui'
-import { ref, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
-
-interface ThumbItem {
-  name: string
-  fullPath: string
-  ext: string
-  isVideo: boolean
-  isImage: boolean
-  src: string
-  loading: boolean
-  tried: boolean
-}
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { useLazyThumbs } from '@renderer/composables/use-lazy-thumbs'
 
 const props = defineProps<{
-  folderPath: string
-  folderName?: string
-  /** 当前阅读的文件（高亮对应缩略图；双页模式为两张） */
-  currentPaths?: string[]
+  /** 条目列表（数据源由外部提供） */
+  items: ThumbPanelItem[]
+  /** 缩略图解析：懒加载进入视口时按需调用 */
+  resolve: (item: ThumbPanelItem) => Promise<string>
+  /** 当前高亮的条目 key（阅读器双页时为两张） */
+  currentKeys?: string[]
+  title?: string
+  emptyText?: string
+  /** 清单加载中（列表区显示 spin） */
+  loading?: boolean
+  /** 条目可删除：显示悬浮删除按钮（视频角标位让出） */
+  removable?: boolean
+  /** 缩略图宽高比（CSS aspect-ratio 值，如 '3 / 4'、'16 / 9'；默认 3 / 4） */
+  thumbRatio?: string
+  /** 初始展开态（仅挂载时生效，默认收起） */
+  initialMode?: 'closed' | 'column' | 'full'
+  /** 数据源整体切换的标识（如目录路径）：变化时收起面板并清空缩略图缓存 */
+  resetKey?: string | number
 }>()
 
 const emit = defineEmits<{
-  /** 点击某张缩略图：跳到该文件对应页 */
-  (e: 'jump', fullPath: string): void
+  /** 点击某张缩略图 */
+  (e: 'jump', key: string): void
+  /** 条目悬浮删除按钮（removable 时） */
+  (e: 'remove', key: string): void
+  /** 面板展开（供数据源懒加载清单，如目录首读） */
+  (e: 'open'): void
 }>()
 
-const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico', '.avif']
-const VIDEO_EXTS = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.ogg', '.ogv']
-
-const extOf = (p: string) => {
-  const i = p.lastIndexOf('.')
-  return i === -1 ? '' : p.toLowerCase().slice(i)
-}
-
 // 抽屉三态：收起（仅右缘拉手）→ 单列 → 全屏（拉手隐藏，由头部按钮控制收回）
-const mode = ref<'closed' | 'column' | 'full'>('closed')
-const loading = ref(false)
-const items = reactive<ThumbItem[]>([])
+const mode = ref<'closed' | 'column' | 'full'>(props.initialMode ?? 'closed')
 
 // 拉手仅在鼠标移入右侧区域时显示（收起态 70px；
 // 单列态需覆盖面板 285px + 拉手 22px + 余量，否则移到拉手上就出区消失）
@@ -154,24 +197,24 @@ const onDocMouseDown = (e: MouseEvent) => {
 }
 document.addEventListener('mousedown', onDocMouseDown)
 
-/** 点击缩略图：跳页；全屏态直接收起面板（不回单列） */
-const onItemClick = (fullPath: string) => {
-  emit('jump', fullPath)
+/** 点击缩略图：跳转；全屏态直接收起面板（不回单列） */
+const onItemClick = (key: string) => {
+  emit('jump', key)
   if (mode.value === 'full') mode.value = 'closed'
 }
 
-/** 滚动条定位到当前页对应的缩略图（打开/铺满时调用）。
+/** 滚动条定位到当前条目对应的缩略图（打开/铺满时调用）。
  * 不用 scrollIntoView：它会连带滚动所有可滚动祖先（body/阅读器层），
  * 导致整个阅读画面偏移；这里只设置面板滚动容器自己的 scrollTop */
 const scrollToCurrent = async () => {
   // 双页定位到左页（第一张）
-  const target = props.currentPaths?.[0]
-  if (!target || items.length === 0) return
+  const target = props.currentKeys?.[0]
+  if (!target || props.items.length === 0) return
   await nextTick()
   const root = rootEl.value
   if (!root) return
   const item = root.querySelector(
-    `.tp-item[data-path="${CSS.escape(target)}"]`
+    `.tp-item[data-key="${CSS.escape(target)}"]`
   ) as HTMLElement | null
   const scroller = root.querySelector('.tp-body .n-spin-content') as HTMLElement | null
   if (!item || !scroller) return
@@ -183,134 +226,52 @@ const scrollToCurrent = async () => {
   scroller.scrollTop = Math.max(0, scroller.scrollTop + delta)
 }
 
-// 打开/铺满时定位当前页
-watch(mode, (m) => {
-  if (m === 'column' || m === 'full') void scrollToCurrent()
-})
-
-// 视口懒加载：进入可视区才解析缩略图（图片直读 / 视频截帧）
-let observer: IntersectionObserver | null = null
-
-const collectThumb = (el: unknown, index: number) => {
-  if (!(el instanceof HTMLElement)) return
-  el.dataset.tpIndex = String(index)
-  observer?.observe(el)
-}
-
-const ensureObserver = () => {
-  if (observer) return
-  observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue
-        const el = entry.target as HTMLElement
-        observer?.unobserve(el)
-        const item = items[Number(el.dataset.tpIndex)]
-        if (item && !item.tried) void resolveThumb(item)
-      }
-    },
-    { rootMargin: '200px', threshold: 0.05 }
-  )
-}
-
-/** 视频截帧生成缩略图（与 unified-media-card 相同策略：第 5 秒 + 封面缓存） */
-const captureVideoThumb = (path: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    video.src = `file://${path}`
-    video.muted = true
-    video.crossOrigin = 'anonymous'
-    const timer = setTimeout(() => reject(new Error('截帧超时')), 15000)
-    video.addEventListener('loadedmetadata', () => {
-      video.currentTime = Math.min(5, Math.max(0, (video.duration || 5) - 0.1))
-    })
-    video.addEventListener('seeked', () => {
-      try {
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx && ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-        clearTimeout(timer)
-        resolve(canvas.toDataURL('image/jpeg', 0.9))
-      } catch (e) {
-        clearTimeout(timer)
-        reject(e)
-      }
-    })
-    video.addEventListener('error', () => {
-      clearTimeout(timer)
-      reject(new Error('视频加载失败'))
-    })
-  })
-}
-
-const resolveThumb = async (item: ThumbItem) => {
-  item.tried = true
-  if (item.isImage) {
-    item.src = `file://${item.fullPath}`
-    return
-  }
-  if (!item.isVideo) return
-  item.loading = true
-  try {
-    // 优先封面缓存，未命中截帧并写缓存
-    const cached = await window.videoCover.get(item.fullPath)
-    if (cached) {
-      item.src = `file://${cached}`
-    } else {
-      const dataUrl = await captureVideoThumb(item.fullPath)
-      item.src = dataUrl
-      window.videoCover
-        .saveFromDataUrl(item.fullPath, dataUrl)
-        .catch(() => undefined)
-    }
-  } catch {
-    item.src = ''
-  } finally {
-    item.loading = false
-  }
-}
-
-const load = async () => {
-  if (!props.folderPath || loading.value) return
-  ensureObserver()
-  loading.value = true
-  items.length = 0
-  try {
-    const files = await window.media.getFiles(props.folderPath)
-    for (const f of files) {
-      const ext = extOf(f.fullPath)
-      items.push({
-        name: f.name,
-        fullPath: f.fullPath,
-        ext,
-        isImage: IMAGE_EXTS.includes(ext),
-        isVideo: VIDEO_EXTS.includes(ext),
-        src: '',
-        loading: false,
-        tried: false
-      })
-    }
-    await nextTick()
-    if (mode.value !== 'closed') void scrollToCurrent()
-  } finally {
-    loading.value = false
-  }
-}
-
-// 换作品时收起并清空（下次点开重新加载）
+// 展开/铺满：通知数据源（首读目录）并定位当前条目；
+// immediate 兜底 initialMode='column' 的挂载即展开场景
 watch(
-  () => props.folderPath,
+  mode,
+  (m) => {
+    if (m === 'column') emit('open')
+    if (m === 'column' || m === 'full') void scrollToCurrent()
+  },
+  { immediate: true }
+)
+
+// 视口懒加载（公共机制在 use-lazy-thumbs）：进入可视区才解析缩略图
+const { stateOf: thumb, register: registerThumb, sweep: sweepThumbs, prune: pruneThumbs, clear: clearThumbs } =
+  useLazyThumbs<ThumbPanelItem>({
+    getKey: (item) => item.key,
+    resolve: (item) => props.resolve(item)
+  })
+
+/** 图片加载失败（文件被移动/删除）：清 src 落占位符，tried 保留避免重试循环 */
+const onImgError = (item: ThumbPanelItem) => {
+  thumb(item).src = ''
+}
+
+// 列表变化后：清扫已卸载的登记元素、丢弃不在列表内的缩略图缓存
+// （deep：外部数据源 push 进同一 reactive 数组不换引用时，靠深度遍历触发）
+watch(
+  () => props.items,
+  () => {
+    void nextTick(() => {
+      sweepThumbs()
+      pruneThumbs(props.items.map((i) => i.key))
+    })
+  },
+  { deep: true }
+)
+
+// 数据源整体切换：收起面板并清空缩略图缓存
+watch(
+  () => props.resetKey,
   () => {
     mode.value = 'closed'
-    items.length = 0
+    clearThumbs()
   }
 )
 
 onBeforeUnmount(() => {
-  observer?.disconnect()
-  observer = null
   window.removeEventListener('keydown', onKeydown)
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mousedown', onDocMouseDown)
@@ -456,6 +417,9 @@ window.addEventListener('keydown', onKeydown)
 
 .tp-item {
   cursor: pointer;
+  /* 网格项默认 min-width:auto：不换行的长 caption 会把 1fr 轨道撑到 min-content，
+     单元格溢出面板；置 0 才能缩回轨道宽，caption 的省略号随之生效 */
+  min-width: 0;
 
   &__thumb {
     position: relative;
@@ -513,6 +477,45 @@ window.addEventListener('keydown', onKeydown)
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.55);
     color: #fff;
+  }
+
+  // 右下角角标：暗底胶囊，右锚定 + 限宽省略
+  &__stamp {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    max-width: calc(100% - 8px);
+    font-size: 10px;
+    line-height: 1.4;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 4px;
+    padding: 1px 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // 可删除列表：悬浮删除（naive 运行时注入的样式在后，需 !important 接管）
+  &__del {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    opacity: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.15s !important;
+    --n-text-color: #4b5563 !important;
+    --n-text-color-hover: #e5484d !important;
+    --n-text-color-pressed: #f0474c !important;
+    --n-text-color-focus: #e5484d !important;
+    --n-color: rgba(255, 255, 255, 0.85) !important;
+    --n-color-hover: rgba(255, 255, 255, 0.95) !important;
+    --n-color-pressed: rgba(255, 255, 255, 0.7) !important;
+    --n-color-focus: rgba(255, 255, 255, 0.95) !important;
+  }
+
+  &:hover &__del {
+    opacity: 1;
   }
 
   &__index {
