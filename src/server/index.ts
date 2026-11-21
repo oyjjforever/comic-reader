@@ -7,6 +7,7 @@ import fg from 'fast-glob'
 import { corsMiddleware } from './middleware/cors'
 import { handleBrowseRequest } from './routes/browse'
 import { handleFileRequest, handleVideoCoverRequest } from './routes/file'
+import { handleTagsRequest } from './routes/tags'
 import { handleFavoritesRequest } from './routes/favorites'
 import { handleHistoryRequest } from './routes/history'
 import log from '../utils/log'
@@ -169,6 +170,9 @@ export class ComicReaderServer {
                 await handleFavoritesRequest(req, res, pathname, url)
             } else if (pathname.startsWith('/api/history')) {
                 await handleHistoryRequest(req, res, pathname, url)
+            } else if (pathname.startsWith('/api/tags')) {
+                // 目录收藏（folder tags，树顶"已收藏"分组数据源）
+                await handleTagsRequest(req, res, pathname, url)
             } else {
                 this.sendError(res, 404, 'Not Found')
             }
