@@ -110,10 +110,13 @@ async function handleBrowseTree(
         return
     }
 
+    // includeLeaf=true 返回全部子目录（视频模块），默认仅非叶子节点（与 getFolderTree(noLeaf=true) 一致）
+    const includeLeaf = url.searchParams.get('includeLeaf') === 'true' || url.searchParams.get('includeLeaf') === '1'
+
     const folders = await getDirectFolders(dirPath)
     sendJson(res, {
         path: dirPath,
-        folders: folders.filter((f) => !f.isLeaf) // 非叶子节点，与 getFolderTree(noLeaf=true) 一致
+        folders: includeLeaf ? folders : folders.filter((f) => !f.isLeaf)
     })
 }
 
