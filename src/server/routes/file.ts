@@ -184,19 +184,39 @@ async function withCoverSlot<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * 多格式查封面缓存
+ * 桌面端历史缓存键混存多种分隔符格式（设置根路径为反斜杠、浏览产生的
+ * 子路径可能为正斜杠，用户自定义帧可能挂在任一格式下），依次尝试。
+ */
+function getCoverPathIfExistsAny(videoPath: string): string | null {
+    const candidates = new Set<string>([
+        videoPath,
+        path.normalize(videoPath),
+        videoPath.replace(/\\/g, '/')
+    ])
+    for (const candidate of candidates) {
+        const hit = getCoverPathIfExists(candidate)
+        if (hit) return hit
+    }
+    return null
+}
+
+/**
  * 获取或生成视频封面路径（命中缓存直接返回）
  */
 function getOrCreateCover(videoPath: string): Promise<string> {
-    const cached = getCoverPathIfExists(videoPath)
+    // 生成时统一用规范化路径作为缓存键，避免继续产生混合格式
+    const normalizedKey = path.normalize(videoPath)
+    const cached = getCoverPathIfExistsAny(normalizedKey)
     if (cached) return Promise.resolve(cached)
 
-    const pending = generatingCovers.get(videoPath)
+    const pending = generatingCovers.get(normalizedKey)
     if (pending) return pending
 
-    const job = withCoverSlot(() => generateCover(videoPath)).finally(() => {
-        generatingCovers.delete(videoPath)
+    const job = withCoverSlot(() => generateCover(normalizedKey)).finally(() => {
+        generatingCovers.delete(normalizedKey)
     })
-    generatingCovers.set(videoPath, job)
+    generatingCovers.set(normalizedKey, job)
     return job
 }
 
