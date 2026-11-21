@@ -185,14 +185,13 @@ async function withCoverSlot<T>(fn: () => Promise<T>): Promise<T> {
 
 /**
  * 多格式查封面缓存
- * 桌面端历史缓存键混存多种分隔符格式（设置根路径为反斜杠、浏览产生的
- * 子路径可能为正斜杠，用户自定义帧可能挂在任一格式下），依次尝试。
+ * 桌面端原生路径为正斜杠格式（用户自定义帧/桌面生成的封面挂在该键下），
+ * 必须优先命中；反斜杠键为本接口旧版规范化生成的历史封面，仅作回退。
  */
 function getCoverPathIfExistsAny(videoPath: string): string | null {
     const candidates = new Set<string>([
-        videoPath,
-        path.normalize(videoPath),
-        videoPath.replace(/\\/g, '/')
+        videoPath.replace(/\\/g, '/'),
+        path.normalize(videoPath)
     ])
     for (const candidate of candidates) {
         const hit = getCoverPathIfExists(candidate)
@@ -205,18 +204,18 @@ function getCoverPathIfExistsAny(videoPath: string): string | null {
  * 获取或生成视频封面路径（命中缓存直接返回）
  */
 function getOrCreateCover(videoPath: string): Promise<string> {
-    // 生成时统一用规范化路径作为缓存键，避免继续产生混合格式
-    const normalizedKey = path.normalize(videoPath)
-    const cached = getCoverPathIfExistsAny(normalizedKey)
+    // 统一用桌面原生的正斜杠路径作为缓存键，与桌面端共享同一份缓存
+    const forwardKey = videoPath.replace(/\\/g, '/')
+    const cached = getCoverPathIfExistsAny(forwardKey)
     if (cached) return Promise.resolve(cached)
 
-    const pending = generatingCovers.get(normalizedKey)
+    const pending = generatingCovers.get(forwardKey)
     if (pending) return pending
 
-    const job = withCoverSlot(() => generateCover(normalizedKey)).finally(() => {
-        generatingCovers.delete(normalizedKey)
+    const job = withCoverSlot(() => generateCover(forwardKey)).finally(() => {
+        generatingCovers.delete(forwardKey)
     })
-    generatingCovers.set(normalizedKey, job)
+    generatingCovers.set(forwardKey, job)
     return job
 }
 
@@ -240,7 +239,7 @@ function getOrCreateVideoMeta(videoPath: string): Promise<VideoMetadata | null> 
  * 命中缓存直接流式返回 jpg，未命中生成后返回（供移动端零解码获取封面）
  */
 export async function handleVideoCoverRequest(
-    _req: http.IncomingMessage,
+    req: http.IncomingMessage,
     res: http.ServerResponse,
     url: URL
 ) {
@@ -280,6 +279,24 @@ export async function handleVideoCoverRequest(
             headers['X-Video-Width'] = String(meta.width)
             headers['X-Video-Height'] = String(meta.height)
             headers['X-Video-Duration'] = String(meta.duration)
+        }
+
+        // If-Modified-Since 条件请求：封面未变化（含自定义帧未更换）返回 304，
+        // 客户端每会话轻量校验封面是否已更新
+        const imsHeader = req.headers['if-modified-since']
+        if (imsHeader) {
+            const imsTime = Date.parse(String(imsHeader))
+            if (!isNaN(imsTime) && Math.floor(stat.mtime.getTime() / 1000) <= Math.floor(imsTime / 1000)) {
+                const headers304: Record<string, string | number> = { 'Cache-Control': 'public, max-age=86400' }
+                if (meta) {
+                    headers304['X-Video-Width'] = String(meta.width)
+                    headers304['X-Video-Height'] = String(meta.height)
+                    headers304['X-Video-Duration'] = String(meta.duration)
+                }
+                res.writeHead(304, headers304)
+                res.end()
+                return
+            }
         }
 
         res.writeHead(200, headers)
