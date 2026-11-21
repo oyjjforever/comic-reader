@@ -233,7 +233,7 @@ function getDurationViaFfmpeg(ffmpegPath: string, videoPath: string): Promise<nu
 
 /**
  * 获取视频元数据（分辨率 + 时长）
- * 一次 ffprobe 调用取 stream 宽高与 format 时长，失败返回 null
+ * 优先 ffprobe（一次调用取宽高与时长）；ffprobe 不存在时回退 ffmpeg -i stderr 解析
  */
 export interface VideoMetadata {
     width: number
@@ -243,8 +243,20 @@ export interface VideoMetadata {
 
 export function getVideoMetadata(videoPath: string): Promise<VideoMetadata | null> {
     const ffmpegPath = getFfmpegPath()
-    const ffprobePath = ffmpegPath.replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe')
 
+    // 仅替换文件名中的 ffmpeg，避免误伤名为 ffmpeg 的目录
+    const ffmpegDir = path.dirname(ffmpegPath)
+    const ffprobeName = path.basename(ffmpegPath).replace(/ffmpeg(\.exe)?$/i, 'ffprobe$1')
+    const ffprobePath = path.join(ffmpegDir, ffprobeName)
+
+    if (fs.existsSync(ffprobePath)) {
+        return getMetadataViaFfprobe(ffprobePath, videoPath)
+    }
+    return getMetadataViaFfmpeg(ffmpegPath, videoPath)
+}
+
+/** 使用 ffprobe 获取元数据（JSON 输出） */
+function getMetadataViaFfprobe(ffprobePath: string, videoPath: string): Promise<VideoMetadata | null> {
     return new Promise((resolve) => {
         const args = [
             '-v', 'quiet',
@@ -279,7 +291,44 @@ export function getVideoMetadata(videoPath: string): Promise<VideoMetadata | nul
         })
 
         child.on('error', () => {
-            // ffprobe 不可用
+            resolve(null)
+        })
+    })
+}
+
+/**
+ * 使用 ffmpeg -i 的 stderr 解析元数据（ffprobe 不可用时的回退）
+ * stderr 包含 "Duration: HH:MM:SS.xx" 与 "Stream #0:0... Video: ..., WxH ..."
+ */
+function getMetadataViaFfmpeg(ffmpegPath: string, videoPath: string): Promise<VideoMetadata | null> {
+    return new Promise((resolve) => {
+        const child = spawn(ffmpegPath, ['-i', videoPath])
+        let stderrOutput = ''
+
+        child.stderr.on('data', (data: Buffer) => {
+            stderrOutput += data.toString()
+        })
+
+        child.on('close', () => {
+            const durationMatch = stderrOutput.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/)
+            const videoLine = stderrOutput.split('\n').find(l => l.includes(': Video:'))
+            const dimsMatch = videoLine?.match(/(\d{2,5})x(\d{2,5})/)
+
+            if (durationMatch && dimsMatch) {
+                const duration = parseInt(durationMatch[1], 10) * 3600 +
+                    parseInt(durationMatch[2], 10) * 60 +
+                    parseFloat(durationMatch[3])
+                const width = parseInt(dimsMatch[1], 10)
+                const height = parseInt(dimsMatch[2], 10)
+                if (width > 0 && height > 0 && duration > 0) {
+                    resolve({ width, height, duration })
+                    return
+                }
+            }
+            resolve(null)
+        })
+
+        child.on('error', () => {
             resolve(null)
         })
     })
