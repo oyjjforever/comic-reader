@@ -252,13 +252,16 @@ async function downloadArtwork(site, row, item) {
  * 下载作者的所有作品
  * @param {string} site - 站点名称
  * @param {Object} item - 作者对象
+ * @returns {Promise<boolean>} 是否成功加入下载
  */
 async function downloadAll(site, item) {
   try {
     const util = getSiteUtil(site)
     await util.downloadAllMedia(item.authorName, item.authorId)
+    return true
   } catch (error) {
     console.error('下载全部作品失败:', error)
+    return false
   }
 }
 

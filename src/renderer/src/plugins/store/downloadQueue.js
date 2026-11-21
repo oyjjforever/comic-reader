@@ -161,9 +161,9 @@ export function deleteTask(id) {
   }
 }
 export function clearCompletedTask() {
-  // 已结束的任务统一清理（成功/已存在/失败/已取消），活跃（排队/运行/暂停）不动
+  // 只清理已完成（成功/已存在）；失败任务保留置顶供重试，已取消/活跃（排队/运行/暂停）不动
   tasks
-    .filter((t) => ['success', 'existed', 'error', 'canceled'].includes(t.status))
+    .filter((t) => ['success', 'existed'].includes(t.status))
     .map((t) => deleteTask(t.id))
 }
 

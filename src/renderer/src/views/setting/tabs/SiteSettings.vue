@@ -38,108 +38,20 @@
       </n-button>
     </div>
     <div v-if="showMore">
-      <n-form-item path="downloadPathJmtt" label="jmtt 下载路径">
+      <n-form-item
+        v-for="field in visibleDownloadPathFields"
+        :key="field.key"
+        :path="field.key"
+        :label="field.label"
+      >
         <n-input-group>
           <n-input
-            :value="modelValue.downloadPathJmtt"
-            @update:value="(value) => updateSetting('downloadPathJmtt', value)"
+            :value="(modelValue as any)[field.key]"
+            @update:value="(value) => updateSetting(field.key, value)"
             placeholder="可选，未设置则使用默认下载路径"
             readonly
           />
-          <n-button type="primary" @click="selectResourcePath('downloadPathJmtt')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPathPixiv" label="pixiv 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPathPixiv"
-            @update:value="(value) => updateSetting('downloadPathPixiv', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPathPixiv')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPathTwitter" label="twitter 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPathTwitter"
-            @update:value="(value) => updateSetting('downloadPathTwitter', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPathTwitter')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPathWeibo" label="微博 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPathWeibo"
-            @update:value="(value) => updateSetting('downloadPathWeibo', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPathWeibo')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPathPicaman" label="Picaman 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPathPicaman"
-            @update:value="(value) => updateSetting('downloadPathPicaman', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPathPicaman')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPathHuangguo" label="黄果 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPathHuangguo"
-            @update:value="(value) => updateSetting('downloadPathHuangguo', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPathHuangguo')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPath4khd" label="4KHD 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPath4khd"
-            @update:value="(value) => updateSetting('downloadPath4khd', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPath4khd')">
-            选择文件夹
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item path="downloadPathPornhub" label="Pornhub 下载路径">
-        <n-input-group>
-          <n-input
-            :value="modelValue.downloadPathPornhub"
-            @update:value="(value) => updateSetting('downloadPathPornhub', value)"
-            placeholder="可选，未设置则使用默认下载路径"
-            readonly
-          />
-          <n-button type="primary" @click="selectResourcePath('downloadPathPornhub')">
-            选择文件夹
-          </n-button>
+          <n-button type="primary" @click="selectResourcePath(field.key)"> 选择文件夹 </n-button>
         </n-input-group>
       </n-form-item>
     </div>
@@ -147,9 +59,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref, computed, defineProps, defineEmits } from 'vue'
 import { useMessage } from 'naive-ui'
 import { setting } from '../../../../../typings/setting'
+import { isSiteAllowed, loadSiteWhitelist } from '@renderer/plugins/store/siteWhitelist'
 import jmttImg from '@renderer/assets/jmtt.jpg'
 import pixivImg from '@renderer/assets/pixiv.jpg'
 import twitterImg from '@renderer/assets/twitter.jpg'
@@ -170,8 +83,9 @@ const emit = defineEmits(['update:modelValue'])
 const message = useMessage()
 const showMore = ref(false)
 
-// 站点列表（与左侧「站点」悬浮菜单保持一致，key 对应路由/站点标识）
-const siteList = [
+// 站点列表（与左侧「站点」悬浮菜单保持一致，key 对应路由/站点标识）；
+// 部署白名单限制时仅静默列出允许的站点（对用户透明，无任何限制提示）
+const allSites = [
   { image: missavImg, key: 'missav', label: 'MISSAV' },
   { image: fourkhdImg, key: '4khd', label: '4KHD' },
   { image: fanqieImg, key: 'fanqie', label: '番茄短剧' },
@@ -183,6 +97,23 @@ const siteList = [
   { image: huangguoImg, key: 'huangguo', label: '黄果剧场' },
   { image: pornhubImg, key: 'pornhub', label: 'Pornhub' }
 ]
+void loadSiteWhitelist()
+const siteList = computed(() => allSites.filter((s) => isSiteAllowed(s.key)))
+
+// 各站点独立下载路径（「更多下载路径设置」区）：白名单外的站点连同路径表单一并隐藏（对用户透明）
+const downloadPathFields: Array<{ key: keyof setting; site: string; label: string }> = [
+  { key: 'downloadPathJmtt', site: 'jmtt', label: 'jmtt 下载路径' },
+  { key: 'downloadPathPixiv', site: 'pixiv', label: 'pixiv 下载路径' },
+  { key: 'downloadPathTwitter', site: 'twitter', label: 'twitter 下载路径' },
+  { key: 'downloadPathWeibo', site: 'weibo', label: '微博 下载路径' },
+  { key: 'downloadPathPicaman', site: 'picaman', label: 'Picaman 下载路径' },
+  { key: 'downloadPathHuangguo', site: 'huangguo', label: '黄果 下载路径' },
+  { key: 'downloadPath4khd', site: '4khd', label: '4KHD 下载路径' },
+  { key: 'downloadPathPornhub', site: 'pornhub', label: 'Pornhub 下载路径' }
+]
+const visibleDownloadPathFields = computed(() =>
+  downloadPathFields.filter((f) => isSiteAllowed(f.site))
+)
 
 const isHidden = (key: string) => {
   return (props.modelValue.hiddenSites || []).includes(key)

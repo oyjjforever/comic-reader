@@ -76,8 +76,15 @@
         <button @click="$emit('remove', item.id)" class="action-button unfollow-button">
           取消关注
         </button>
-        <!-- <button @click="onDownloadAll" class="action-button download-all-button">全部下载</button> -->
-        <button @click="onDownloadNew" class="action-button download-new-button">追更下载</button>
+        <!-- 追更下载：主按钮 + 下拉（全部下载走同一入口） -->
+        <div class="download-group">
+          <button @click="onDownloadNew" class="action-button download-new-button">追更下载</button>
+          <n-dropdown trigger="click" :options="downloadOptions" @select="onDownloadSelect">
+            <button class="action-button download-new-button download-more-button" title="更多下载选项">
+              <n-icon :component="ChevronDown" size="12" />
+            </button>
+          </n-dropdown>
+        </div>
         <button @click="$emit('set-tag', item)" class="action-button tag-button">设置标签</button>
       </div>
       <div class="pagination-buttons">
@@ -116,7 +123,7 @@ import {
   ChevronRight24Filled,
   ArrowMove24Regular
 } from '@vicons/fluent'
-import { CloudDownload, InformationCircle } from '@vicons/ionicons5'
+import { CloudDownload, InformationCircle, ChevronDown } from '@vicons/ionicons5'
 import { reactive, computed, onMounted, ref } from 'vue'
 import { useMessage } from 'naive-ui'
 
@@ -183,7 +190,26 @@ async function onDownload(row) {
   row.downloaded = true
 }
 async function onDownloadAll() {
-  await siteUtils.downloadAll(props.item.source, props.item)
+  const msg = message.create('正在加入全部作品下载队列...', { type: 'loading', duration: 0 })
+  try {
+    const ok = await siteUtils.downloadAll(props.item.source, props.item)
+    msg.type = ok ? 'success' : 'error'
+    msg.content = ok ? '全部作品已加入下载队列' : '下载全部作品失败'
+  } catch (error) {
+    msg.type = 'error'
+    msg.content = '下载全部作品失败'
+  }
+  setTimeout(() => msg.destroy(), 2500)
+}
+
+// 追更下载下拉选项（主按钮直点=追更，下拉提供全部下载）
+const downloadOptions = [
+  { label: '追更下载', key: 'new' },
+  { label: '全部下载', key: 'all' }
+]
+function onDownloadSelect(key: string) {
+  if (key === 'all') onDownloadAll()
+  else onDownloadNew()
 }
 async function onDownloadNew() {
   const msg = message.create('正在追更，请稍候...', { type: 'loading', duration: 0 })
@@ -516,12 +542,24 @@ function onPreview(row) {
   }
 }
 
+// 追更下载组：主按钮 + 下拉箭头小钮（同一绿色系，箭头钮窄一些）
+.download-group {
+  display: flex;
+  align-items: center;
+}
+
 .download-new-button {
   color: #34d399;
 
   &:hover {
     color: #10b981;
   }
+}
+
+.download-more-button {
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
 }
 
 .tag-button {

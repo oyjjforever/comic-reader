@@ -4,7 +4,7 @@
       <template #header>
         <div class="drawer-header">
           <span>任务队列</span>
-          <n-button size="tiny" quaternary @click="onClearFinished">清除已结束</n-button>
+          <n-button size="tiny" quaternary @click="onClearFinished">清除已完成</n-button>
         </div>
       </template>
       <div class="task-list">

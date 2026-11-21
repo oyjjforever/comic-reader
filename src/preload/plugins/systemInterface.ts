@@ -2,11 +2,18 @@ import { exec } from 'child_process'
 import fs from 'fs/promises'
 import { createReadStream, createWriteStream } from 'fs'
 import path from 'path'
+import { ipcRenderer } from 'electron'
 import FileUtils from './file'
 
 function openExplorer(path: string) {
     path = path.replaceAll('/', '\\')
     exec(`explorer /select,"${path}"`);
+}
+
+/** 站点白名单（部署配置）：主进程启动时读取 resources/config/site-whitelist.json，
+ *  空数组表示不限制 */
+function getSiteWhitelist(): Promise<string[]> {
+    return ipcRenderer.invoke('site:getWhitelist')
 }
 function unzip(path: string) {
     // const fileName = FileUtils.getFileNameWithoutExtension(path)
@@ -269,5 +276,6 @@ export default {
     createFolder,
     movePath,
     renamePath,
-    countFiles
+    countFiles,
+    getSiteWhitelist
 }

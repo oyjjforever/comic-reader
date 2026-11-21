@@ -30,6 +30,8 @@ declare global {
     }
     systemInterface: {
       openExplorer: (path: string) => void
+      /** 站点白名单（部署配置，resources/config/site-whitelist.json），空数组=不限制 */
+      getSiteWhitelist: () => Promise<string[]>
       unzip: (path: string) => void
       deleteFolder: (folderPath: string) => Promise<boolean>
       /** 仅删除空文件夹（目录非空时报错，不做递归删除） */

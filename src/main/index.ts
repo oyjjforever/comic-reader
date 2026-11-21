@@ -315,11 +315,30 @@ function createWindow(): void {
   })
 }
 
+// 站点白名单（构建期固化）：值由 electron.vite.config.ts 在打包时读取
+// resources/config/site-whitelist.json 后经 define 注入（__SITE_WHITELIST__ 被
+// 替换为数组字面量，直接使用勿再 JSON.parse——数组会被 toString 成非法 JSON
+// 静默抛错回退空表）。安装包内不存在该文件、无法事后修改；空数组 = 不限制
+declare const __SITE_WHITELIST__: string[]
+const SITE_WHITELIST: string[] = Array.isArray(__SITE_WHITELIST__)
+  ? __SITE_WHITELIST__.filter((s): s is string => typeof s === 'string')
+  : []
+if (SITE_WHITELIST.length) {
+  log.info('[Main] 站点白名单生效:', SITE_WHITELIST)
+}
+
+function getSiteWhitelist(): string[] {
+  return SITE_WHITELIST
+}
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron')
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // ========== 站点白名单：渲染层经此获取可用站点（菜单/设置过滤） ==========
+  ipcMain.handle('site:getWhitelist', () => getSiteWhitelist())
 
   // ========== 番茄短剧：播放协议与缓存目录 IPC ==========
   registerFanqieProtocol()

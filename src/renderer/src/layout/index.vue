@@ -284,6 +284,7 @@ import pornhubImg from '@renderer/assets/pornhub.ico'
 import DownloadQueuePanel from '@renderer/components/download-queue-panel.vue'
 import AboutDialog from '@renderer/components/about-dialog.vue'
 import { queue } from '@renderer/plugins/store/downloadQueue'
+import { isSiteAllowed, loadSiteWhitelist } from '@renderer/plugins/store/siteWhitelist'
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import SiteView from '@renderer/views/site/index.vue'
 import twitter from '../views/special-attention/twitter'
@@ -368,17 +369,20 @@ const menuItems = [
 // 隐藏的站点（站点设置中关闭显示的站点键）
 const hiddenSites = computed<string[]>(() => settingStore.setting.hiddenSites || [])
 
-// 二级菜单中的路由项（与站点列表用分割线区分），按站点显示设置过滤
+// 站点白名单（部署配置）：白名单外的站点视为强制隐藏，菜单与设置均不可见
+void loadSiteWhitelist()
+
+// 二级菜单中的路由项（与站点列表用分割线区分），按站点显示设置+白名单过滤
 const routeMenuConfig = computed(() =>
   [
     { image: missavImg, name: 'missav', label: 'MISSAV' },
     // { image: yfantasyImg, name: 'yfantasy', label: 'yfantasy' },
     { image: fourkhdImg, name: '4khd', label: '4KHD' },
     { image: fanqieImg, name: 'fanqie', label: '番茄短剧' }
-  ].filter((item) => !hiddenSites.value.includes(item.name))
+  ].filter((item) => !hiddenSites.value.includes(item.name) && isSiteAllowed(item.name))
 )
 
-// 站点列表配置（二级菜单），按站点显示设置过滤
+// 站点列表配置（二级菜单），按站点显示设置+白名单过滤
 const sitesConfig = computed(() =>
   [
     { image: jmttImg, site: 'jmtt', label: 'JMTT' },
@@ -388,7 +392,7 @@ const sitesConfig = computed(() =>
     { image: picamanImg, site: 'picaman', label: 'Picaman' },
     { image: huangguoImg, site: 'huangguo', label: '黄果剧场' },
     { image: pornhubImg, site: 'pornhub', label: 'Pornhub' }
-  ].filter((site) => !hiddenSites.value.includes(site.site))
+  ].filter((site) => !hiddenSites.value.includes(site.site) && isSiteAllowed(site.site))
 )
 
 const sitesMenuVisible = ref(false)
