@@ -225,6 +225,8 @@ declare global {
       stop: () => Promise<{ success: boolean; error?: string }>
       setResourcePath: (resourcePath: string) => Promise<{ success: boolean }>
       setVideoResourcePath: (videoResourcePath: string) => Promise<{ success: boolean }>
+      setResourcePaths: (resourcePaths: string[]) => Promise<{ success: boolean }>
+      setVideoResourcePaths: (videoResourcePaths: string[]) => Promise<{ success: boolean }>
     }
     closeConfig: {
       get: () => Promise<{ closeToTray: boolean; dontRemind: boolean }>

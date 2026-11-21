@@ -18,6 +18,8 @@ export class ComicReaderServer {
     private port: number
     private resourcePath: string = ''
     private videoResourcePath: string = ''
+    private resourcePaths: string[] = []
+    private videoResourcePaths: string[] = []
     private running: boolean = false
 
     constructor(port: number = DEFAULT_PORT) {
@@ -29,6 +31,7 @@ export class ComicReaderServer {
      */
     setResourcePath(resourcePath: string) {
         this.resourcePath = resourcePath
+        this.resourcePaths = resourcePath ? [resourcePath] : []
     }
 
     /**
@@ -36,6 +39,23 @@ export class ComicReaderServer {
      */
     setVideoResourcePath(videoResourcePath: string) {
         this.videoResourcePath = videoResourcePath
+        this.videoResourcePaths = videoResourcePath ? [videoResourcePath] : []
+    }
+
+    /**
+     * 设置多个资源根路径（移动端目录树显示全部数据源）
+     */
+    setResourcePaths(resourcePaths: string[]) {
+        this.resourcePaths = resourcePaths.filter(Boolean)
+        this.resourcePath = this.resourcePaths[0] || ''
+    }
+
+    /**
+     * 设置多个视频资源根路径
+     */
+    setVideoResourcePaths(videoResourcePaths: string[]) {
+        this.videoResourcePaths = videoResourcePaths.filter(Boolean)
+        this.videoResourcePath = this.videoResourcePaths[0] || ''
     }
 
     /**
@@ -169,6 +189,8 @@ export class ComicReaderServer {
             hostname: os.hostname(),
             resourcePath: this.resourcePath,
             videoResourcePath: this.videoResourcePath,
+            resourcePaths: this.resourcePaths,
+            videoResourcePaths: this.videoResourcePaths,
             port: this.port
         })
     }

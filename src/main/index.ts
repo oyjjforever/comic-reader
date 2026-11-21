@@ -412,6 +412,18 @@ app.whenReady().then(async () => {
     server.setVideoResourcePath(videoResourcePath)
     return { success: true }
   })
+
+  // IPC: 设置多个资源根路径（移动端目录树显示全部数据源）
+  ipcMain.handle('server:setResourcePaths', (_event, resourcePaths: string[]) => {
+    server.setResourcePaths(resourcePaths)
+    return { success: true }
+  })
+
+  // IPC: 设置多个视频资源根路径
+  ipcMain.handle('server:setVideoResourcePaths', (_event, videoResourcePaths: string[]) => {
+    server.setVideoResourcePaths(videoResourcePaths)
+    return { success: true }
+  })
   // 提供手动检查的 IPC
   ipcMain.handle('update:check', async () => {
     return checkUpdate(mainWindow)

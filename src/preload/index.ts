@@ -42,7 +42,9 @@ const server = {
   start: () => ipcRenderer.invoke('server:start'),
   stop: () => ipcRenderer.invoke('server:stop'),
   setResourcePath: (resourcePath: string) => ipcRenderer.invoke('server:setResourcePath', resourcePath),
-  setVideoResourcePath: (videoResourcePath: string) => ipcRenderer.invoke('server:setVideoResourcePath', videoResourcePath)
+  setVideoResourcePath: (videoResourcePath: string) => ipcRenderer.invoke('server:setVideoResourcePath', videoResourcePath),
+  setResourcePaths: (resourcePaths: string[]) => ipcRenderer.invoke('server:setResourcePaths', resourcePaths),
+  setVideoResourcePaths: (videoResourcePaths: string[]) => ipcRenderer.invoke('server:setVideoResourcePaths', videoResourcePaths)
 }
 
 // 窗口管理 IPC 桥接

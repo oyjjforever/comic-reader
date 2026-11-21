@@ -28,16 +28,16 @@ router.beforeEach(async (to, _from, next) => {
     // 更新设置信息
     await settingStore.updateSetting()
 
-    // 同步 resourcePaths 到 HTTP 服务器，使用第一个路径作为默认资源路径
-    const resourcePaths = settingStore.setting.resourcePaths || []
-    if (resourcePaths.length > 0 && resourcePaths[0]) {
-        window.server.setResourcePath(resourcePaths[0])
+    // 同步 resourcePaths 到 HTTP 服务器（全量数组，移动端目录树显示全部数据源）
+    const resourcePaths = (settingStore.setting.resourcePaths || []).filter(Boolean)
+    if (resourcePaths.length > 0) {
+        window.server.setResourcePaths(resourcePaths)
     }
 
-    // 同步 videoResourcePaths 到 HTTP 服务器
-    const videoResourcePaths = settingStore.setting.videoResourcePaths || []
-    if (videoResourcePaths.length > 0 && videoResourcePaths[0]) {
-        window.server.setVideoResourcePath(videoResourcePaths[0])
+    // 同步 videoResourcePaths 到 HTTP 服务器（全量数组）
+    const videoResourcePaths = (settingStore.setting.videoResourcePaths || []).filter(Boolean)
+    if (videoResourcePaths.length > 0) {
+        window.server.setVideoResourcePaths(videoResourcePaths)
     }
 
     // 根据设置同步局域网中转服务的启停状态
