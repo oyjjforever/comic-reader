@@ -231,6 +231,60 @@ function getDurationViaFfmpeg(ffmpegPath: string, videoPath: string): Promise<nu
     })
 }
 
+/**
+ * 获取视频元数据（分辨率 + 时长）
+ * 一次 ffprobe 调用取 stream 宽高与 format 时长，失败返回 null
+ */
+export interface VideoMetadata {
+    width: number
+    height: number
+    duration: number // 秒
+}
+
+export function getVideoMetadata(videoPath: string): Promise<VideoMetadata | null> {
+    const ffmpegPath = getFfmpegPath()
+    const ffprobePath = ffmpegPath.replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe')
+
+    return new Promise((resolve) => {
+        const args = [
+            '-v', 'quiet',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height:format=duration',
+            '-of', 'json',
+            videoPath
+        ]
+
+        const child = spawn(ffprobePath, args)
+        let stdoutOutput = ''
+
+        child.stdout.on('data', (data: Buffer) => {
+            stdoutOutput += data.toString()
+        })
+
+        child.on('close', () => {
+            try {
+                const parsed = JSON.parse(stdoutOutput)
+                const stream = parsed.streams?.[0] || {}
+                const width = parseInt(stream.width, 10)
+                const height = parseInt(stream.height, 10)
+                const duration = parseFloat(parsed.format?.duration)
+                if (width > 0 && height > 0 && !isNaN(duration) && duration > 0) {
+                    resolve({ width, height, duration })
+                    return
+                }
+            } catch {
+                // 解析失败走 null
+            }
+            resolve(null)
+        })
+
+        child.on('error', () => {
+            // ffprobe 不可用
+            resolve(null)
+        })
+    })
+}
+
 /** 清理临时音频文件 */
 export function cleanupTempFile(filePath: string): void {
     try {

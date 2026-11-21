@@ -5,6 +5,7 @@ import fsp from 'fs/promises'
 import path from 'path'
 import log from '../../utils/log'
 import { getCoverPathIfExists, generateCover } from '../../main/services/video-cover'
+import { getVideoMetadata, VideoMetadata } from '../../main/services/ffmpeg-service'
 
 /**
  * MIME 类型映射
@@ -199,6 +200,19 @@ function getOrCreateCover(videoPath: string): Promise<string> {
     return job
 }
 
+// 视频元数据内存缓存：videoPath -> {width, height, duration}（探测失败缓存 null）
+const videoMetaCache = new Map<string, VideoMetadata | null>()
+
+function getOrCreateVideoMeta(videoPath: string): Promise<VideoMetadata | null> {
+    if (videoMetaCache.has(videoPath)) {
+        return Promise.resolve(videoMetaCache.get(videoPath)!)
+    }
+    return getVideoMetadata(videoPath).then(meta => {
+        videoMetaCache.set(videoPath, meta)
+        return meta
+    })
+}
+
 /**
  * 处理视频封面请求
  * GET /api/video-cover?path=D:/Videos/xxx.mp4
@@ -229,15 +243,26 @@ export async function handleVideoCoverRequest(
     }
 
     try {
-        const coverPath = await getOrCreateCover(normalizedPath)
+        // 封面与元数据并行获取（元数据用于客户端显示 1080p · 时长）
+        const [coverPath, meta] = await Promise.all([
+            getOrCreateCover(normalizedPath),
+            getOrCreateVideoMeta(normalizedPath)
+        ])
         const stat = await fsp.stat(coverPath)
 
-        res.writeHead(200, {
+        const headers: Record<string, string | number> = {
             'Content-Type': 'image/jpeg',
             'Content-Length': stat.size,
             'Cache-Control': 'public, max-age=86400',
             'Last-Modified': stat.mtime.toUTCString()
-        })
+        }
+        if (meta) {
+            headers['X-Video-Width'] = String(meta.width)
+            headers['X-Video-Height'] = String(meta.height)
+            headers['X-Video-Duration'] = String(meta.duration)
+        }
+
+        res.writeHead(200, headers)
 
         const fileStream = fs.createReadStream(coverPath)
         fileStream.pipe(res)
