@@ -4,6 +4,7 @@ import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
 import log from '../../utils/log'
+import { getCoverPathIfExists, generateCover } from '../../main/services/video-cover'
 
 /**
  * MIME 类型映射
@@ -155,6 +156,101 @@ export async function handleFileRequest(
     } catch (error: any) {
         log.error(`[Server] File serve error: ${error.message}`)
         sendError(res, 500, error.message || 'Internal Server Error')
+    }
+}
+
+/**
+ * 视频封面生成：并发限制 + 同一路径去重
+ * 移动端网格首次加载会并发请求多个封面，避免瞬间 fork 大量 ffmpeg 进程
+ */
+const MAX_CONCURRENT_COVER_JOBS = 4
+let activeCoverJobs = 0
+const coverQueue: Array<() => void> = []
+const generatingCovers = new Map<string, Promise<string>>()
+
+async function withCoverSlot<T>(fn: () => Promise<T>): Promise<T> {
+    while (activeCoverJobs >= MAX_CONCURRENT_COVER_JOBS) {
+        await new Promise<void>(resolve => coverQueue.push(resolve))
+    }
+    activeCoverJobs++
+    try {
+        return await fn()
+    } finally {
+        activeCoverJobs--
+        const next = coverQueue.shift()
+        if (next) next()
+    }
+}
+
+/**
+ * 获取或生成视频封面路径（命中缓存直接返回）
+ */
+function getOrCreateCover(videoPath: string): Promise<string> {
+    const cached = getCoverPathIfExists(videoPath)
+    if (cached) return Promise.resolve(cached)
+
+    const pending = generatingCovers.get(videoPath)
+    if (pending) return pending
+
+    const job = withCoverSlot(() => generateCover(videoPath)).finally(() => {
+        generatingCovers.delete(videoPath)
+    })
+    generatingCovers.set(videoPath, job)
+    return job
+}
+
+/**
+ * 处理视频封面请求
+ * GET /api/video-cover?path=D:/Videos/xxx.mp4
+ * 复用 main/services/video-cover 的 ffmpeg 封面缓存：
+ * 命中缓存直接流式返回 jpg，未命中生成后返回（供移动端零解码获取封面）
+ */
+export async function handleVideoCoverRequest(
+    _req: http.IncomingMessage,
+    res: http.ServerResponse,
+    url: URL
+) {
+    const videoPath = url.searchParams.get('path')
+    if (!videoPath) {
+        sendError(res, 400, 'Missing path parameter')
+        return
+    }
+
+    // 安全检查：防止路径遍历攻击
+    const normalizedPath = path.normalize(videoPath)
+    if (normalizedPath.includes('..')) {
+        sendError(res, 403, 'Forbidden: path traversal detected')
+        return
+    }
+
+    if (!fs.existsSync(normalizedPath)) {
+        sendError(res, 404, `File not found: ${path.basename(normalizedPath)}`)
+        return
+    }
+
+    try {
+        const coverPath = await getOrCreateCover(normalizedPath)
+        const stat = await fsp.stat(coverPath)
+
+        res.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': stat.size,
+            'Cache-Control': 'public, max-age=86400',
+            'Last-Modified': stat.mtime.toUTCString()
+        })
+
+        const fileStream = fs.createReadStream(coverPath)
+        fileStream.pipe(res)
+
+        fileStream.on('error', (err) => {
+            log.error(`[Server] Video cover stream error: ${err.message}`)
+            if (!res.headersSent) {
+                sendError(res, 500, 'Video cover stream error')
+            }
+        })
+    } catch (error: any) {
+        log.error(`[Server] Video cover error: ${error.message}`)
+        sendError(res, 500, 'Failed to generate video cover')
     }
 }
 

@@ -6,7 +6,7 @@ import path from 'path'
 import fg from 'fast-glob'
 import { corsMiddleware } from './middleware/cors'
 import { handleBrowseRequest } from './routes/browse'
-import { handleFileRequest } from './routes/file'
+import { handleFileRequest, handleVideoCoverRequest } from './routes/file'
 import { handleFavoritesRequest } from './routes/favorites'
 import { handleHistoryRequest } from './routes/history'
 import log from '../utils/log'
@@ -136,6 +136,9 @@ export class ComicReaderServer {
                 await handleFileRequest(req, res, url)
             } else if (pathname === '/api/thumbnail') {
                 await handleFileRequest(req, res, url, true)
+            } else if (pathname === '/api/video-cover') {
+                // 视频封面：复用 ffmpeg 封面缓存，未命中则生成后返回
+                await handleVideoCoverRequest(req, res, url)
             } else if (pathname.startsWith('/api/videofile/')) {
                 // 干净 URL 路由：/api/videofile/<encoded-path>
                 // 用于 Android MediaMetadataRetriever 等不支持查询参数的客户端
