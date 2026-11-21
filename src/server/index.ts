@@ -73,6 +73,11 @@ export class ComicReaderServer {
                 await this.handleRequest(req, res)
             })
 
+            // 关闭 Nagle 算法：降低小包（API/Range 请求）传输延迟
+            this.server.on('connection', (socket) => {
+                socket.setNoDelay(true)
+            })
+
             this.server.on('error', (err: any) => {
                 if (err.code === 'EADDRINUSE') {
                     log.warn(`[Server] Port ${this.port} is in use, trying ${this.port + 1}`)

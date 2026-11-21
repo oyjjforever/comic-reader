@@ -125,7 +125,8 @@ export async function handleFileRequest(
             })
 
             // 创建文件流并截取指定范围
-            const fileStream = fs.createReadStream(normalizedPath, { start, end })
+            // 1MiB 读缓冲：GB 级视频流减少 syscall 次数，提升局域网吞吐
+            const fileStream = fs.createReadStream(normalizedPath, { start, end, highWaterMark: 1024 * 1024 })
             fileStream.pipe(res)
 
             fileStream.on('error', (err) => {
@@ -144,7 +145,7 @@ export async function handleFileRequest(
                 'Last-Modified': stat.mtime.toUTCString()
             })
 
-            const fileStream = fs.createReadStream(normalizedPath)
+            const fileStream = fs.createReadStream(normalizedPath, { highWaterMark: 1024 * 1024 })
             fileStream.pipe(res)
 
             fileStream.on('error', (err) => {
