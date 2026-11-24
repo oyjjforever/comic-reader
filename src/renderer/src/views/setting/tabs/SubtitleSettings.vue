@@ -18,7 +18,7 @@
             <span class="binary-name">Whisper.cpp</span>
             <n-tag v-if="binaryStatus.whisperInstalled" type="success" size="small">已安装</n-tag>
             <n-tag v-else type="warning" size="small">未安装</n-tag>
-            <span v-if="whisperDownloadStatus" style="color: #999; font-size: 12px">
+            <span v-if="whisperDownloadStatus" style="color: var(--ui-text-hint); font-size: 12px">
               {{
                 whisperDownloadStatus === 'downloading'
                   ? `下载中 ${whisperDownloadProgress}%`
@@ -54,7 +54,7 @@
             <span class="binary-name">FFmpeg</span>
             <n-tag v-if="binaryStatus.ffmpegInstalled" type="success" size="small">已安装</n-tag>
             <n-tag v-else type="warning" size="small">未安装</n-tag>
-            <span v-if="ffmpegDownloadStatus" style="color: #999; font-size: 12px">
+            <span v-if="ffmpegDownloadStatus" style="color: var(--ui-text-hint); font-size: 12px">
               {{
                 ffmpegDownloadStatus === 'downloading'
                   ? `下载中 ${ffmpegDownloadProgress}%`
@@ -160,7 +160,7 @@
 
         <n-form-item label="自动生成">
           <n-switch v-model:value="settings.autoGenerate" />
-          <span style="margin-left: 8px; color: #999">打开视频时自动生成字幕</span>
+          <span style="margin-left: 8px; color: var(--ui-text-hint)">打开视频时自动生成字幕</span>
         </n-form-item> -->
 
         <n-form-item label="字体大小">
@@ -206,11 +206,11 @@
             <n-tag v-else type="warning" size="small">未安装</n-tag>
             <span
               v-if="llmModuleStatus.installed && llmModuleStatus.moduleSizeFormatted"
-              style="color: #999; font-size: 12px"
+              style="color: var(--ui-text-hint); font-size: 12px"
             >
               占用 {{ llmModuleStatus.moduleSizeFormatted }}
             </span>
-            <span v-if="llmDownloadStatus" style="color: #999; font-size: 12px">
+            <span v-if="llmDownloadStatus" style="color: var(--ui-text-hint); font-size: 12px">
               {{
                 llmDownloadStatus === 'downloading'
                   ? `下载中 ${llmDownloadProgress}%`
@@ -263,7 +263,7 @@
       <n-form label-placement="left" label-width="100">
         <n-form-item label="启用翻译">
           <n-switch v-model:value="settings.translateEnabled" />
-          <span style="margin-left: 8px; color: #999">使用本地 AI 模型翻译字幕</span>
+          <span style="margin-left: 8px; color: var(--ui-text-hint)">使用本地 AI 模型翻译字幕</span>
         </n-form-item>
 
         <n-form-item label="目标语言">

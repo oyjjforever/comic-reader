@@ -1,5 +1,9 @@
 <template>
-  <n-config-provider class="search-provider" :theme="darkTheme" :theme-overrides="orangeOverrides">
+  <n-config-provider
+    class="search-provider"
+    :theme="isLight ? lightTheme : darkTheme"
+    :theme-overrides="orangeOverrides"
+  >
     <div class="search-container">
       <!-- 搜索表单 -->
       <div class="search-form">
@@ -127,13 +131,13 @@
 
       <!-- 空状态 -->
       <div v-else-if="hasSearched && !loading" class="empty-state">
-        <n-icon :component="Search24Regular" size="64" color="#ccc" />
+        <n-icon :component="Search24Regular" size="64" color="var(--ui-icon-faint)" />
         <p class="empty-text">未找到相关结果</p>
       </div>
 
       <!-- 初始状态 -->
       <div v-else-if="!hasSearched" class="initial-state">
-        <n-icon :component="Search24Regular" size="64" color="#e0e0e0" />
+        <n-icon :component="Search24Regular" size="64" color="var(--ui-icon-faint-2)" />
         <p class="initial-text">请输入关键字开始搜索</p>
       </div>
 
@@ -159,6 +163,7 @@ import {
   NTag,
   NTooltip,
   darkTheme,
+  lightTheme,
   type GlobalThemeOverrides
 } from 'naive-ui'
 import {
@@ -173,9 +178,13 @@ import previewDialog from '../special-attention/preview-dialog.vue'
 import errorImg from '@renderer/assets/error.png'
 import siteUtils from '@renderer/plugins/site-utils/index.js'
 import { useSettingStore } from '@renderer/plugins/store'
+import { useTheme } from '@renderer/composables/use-theme'
 
-// 整页换暗色主题：嵌套 n-config-provider 对全部 naive 组件生效（含
-// Teleport 到 body 的下拉浮层），主色覆盖为品牌橙（与书架黑橙画布一致）
+// 界面主题：浅色时整页 naive 组件换 lightTheme（根 provider 不随 uiTheme 变，见 App.vue）
+const { isLight } = useTheme()
+
+// 整页 naive 组件换肤：嵌套 n-config-provider 对全部组件生效（含 Teleport 到 body
+// 的下拉浮层），主色覆盖为品牌橙（与书架品牌橙一致），深浅两套主题下相同
 const orangeOverrides: GlobalThemeOverrides = {
   common: {
     primaryColor: '#FF9205',
@@ -491,6 +500,8 @@ onUnmounted(() => {
   height: 100%;
 }
 
+// 配色走界面主题令牌（styles/theme.css）：注释里的"暗色 / 黑橙"说的是深色下的样子，
+// 浅色主题下自动翻转
 // 页面画布：黑橙底 + 辉光 + 点阵（与书架 home-container 同款）
 .search-container {
   width: 100%;
@@ -498,19 +509,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 8px;
-  background-color: #4a4656;
+  background-color: var(--ui-canvas);
   background-image: radial-gradient(
       ellipse 85% 65% at 15% 8%,
-      rgba(255, 146, 5, 0.22),
+      var(--ui-glow-a),
       transparent 60%
     ),
-    radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
-    radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
+    radial-gradient(ellipse 75% 60% at 92% 96%, var(--ui-glow-b), transparent 62%),
+    radial-gradient(circle, var(--ui-dot) 1px, transparent 1.6px);
   background-size:
     100% 100%,
     100% 100%,
     26px 26px;
-  color: #d9d4de;
+  color: var(--ui-text);
 
   // 暗色滚动条：橙色胶囊滑块，槽完全透明（track-piece 一并置透明防默认底色）
   ::-webkit-scrollbar {
@@ -520,12 +531,12 @@ onUnmounted(() => {
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 146, 5, 0.45);
+    background: var(--ui-scroll);
     border-radius: 8px;
-    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+    box-shadow: inset 0 0 0 1px var(--ui-scroll-ring);
 
     &:hover {
-      background: rgba(255, 146, 5, 0.7);
+      background: var(--ui-scroll-hover);
     }
   }
 
@@ -547,17 +558,17 @@ onUnmounted(() => {
   background: linear-gradient(
       115deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.18) 100%,
+      var(--ui-panel-sheen) 100%,
       transparent 50%
     ),
-    rgba(26, 24, 32, 0.75);
+    rgba(var(--ui-panel-rgb), 0.75);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(var(--ui-overlay-rgb), 0.22);
   border-radius: 16px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 24px -10px rgba(0, 0, 0, 0.6);
+    inset 0 1px 0 var(--ui-panel-top-light),
+    var(--ui-panel-shadow);
 }
 
 .search-form-row {
@@ -575,7 +586,7 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 146, 5, 0.3);
   border-radius: 10px;
   font-size: 13px;
-  color: #d9d4de;
+  color: var(--ui-text);
   flex-wrap: wrap;
 }
 
@@ -592,7 +603,7 @@ onUnmounted(() => {
 
 .results-count {
   font-size: 14px;
-  color: #d3d2d6;
+  color: var(--ui-text-soft);
   font-weight: 500;
 }
 
@@ -605,27 +616,27 @@ onUnmounted(() => {
   background: linear-gradient(
       115deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.18) 100%,
+      var(--ui-panel-sheen) 100%,
       transparent 50%
     ),
-    rgba(26, 24, 32, 0.75);
+    rgba(var(--ui-panel-rgb), 0.75);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(var(--ui-overlay-rgb), 0.22);
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 24px -10px rgba(0, 0, 0, 0.6);
+    inset 0 1px 0 var(--ui-panel-top-light),
+    var(--ui-panel-shadow);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.38);
+    border-color: rgba(var(--ui-overlay-rgb), 0.38);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      0 14px 32px -12px rgba(0, 0, 0, 0.7);
+      inset 0 1px 0 var(--ui-panel-top-light),
+      var(--ui-panel-shadow-hover);
 
     .hover-ops {
       opacity: 1;
@@ -644,7 +655,7 @@ onUnmounted(() => {
   width: 100%;
   flex: 1;
   min-height: 0;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--ui-overlay-rgb), 0.06);
   overflow: hidden;
   position: relative;
 }
@@ -666,8 +677,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
-  color: #6f6a7d;
+  background: rgba(var(--ui-overlay-rgb), 0.06);
+  color: var(--ui-text-3);
 }
 
 /* 加载中占位 */
@@ -677,7 +688,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--ui-overlay-rgb), 0.06);
 }
 
 /* 页数指示器 */
@@ -734,7 +745,7 @@ onUnmounted(() => {
 .item-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ece8f3;
+  color: var(--ui-text-title);
   margin: 0 0 8px 0;
   line-height: 1.4;
   display: -webkit-box;
@@ -756,13 +767,13 @@ onUnmounted(() => {
   padding: 2px 8px;
   border-radius: 4px;
   background: rgba(255, 146, 5, 0.18);
-  color: #ffca85;
+  color: var(--ui-accent-text);
   font-weight: 500;
 }
 
 .item-author {
   font-size: 12px;
-  color: #9d97ab;
+  color: var(--ui-text-2);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -783,7 +794,7 @@ onUnmounted(() => {
 .initial-text {
   margin-top: 16px;
   font-size: 16px;
-  color: #9d97ab;
+  color: var(--ui-text-2);
 }
 
 /* 加载更多指示器 */
@@ -794,10 +805,10 @@ onUnmounted(() => {
   gap: 8px;
   padding: 12px 0;
   font-size: 13px;
-  color: #9d97ab;
+  color: var(--ui-text-2);
 
   &.no-more {
-    color: #6f6a7d;
+    color: var(--ui-text-3);
   }
 }
 

@@ -1,0 +1,162 @@
+/* ===== 界面主题令牌（深色 / 浅色） ===== */
+/* 深色值 = 「黑橙玻璃」现有字面量逐字搬运（:root 即默认深色）；
+   浅色由 :root[data-theme='light'] 覆盖为「白玻璃 + 淡紫灰」。
+   data-theme 由 App.vue 按 setting.uiTheme 写到 <html>。
+
+   约定：
+   - 叠层 / 面板底用 RGB 三元组令牌，写成 rgba(var(--x), α) 以保留各自原有的透明度，
+     深色下与原字面量逐位相等；浅色下白叠层翻转为深紫灰叠层、暗面板翻转为白玻璃。
+   - 只收"随主题翻转"的语义色。品牌橙、卡片实体材质、白玻璃弹窗皮肤、阅读器黑底
+     不随主题变，继续写字面量。 */
+:root {
+  /* 侧栏 / 外框 */
+  --ui-rail: #322f3b;
+  --ui-rail-icon: #9ca3af;
+  --ui-rail-icon-active: #ffffff;
+  /* 贴着侧栏弹出的浮层里的文字 / 底（站点二级菜单） */
+  --ui-rail-text: #d1d5db;
+  --ui-popover: #322f3b;
+  --ui-popover-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* 外框顶栏上的灰色小色钮 */
+  --ui-chip: #ccc;
+
+  /* 页面画布 */
+  --ui-canvas: #4a4656;
+  --ui-glow-a: rgba(255, 146, 5, 0.22);
+  --ui-glow-b: rgba(255, 146, 5, 0.14);
+  --ui-dot: rgba(255, 146, 5, 0.1);
+
+  /* 毛玻璃面板 */
+  --ui-panel-rgb: 26, 24, 32;
+  --ui-panel-sheen: rgba(255, 255, 255, 0.18);
+  --ui-panel-top-light: rgba(255, 255, 255, 0.16);
+  --ui-panel-top-light-soft: rgba(255, 255, 255, 0.08);
+  --ui-panel-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+  --ui-panel-shadow-soft: 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --ui-panel-shadow-hover: 0 14px 32px -12px rgba(0, 0, 0, 0.7);
+  --ui-panel-shadow-side: 4px 0 16px -10px rgba(0, 0, 0, 0.55);
+  /* 下拉菜单浮层专用（反光更弱、投影更深） */
+  --ui-menu-sheen: rgba(255, 255, 255, 0.14);
+  --ui-menu-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.7);
+  /* 贴边的弱面板条（最近下载的筛选栏） */
+  --ui-bar-rgb: 24, 22, 30;
+  /* 作者卡卡尾的收边条 */
+  --ui-foot-strip: rgba(0, 0, 0, 0.25);
+  /* 缩略图悬浮投影 */
+  --ui-thumb-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+
+  /* 叠层（悬浮 / 选中 / 弱填充 / 描边 / 分隔线）：深色 = 白色半透明 */
+  --ui-overlay-rgb: 255, 255, 255;
+  /* 遮罩层底（加载中盖住内容的薄纱） */
+  --ui-scrim: rgba(20, 19, 25, 0.7);
+
+  /* 文本 */
+  --ui-text-title: #ece8f3;
+  --ui-text: #d9d4de;
+  --ui-text-soft: #d3d2d6;
+  --ui-text-strong: #ffffff;
+  --ui-text-chip: #c9c3d4;
+  --ui-text-2: #9d97ab;
+  --ui-text-3: #6f6a7d;
+  --ui-text-placeholder: #9a92a0;
+  --ui-text-hint: #999;
+  /* 画布上的大号空状态图标 */
+  --ui-icon-faint: #ccc;
+  --ui-icon-faint-2: #e0e0e0;
+
+  /* 品牌橙强调色文字（浅底需加深保对比度；深色下的文字投影在浅底去掉）。
+     品牌橙本体 #ff9205 不随主题变，各处继续写字面量 */
+  --ui-accent-text: #ffca85;
+  --ui-accent-text-bright: #ffedd0;
+  --ui-accent-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  --ui-strong-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  /* 橙色分隔线下方的一道暗槽（浅色下翻成亮槽） */
+  --ui-groove: 0 1px 0 rgba(0, 0, 0, 0.5);
+
+  /* 语义色文字（深色下为亮调，浅色下加深） */
+  --ui-danger-text: #f87171;
+  --ui-danger-text-hover: #ef4444;
+  --ui-success-text: #34d399;
+  --ui-success-text-hover: #10b981;
+  --ui-tag-text: #a78bfa;
+  --ui-tag-text-hover: #c4b5fd;
+  /* 新作品提示条 */
+  --ui-alert-bg: rgba(120, 30, 30, 0.32);
+  --ui-alert-border: rgba(248, 113, 113, 0.45);
+  --ui-alert-border-strong: rgba(248, 113, 113, 0.85);
+  --ui-alert-text: #ff9d9d;
+
+  /* 滚动条胶囊 */
+  --ui-scroll: rgba(255, 146, 5, 0.45);
+  --ui-scroll-hover: rgba(255, 146, 5, 0.7);
+  --ui-scroll-ring: rgba(255, 220, 170, 0.25);
+}
+
+:root[data-theme='light'] {
+  --ui-rail: #e8e5ef;
+  --ui-rail-icon: #6b7280;
+  --ui-rail-icon-active: #26232f;
+  --ui-rail-text: #3d3949;
+  /* 白玻璃浮层：投影外再加一圈发丝环，代替描边（不改盒尺寸） */
+  --ui-popover: rgba(255, 255, 255, 0.86);
+  --ui-popover-shadow:
+    0 8px 32px rgba(50, 47, 59, 0.16),
+    0 0 0 1px rgba(50, 47, 59, 0.08);
+  --ui-chip: #cfcadb;
+
+  --ui-canvas: #f4f2f7;
+  --ui-glow-a: rgba(255, 146, 5, 0.14);
+  --ui-glow-b: rgba(255, 146, 5, 0.09);
+  --ui-dot: rgba(50, 47, 59, 0.07);
+
+  --ui-panel-rgb: 255, 255, 255;
+  --ui-panel-sheen: rgba(255, 255, 255, 0.6);
+  --ui-panel-top-light: rgba(255, 255, 255, 0.9);
+  --ui-panel-top-light-soft: rgba(255, 255, 255, 0.7);
+  --ui-panel-shadow: 0 8px 24px -12px rgba(50, 47, 59, 0.16);
+  --ui-panel-shadow-soft: 0 8px 24px -14px rgba(50, 47, 59, 0.14);
+  --ui-panel-shadow-hover: 0 14px 32px -14px rgba(50, 47, 59, 0.2);
+  --ui-panel-shadow-side: 4px 0 16px -10px rgba(50, 47, 59, 0.14);
+  --ui-menu-sheen: rgba(255, 255, 255, 0.5);
+  --ui-menu-shadow: 0 12px 32px -8px rgba(31, 28, 40, 0.28);
+  --ui-bar-rgb: 255, 255, 255;
+  --ui-foot-strip: rgba(50, 47, 59, 0.05);
+  --ui-thumb-shadow: 0 6px 16px rgba(50, 47, 59, 0.18);
+
+  /* 叠层翻转为深紫灰半透明（与侧栏 / 弹窗皮肤同一色相） */
+  --ui-overlay-rgb: 50, 47, 59;
+  --ui-scrim: rgba(244, 242, 247, 0.7);
+
+  --ui-text-title: #1a1823;
+  --ui-text: #26232f;
+  --ui-text-soft: #3d3949;
+  --ui-text-strong: #141314;
+  --ui-text-chip: #4a4557;
+  --ui-text-2: #6f6a7d;
+  --ui-text-3: #8f8a9c;
+  --ui-text-placeholder: #9a95a6;
+  --ui-text-hint: #8f8a9c;
+  --ui-icon-faint: #b5afc0;
+  --ui-icon-faint-2: #a8a2b4;
+
+  --ui-accent-text: #a85a00;
+  --ui-accent-text-bright: #6b3600;
+  --ui-accent-shadow: none;
+  --ui-strong-shadow: none;
+  --ui-groove: 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  --ui-danger-text: #dc2626;
+  --ui-danger-text-hover: #b91c1c;
+  --ui-success-text: #059669;
+  --ui-success-text-hover: #047857;
+  --ui-tag-text: #7c3aed;
+  --ui-tag-text-hover: #6d28d9;
+  --ui-alert-bg: rgba(254, 226, 226, 0.75);
+  --ui-alert-border: rgba(220, 38, 38, 0.28);
+  --ui-alert-border-strong: rgba(220, 38, 38, 0.7);
+  --ui-alert-text: #b42318;
+
+  --ui-scroll: rgba(255, 146, 5, 0.5);
+  --ui-scroll-hover: rgba(255, 146, 5, 0.8);
+  --ui-scroll-ring: rgba(255, 255, 255, 0.45);
+}

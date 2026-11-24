@@ -1,7 +1,9 @@
 // 设置类型
 export type setting = {
-    // 主题
+    // 主题（仅 naive-ui 根主题与 EPUB 配色在用）
     theme: 'auto' | 'light' | 'dark'
+    // 界面主题：'dark' 黑橙玻璃（默认）/ 'light' 浅色
+    uiTheme?: 'dark' | 'light'
     // 书籍/文件排序
     bookSort: 'id ASC' | 'id DESC' | 'updated_at ASC' | 'updated_at DESC'
     // 资源路径（旧字段，保留用于迁移）

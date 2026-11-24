@@ -184,6 +184,6 @@ const selectResourcePath = async (key: keyof setting) => {
 
 .site-visibility__tip {
   font-size: 12px;
-  color: #999;
+  color: var(--ui-text-hint);
 }
 </style>

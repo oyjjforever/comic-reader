@@ -2368,27 +2368,36 @@ $dot-circles: 'M1.6 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0z' +
 $dot-overlay-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cpath fill='%234a4656' d='#{$dot-circles}'/%3E%3C/svg%3E");
 /* 底带 = 顶带单元垂直翻转（半圆贴底边，点径向内容方向渐大） */
 $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cg transform='translate(0 28) scale(1 -1)'%3E%3Cpath fill='%234a4656' d='#{$dot-circles}'/%3E%3C/g%3E%3C/svg%3E");
+/* 浅色界面主题的同款单元：圆点换成浅色画布底色 #f4f2f7（= 令牌 --ui-canvas 的浅色值）。
+   SVG data URI 里引用不了 CSS 变量，故整段 URL 经局部变量 --dot-overlay-* 下发，
+   浅色主题在本文件末尾覆盖 */
+$dot-overlay-top-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cpath fill='%23f4f2f7' d='#{$dot-circles}'/%3E%3C/svg%3E");
+$dot-overlay-bottom-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='28'%3E%3Cg transform='translate(0 28) scale(1 -1)'%3E%3Cpath fill='%23f4f2f7' d='#{$dot-circles}'/%3E%3C/g%3E%3C/svg%3E");
 
 /* 复用原页面的样式类名以避免大面积改动 */
+/* 画布 / 面板 / 文字 / 滚动条配色走界面主题令牌（styles/theme.css），深色即原黑橙画布 */
 .home-container {
   height: 100%;
   width: 100%;
   display: flex;
   flex-direction: column;
+  /* 网格淡出带的圆点单元（默认深色画布底色） */
+  --dot-overlay-top: #{$dot-overlay-top};
+  --dot-overlay-bottom: #{$dot-overlay-bottom};
   /* 黑橙画布：#4A4656（主题 hover 亮阶）底 + #FF9205 辉光（径向）+ 橙色点阵图案，不使用线性渐变 */
-  background-color: #4a4656;
+  background-color: var(--ui-canvas);
   background-image: radial-gradient(
       ellipse 85% 65% at 15% 8%,
-      rgba(255, 146, 5, 0.22),
+      var(--ui-glow-a),
       transparent 60%
     ),
-    radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
-    radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
+    radial-gradient(ellipse 75% 60% at 92% 96%, var(--ui-glow-b), transparent 62%),
+    radial-gradient(circle, var(--ui-dot) 1px, transparent 1.6px);
   background-size:
     100% 100%,
     100% 100%,
     26px 26px;
-  color: #d9d4de;
+  color: var(--ui-text);
 
   .navbar {
     display: flex;
@@ -2399,17 +2408,17 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     background: linear-gradient(
         115deg,
         transparent 0%,
-        rgba(255, 255, 255, 0.18) 100%,
+        var(--ui-panel-sheen) 100%,
         transparent 50%
       ),
-      rgba(26, 24, 32, 0.75);
+      rgba(var(--ui-panel-rgb), 0.75);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(var(--ui-overlay-rgb), 0.22);
     border-radius: 16px;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      0 8px 24px -10px rgba(0, 0, 0, 0.6);
+      inset 0 1px 0 var(--ui-panel-top-light),
+      var(--ui-panel-shadow);
     height: 60px;
     margin: 8px 8px 0;
     flex-shrink: 0;
@@ -2431,30 +2440,30 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     }
   }
 
-  /* 暗色玻璃上的 naive 组件适配：操作栏按钮/输入框 + 侧栏标签管理按钮换暗色皮肤
-     （交互色以内联 CSS 变量下发，需 !important 覆盖） */
+  /* 玻璃面板上的 naive 组件适配（随界面主题令牌翻转）：操作栏按钮/输入框 +
+     侧栏标签管理按钮（交互色以内联 CSS 变量下发，需 !important 覆盖） */
   .navbar,
   .tag-filter-controls {
     .n-button--default-type {
-      --n-color: rgba(255, 255, 255, 0.08) !important;
-      --n-color-hover: rgba(255, 255, 255, 0.16) !important;
-      --n-color-pressed: rgba(255, 255, 255, 0.22) !important;
-      --n-color-focus: rgba(255, 255, 255, 0.16) !important;
-      --n-color-disabled: rgba(255, 255, 255, 0.04) !important;
-      --n-text-color: #d9d4de !important;
-      --n-text-color-hover: #ffca85 !important;
-      --n-text-color-pressed: #ffca85 !important;
-      --n-text-color-focus: #ffca85 !important;
-      --n-text-color-disabled: #6f6a7d !important;
-      --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      --n-color: rgba(var(--ui-overlay-rgb), 0.08) !important;
+      --n-color-hover: rgba(var(--ui-overlay-rgb), 0.16) !important;
+      --n-color-pressed: rgba(var(--ui-overlay-rgb), 0.22) !important;
+      --n-color-focus: rgba(var(--ui-overlay-rgb), 0.16) !important;
+      --n-color-disabled: rgba(var(--ui-overlay-rgb), 0.04) !important;
+      --n-text-color: var(--ui-text) !important;
+      --n-text-color-hover: var(--ui-accent-text) !important;
+      --n-text-color-pressed: var(--ui-accent-text) !important;
+      --n-text-color-focus: var(--ui-accent-text) !important;
+      --n-text-color-disabled: var(--ui-text-3) !important;
+      --n-border: 1px solid rgba(var(--ui-overlay-rgb), 0.18) !important;
       --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
       --n-border-pressed: 1px solid rgba(255, 146, 5, 0.75) !important;
       --n-border-focus: 1px solid rgba(255, 146, 5, 0.55) !important;
-      --n-border-disabled: 1px solid rgba(255, 255, 255, 0.1) !important;
-      --n-icon-color: #9d97ab !important;
-      --n-icon-color-hover: #ffca85 !important;
-      --n-icon-color-pressed: #ffca85 !important;
-      --n-icon-color-focus: #ffca85 !important;
+      --n-border-disabled: 1px solid rgba(var(--ui-overlay-rgb), 0.1) !important;
+      --n-icon-color: var(--ui-text-2) !important;
+      --n-icon-color-hover: var(--ui-accent-text) !important;
+      --n-icon-color-pressed: var(--ui-accent-text) !important;
+      --n-icon-color-focus: var(--ui-accent-text) !important;
     }
 
     /* 激活态视图按钮：品牌橙实底（同 theme-config 的 orange 预设） */
@@ -2474,21 +2483,21 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     }
 
     .n-input {
-      --n-color: rgba(255, 255, 255, 0.08) !important;
+      --n-color: rgba(var(--ui-overlay-rgb), 0.08) !important;
       /* 悬停不变底色（覆盖 naive 默认的浅灰 --n-color-hover），只保留边框反馈 */
-      --n-color-hover: rgba(255, 255, 255, 0.08) !important;
-      --n-color-focus: rgba(255, 255, 255, 0.12) !important;
-      --n-border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      --n-color-hover: rgba(var(--ui-overlay-rgb), 0.08) !important;
+      --n-color-focus: rgba(var(--ui-overlay-rgb), 0.12) !important;
+      --n-border: 1px solid rgba(var(--ui-overlay-rgb), 0.18) !important;
       --n-border-hover: 1px solid rgba(255, 146, 5, 0.55) !important;
       --n-border-focus: 1px solid rgba(255, 146, 5, 0.75) !important;
-      --n-text-color: #d9d4de !important;
+      --n-text-color: var(--ui-text) !important;
       --n-caret-color: #ff9205 !important;
-      --n-placeholder-color: #9a92a0 !important;
-      --n-icon-color: #9d97ab !important;
-      --n-icon-color-hover: #ffca85 !important;
-      --n-clear-color: #9a92a0 !important;
-      --n-clear-color-hover: #ffca85 !important;
-      --n-clear-color-pressed: #ffca85 !important;
+      --n-placeholder-color: var(--ui-text-placeholder) !important;
+      --n-icon-color: var(--ui-text-2) !important;
+      --n-icon-color-hover: var(--ui-accent-text) !important;
+      --n-clear-color: var(--ui-text-placeholder) !important;
+      --n-clear-color-hover: var(--ui-accent-text) !important;
+      --n-clear-color-pressed: var(--ui-accent-text) !important;
     }
   }
 
@@ -2505,17 +2514,17 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     background: linear-gradient(
         115deg,
         transparent 0%,
-        rgba(255, 255, 255, 0.18) 100%,
+        var(--ui-panel-sheen) 100%,
         transparent 50%
       ),
-      rgba(26, 24, 32, 0.75);
+      rgba(var(--ui-panel-rgb), 0.75);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(var(--ui-overlay-rgb), 0.1);
     border-radius: 16px 0 0 16px;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      4px 0 16px -10px rgba(0, 0, 0, 0.55);
+      inset 0 1px 0 var(--ui-panel-top-light-soft),
+      var(--ui-panel-shadow-side);
     display: flex;
     flex-direction: column;
     width: 20%;
@@ -2550,8 +2559,8 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
       font-size: 0.875rem;
       line-height: 1.25rem;
       font-weight: 500;
-      color: #ffca85;
-      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+      color: var(--ui-accent-text);
+      text-shadow: var(--ui-accent-shadow);
       margin: 0;
     }
 
@@ -2571,13 +2580,13 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 146, 5, 0.45);
+    background: var(--ui-scroll);
     border-radius: 8px;
-    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+    box-shadow: inset 0 0 0 1px var(--ui-scroll-ring);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 146, 5, 0.7);
+    background: var(--ui-scroll-hover);
   }
 
   ::-webkit-scrollbar-track,
@@ -2593,12 +2602,12 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     line-height: 1.25rem;
 
     /* 换肤为 #322F3B + #FF9205 配色：naive-ui 将交互色以内联 CSS 变量下发，需 !important 覆盖 */
-    --n-node-color-hover: rgba(255, 255, 255, 0.08) !important;
-    --n-node-color-pressed: rgba(255, 255, 255, 0.14) !important;
+    --n-node-color-hover: rgba(var(--ui-overlay-rgb), 0.08) !important;
+    --n-node-color-pressed: rgba(var(--ui-overlay-rgb), 0.14) !important;
     --n-node-color-active: rgba(255, 146, 5, 0.25) !important;
-    --n-node-text-color: #d9d4de !important;
-    --n-node-text-color-disabled: #6f6a7d !important;
-    --n-arrow-color: #9d97ab !important;
+    --n-node-text-color: var(--ui-text) !important;
+    --n-node-text-color-disabled: var(--ui-text-3) !important;
+    --n-arrow-color: var(--ui-text-2) !important;
     --n-loading-color: #ff9205 !important;
     --n-line-color: rgba(255, 146, 5, 0.28) !important;
     --n-node-border-radius: 6px !important;
@@ -2626,9 +2635,9 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
       }
 
       .tree-node-label {
-        color: #ffedd0;
+        color: var(--ui-accent-text-bright);
         font-weight: 600;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+        text-shadow: var(--ui-strong-shadow);
       }
     }
   }
@@ -2666,12 +2675,12 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
     &::before {
       top: 0;
-      background-image: $dot-overlay-top;
+      background-image: var(--dot-overlay-top);
     }
 
     &::after {
       bottom: 0;
-      background-image: $dot-overlay-bottom;
+      background-image: var(--dot-overlay-bottom);
     }
 
     &.fade-top::before,
@@ -2689,7 +2698,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     gap: 8px;
     padding: 8px 16px;
     border-bottom: 1px solid rgba(255, 146, 5, 0.25);
-    background: rgba(24, 22, 30, 0.55);
+    background: rgba(var(--ui-bar-rgb), 0.55);
     flex-shrink: 0;
   }
 
@@ -2701,7 +2710,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
     /* 暗色画布上的空状态文字提亮（naive 默认是深灰） */
     .n-empty__description {
-      color: #9a92a0;
+      color: var(--ui-text-placeholder);
     }
   }
 
@@ -2714,7 +2723,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     padding: 2rem;
 
     .n-empty__description {
-      color: #9a92a0;
+      color: var(--ui-text-placeholder);
     }
   }
 
@@ -2724,7 +2733,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     height: 100%;
     display: flex;
     flex-direction: column;
-    color: #d9d4de;
+    color: var(--ui-text);
   }
 
   .tag-filter-header {
@@ -2739,9 +2748,9 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     font-size: 0.875rem;
     line-height: 1.25rem;
     font-weight: 500;
-    color: #ffca85;
+    color: var(--ui-accent-text);
     letter-spacing: 1px;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+    text-shadow: var(--ui-accent-shadow);
     margin: 0;
   }
 
@@ -2762,7 +2771,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
   .empty-tags {
     text-align: center;
-    color: #9a92a0;
+    color: var(--ui-text-placeholder);
     padding-top: 1rem;
     padding-bottom: 1rem;
   }
@@ -2781,7 +2790,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
   .tag-section-title {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #9a92a0;
+    color: var(--ui-text-placeholder);
     margin-bottom: 0.5rem;
     padding-left: 0.25rem;
   }
@@ -2791,7 +2800,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     transition: background-color 0.2s;
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
+      background-color: rgba(var(--ui-overlay-rgb), 0.08);
       border-radius: 4px;
     }
   }
@@ -2805,7 +2814,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
   .folder-icon {
     // margin-right: 2px;
-    color: #9d97ab;
+    color: var(--ui-text-2);
   }
 
   .folder-tag-label {
@@ -2823,10 +2832,10 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
   .root-tree-node {
     font-weight: 600;
     font-size: 13px;
-    color: #ffca85;
+    color: var(--ui-accent-text);
     padding: 4px 0;
     letter-spacing: 1px;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+    text-shadow: var(--ui-accent-shadow);
 
     .root-folder-icon {
       color: #ff9205;
@@ -2835,10 +2844,10 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
     .root-node-label {
       font-size: 12px;
-      color: #ffca85;
+      color: var(--ui-accent-text);
       font-weight: 600;
       letter-spacing: 1px;
-      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+      text-shadow: var(--ui-accent-shadow);
     }
   }
 
@@ -2862,7 +2871,7 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
       + .n-tree-node-wrapper
       > .n-tree-node:has(> .n-tree-node-content .root-tree-node) {
       border-top: 1px solid rgba(255, 146, 5, 0.28);
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+      box-shadow: var(--ui-groove);
       margin-top: 6px;
       padding-top: 4px;
     }
@@ -2877,14 +2886,14 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     user-select: none;
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
+      background-color: rgba(var(--ui-overlay-rgb), 0.08);
     }
 
     /* 选中标签：同目录树的 #FF9205 缎带 */
     &.tag-selected {
       background-color: rgba(255, 146, 5, 0.25);
       border-left: 3px solid #ff9205;
-      color: #ffedd0;
+      color: var(--ui-accent-text-bright);
     }
   }
 
@@ -2972,9 +2981,15 @@ $dot-overlay-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: rgba(20, 19, 25, 0.7);
+    background-color: var(--ui-scrim);
     z-index: 1000;
     backdrop-filter: blur(2px);
   }
+}
+
+/* 浅色界面主题：淡出带圆点换成浅色画布底色（见文件头部说明） */
+:root[data-theme='light'] .home-container {
+  --dot-overlay-top: #{$dot-overlay-top-light};
+  --dot-overlay-bottom: #{$dot-overlay-bottom-light};
 }
 </style>

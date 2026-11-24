@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 // 默认设置
 export const defaultSetting = {
   theme: 'light',
+  uiTheme: 'dark', // 界面主题：'dark' 黑橙玻璃（默认）/ 'light' 浅色（白玻璃 + 淡紫灰）
   bookSort: 'id DESC',
   resourcePath: '', // 旧字段，保留用于迁移
   videoResourcePath: '', // 旧字段，保留用于迁移

@@ -13,6 +13,7 @@
     <n-form-item path="defaultViewMode" label="默认展示标签页">
       <n-select
         :value="modelValue.defaultViewMode"
+        style="width: 200px"
         @update:value="(value) => updateSetting('defaultViewMode', value)"
         :options="[
           { label: '本地目录', value: 'folders' },

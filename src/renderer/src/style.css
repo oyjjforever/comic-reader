@@ -270,3 +270,21 @@ body .n-message {
   --n-close-icon-color-pressed: #7a4800 !important;
   --n-close-icon-color-focus: #8a5300 !important;
 }
+
+/* ===== 界面主题切换：以切换按钮为圆心的圆形扩散（View Transitions） ===== */
+/* 旧画面留作快照铺底，新画面沿不断扩张的圆形裁剪区露出。裁剪动画由
+   composables/use-theme.ts 的 toggleTheme 用 WAAPI 驱动
+   ::view-transition-new(root) 的 clip-path；这里关掉两组快照默认的交叉淡入与
+   叠加混色，否则新旧画面会先各带透明度地叠一下 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* 过渡进行期间浏览器不对页面做命中测试（鼠标事件的目标都是 <html>），页面本身点不动，
+   这条改不了。覆盖层默认还会把这些事件整个吞掉；设为 none 后事件能派发到 document，
+   composables/use-theme.ts 靠这个在过渡期间感知"按下 / 滚轮"并立即结束过渡 */
+::view-transition {
+  pointer-events: none;
+}

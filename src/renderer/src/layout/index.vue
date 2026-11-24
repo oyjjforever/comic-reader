@@ -20,7 +20,11 @@
           @mouseenter="onSitesHover(item, true)"
           @mouseleave="onSitesHover(item, false)"
         >
-          <n-icon v-if="item.icon" size="25" :color="isMenuActive(item) ? '#ffffff' : '#9ca3af'">
+          <n-icon
+            v-if="item.icon"
+            size="25"
+            :color="isMenuActive(item) ? 'var(--ui-rail-icon-active)' : 'var(--ui-rail-icon)'"
+          >
             <component :is="item.icon" />
           </n-icon>
           <img v-if="item.image" :src="item.image" width="30" height="30" />
@@ -72,6 +76,13 @@
 
       <!-- 底部菜单 -->
       <div class="bottom-menu">
+        <!-- 主题切换（设置按钮上方）：深色显示太阳（点了切浅色），浅色显示月亮；
+             点击后新主题以本按钮圆心为圆心圆形扩散开 -->
+        <div class="menu-item theme-toggle" @click="onToggleTheme">
+          <n-icon size="20">
+            <component :is="isLight ? WeatherMoon20Regular : WeatherSunny20Regular" />
+          </n-icon>
+        </div>
         <div
           v-for="(item, index) in bottomMenuItems"
           :key="index"
@@ -79,7 +90,12 @@
           :class="{ active: isMenuActive(item) }"
           @click="handleMenuClick(index, item)"
         >
-          <n-icon size="20" :color="currentRoute === item.name ? '#ffffff' : '#9ca3af'">
+          <n-icon
+            size="20"
+            :color="
+              currentRoute === item.name ? 'var(--ui-rail-icon-active)' : 'var(--ui-rail-icon)'
+            "
+          >
             <component :is="item.icon" />
           </n-icon>
         </div>
@@ -264,7 +280,9 @@ import {
   Search24Regular,
   Globe24Regular,
   MoviesAndTv24Regular,
-  Add16Regular
+  Add16Regular,
+  WeatherMoon20Regular,
+  WeatherSunny20Regular
 } from '@vicons/fluent'
 import { CloseOutlined, MinusOutlined } from '@vicons/antd'
 import { useSettingStore } from '@renderer/plugins/store'
@@ -288,10 +306,20 @@ import { isSiteAllowed, loadSiteWhitelist } from '@renderer/plugins/store/siteWh
 import { useNewArtworkDetectorStore } from '@renderer/plugins/store/newArtworkDetector'
 import SiteView from '@renderer/views/site/index.vue'
 import twitter from '../views/special-attention/twitter'
+import { useTheme } from '@renderer/composables/use-theme'
 const settingStore = useSettingStore()
 const route = useRoute()
 const router = useRouter()
 const currentRoute = computed(() => route.name)
+
+// 界面主题（侧栏底部的切换按钮；App.vue 负责把值写到 <html data-theme>）
+const { isLight, toggleTheme } = useTheme()
+
+// 主题切换：以切换按钮的圆心为圆心做圆形扩散过渡（视口坐标）
+function onToggleTheme(e: MouseEvent) {
+  const { left, top, width, height } = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  toggleTheme({ x: left + width / 2, y: top + height / 2 })
+}
 
 // 关闭偏好镜像：数据库 setting 中的 closeToTray/dontRemind 推送给主进程，
 // 供窗口关闭时同步判断（挂载时立即推一次，之后随设置变化推送）
@@ -664,7 +692,6 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-$background-color: #322f3b;
 .layout-container {
   display: flex;
   height: 100vh;
@@ -675,10 +702,11 @@ $background-color: #322f3b;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+// 侧栏配色走界面主题令牌（styles/theme.css）：深色=黑橙玻璃现状，浅色=淡紫灰
 .sidebar {
   min-width: 80px;
   max-width: 80px;
-  background: $background-color;
+  background: var(--ui-rail);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -692,7 +720,7 @@ $background-color: #322f3b;
     .logo-icon {
       width: 48px;
       height: 48px;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(var(--ui-overlay-rgb), 0.1);
       border-radius: 48px;
       overflow: hidden;
       display: flex;
@@ -702,7 +730,7 @@ $background-color: #322f3b;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
       &:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(var(--ui-overlay-rgb), 0.2);
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
       }
@@ -727,12 +755,21 @@ $background-color: #322f3b;
     margin-top: auto;
   }
 
+  // 主题切换钮：图标不写内联 color，由这里给色，悬浮时提亮到强调色
+  .theme-toggle {
+    color: var(--ui-rail-icon);
+
+    &:hover {
+      color: var(--ui-rail-icon-active);
+    }
+  }
+
   .sites-submenu {
     position: absolute;
     left: 85px;
     top: 50%;
     transform: translateY(-50%);
-    background: #322f3b;
+    background: var(--ui-popover);
     backdrop-filter: blur(10px);
     border-radius: 12px;
     padding: 8px;
@@ -740,7 +777,7 @@ $background-color: #322f3b;
     flex-direction: column;
     gap: 4px;
     z-index: 1000;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--ui-popover-shadow);
     min-width: 130px;
 
     &__item {
@@ -750,7 +787,7 @@ $background-color: #322f3b;
       padding: 8px 12px;
       border-radius: 8px;
       cursor: pointer;
-      color: #d1d5db;
+      color: var(--ui-rail-text);
       font-size: 13px;
       transition: all 0.2s ease;
 
@@ -760,20 +797,20 @@ $background-color: #322f3b;
       }
 
       &:hover {
-        background: rgba(255, 255, 255, 0.12);
-        color: #ffffff;
+        background: rgba(var(--ui-overlay-rgb), 0.12);
+        color: var(--ui-text-strong);
       }
 
       &.active {
         background: rgba(96, 165, 250, 0.25);
-        color: #ffffff;
+        color: var(--ui-text-strong);
       }
     }
 
     &__divider {
       height: 1px;
       margin: 4px 6px;
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(var(--ui-overlay-rgb), 0.15);
     }
   }
 
@@ -797,13 +834,13 @@ $background-color: #322f3b;
       transform: translateY(-50%);
       width: 4px;
       height: 0;
-      background: #ffffff;
+      background: var(--ui-rail-icon-active);
       border-radius: 0 2px 2px 0;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(var(--ui-overlay-rgb), 0.1);
       transform: translateX(4px);
 
       &::before {
@@ -812,7 +849,7 @@ $background-color: #322f3b;
     }
 
     &.active {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(var(--ui-overlay-rgb), 0.15);
       transform: translateX(4px);
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 
@@ -835,7 +872,7 @@ $background-color: #322f3b;
       width: 0;
       height: 0;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(var(--ui-overlay-rgb), 0.3);
       transform: translate(-50%, -50%);
       transition: all 0.3s ease;
     }
@@ -869,7 +906,7 @@ $background-color: #322f3b;
 
 .main-content-wrapper {
   flex: 1;
-  background: $background-color;
+  background: var(--ui-rail);
   // border-radius: 0 24px 24px 0;
   // overflow: hidden;
   position: relative;
@@ -907,7 +944,7 @@ $background-color: #322f3b;
       }
     }
     .wb-site {
-      background: #ccc;
+      background: var(--ui-chip);
     }
     /* 当前页面已加入特别关注：星标金色高亮 */
     .wb-attention--active {

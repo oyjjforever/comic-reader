@@ -1,5 +1,9 @@
 <template>
-  <n-config-provider class="setting-provider" :theme="darkTheme" :theme-overrides="orangeOverrides">
+  <n-config-provider
+    class="setting-provider"
+    :theme="isLight ? lightTheme : darkTheme"
+    :theme-overrides="orangeOverrides"
+  >
     <div class="setting">
       <div class="setting-panel">
         <n-tabs
@@ -54,11 +58,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useMessage, darkTheme, type GlobalThemeOverrides } from 'naive-ui'
+import { useMessage, darkTheme, lightTheme, type GlobalThemeOverrides } from 'naive-ui'
 import { useSettingStore } from '../../plugins/store'
 import { setting } from '../../../../typings/setting'
+import { useTheme } from '@renderer/composables/use-theme'
 import GeneralSettings from './tabs/GeneralSettings.vue'
 import ReadingSettings from './tabs/ReadingSettings.vue'
 import ClipboardSettings from './tabs/ClipboardSettings.vue'
@@ -71,11 +76,13 @@ import SubtitleSettings from './tabs/SubtitleSettings.vue'
 const settingStore = useSettingStore()
 const message = useMessage()
 const route = useRoute()
+// 界面主题：浅色时整页 naive 组件换 lightTheme（根 provider 不随 uiTheme 变，见 App.vue）
+const { isLight } = useTheme()
 
-// 设置页整体换暗色主题：n-config-provider 支持嵌套，内层对全部后代 naive
+// 设置页整体 naive 组件换肤：n-config-provider 支持嵌套，内层对全部后代 naive
 // 组件生效（含 Teleport 到 body 的下拉/浮层），免去逐组件 CSS 变量覆写；
-// 主色覆盖为品牌橙（与书架黑橙画布一致）
-const orangeOverrides: GlobalThemeOverrides = {
+// 主色覆盖为品牌橙（深浅两套相同），Tabs / Card 的文字与底色随界面主题取值
+const orangeOverrides = computed<GlobalThemeOverrides>(() => ({
   common: {
     primaryColor: '#FF9205',
     primaryColorHover: '#FFA740',
@@ -83,19 +90,29 @@ const orangeOverrides: GlobalThemeOverrides = {
     primaryColorSuppl: '#FF9205'
   },
   Tabs: {
-    tabTextColorLine: '#9D97AB',
-    tabTextColorHoverLine: '#D9D4DE',
-    tabTextColorActiveLine: '#FFCA85',
+    tabTextColorLine: isLight.value ? '#6F6A7D' : '#9D97AB',
+    tabTextColorHoverLine: isLight.value ? '#26232F' : '#D9D4DE',
+    tabTextColorActiveLine: isLight.value ? '#A85A00' : '#FFCA85',
     barColor: '#FF9205'
   },
   Card: {
-    color: 'rgba(255, 255, 255, 0.06)',
-    borderColor: 'rgba(255, 255, 255, 0.12)'
+    color: isLight.value ? 'rgba(50, 47, 59, 0.04)' : 'rgba(255, 255, 255, 0.06)',
+    borderColor: isLight.value ? 'rgba(50, 47, 59, 0.1)' : 'rgba(255, 255, 255, 0.12)'
   }
-}
+}))
 
 const formData = ref<setting>(settingStore.setting)
 const activeTab = ref('general')
+
+// 外部改动设置后同步表单引用（如侧栏的主题切换按钮）：formData 持有的是设置对象
+// 本身，外部经 setSetting 换成新对象后若不同步，再改任一设置项会拿旧对象整体回写，
+// 把外部改动（如 uiTheme）冲掉
+watch(
+  () => settingStore.setting,
+  (value) => {
+    formData.value = value
+  }
+)
 
 // 组件挂载时，更新设置状态
 onMounted(async () => {
@@ -123,6 +140,9 @@ onMounted(async () => {
   watch(
     () => formData.value,
     (newValue: setting) => {
+      // 外部改动引起的自同步（上方 watch 已把 formData 换成 store 当前对象）：
+      // 该值已入库，不重复保存、不弹提示
+      if (newValue === settingStore.setting) return
       settingStore.setSetting(newValue)
       message.success('设置成功')
     },
@@ -136,6 +156,8 @@ onMounted(async () => {
   height: 100%;
 }
 
+// 配色走界面主题令牌（styles/theme.css）：注释里的"暗色 / 黑橙"说的是深色下的样子，
+// 浅色主题下自动翻转
 // 页面画布：黑橙底 + 辉光 + 点阵（与书架 home-container 同款）。
 // 面板固定满高不滚动，滚动收进激活的 tab-pane 内部
 .setting {
@@ -145,19 +167,19 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: #4a4656;
+  background-color: var(--ui-canvas);
   background-image: radial-gradient(
       ellipse 85% 65% at 15% 8%,
-      rgba(255, 146, 5, 0.22),
+      var(--ui-glow-a),
       transparent 60%
     ),
-    radial-gradient(ellipse 75% 60% at 92% 96%, rgba(255, 146, 5, 0.14), transparent 62%),
-    radial-gradient(circle, rgba(255, 146, 5, 0.1) 1px, transparent 1.6px);
+    radial-gradient(ellipse 75% 60% at 92% 96%, var(--ui-glow-b), transparent 62%),
+    radial-gradient(circle, var(--ui-dot) 1px, transparent 1.6px);
   background-size:
     100% 100%,
     100% 100%,
     26px 26px;
-  color: #d9d4de;
+  color: var(--ui-text);
 
   // 暗色滚动条：橙色胶囊滑块，槽完全透明（track-piece 一并置透明防默认底色）
   ::-webkit-scrollbar {
@@ -167,12 +189,12 @@ onMounted(async () => {
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 146, 5, 0.45);
+    background: var(--ui-scroll);
     border-radius: 8px;
-    box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.25);
+    box-shadow: inset 0 0 0 1px var(--ui-scroll-ring);
 
     &:hover {
-      background: rgba(255, 146, 5, 0.7);
+      background: var(--ui-scroll-hover);
     }
   }
 
@@ -195,14 +217,14 @@ onMounted(async () => {
   overflow: hidden;
   box-sizing: border-box;
   padding: 10px 24px 24px;
-  background: rgba(26, 24, 32, 0.75);
+  background: rgba(var(--ui-panel-rgb), 0.75);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(var(--ui-overlay-rgb), 0.1);
   border-radius: 16px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 8px 24px -10px rgba(0, 0, 0, 0.6);
+    inset 0 1px 0 var(--ui-panel-top-light-soft),
+    var(--ui-panel-shadow);
 
   :deep(.n-tabs) {
     flex: 1;

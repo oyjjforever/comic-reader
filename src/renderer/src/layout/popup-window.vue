@@ -55,7 +55,6 @@ function onClose() {
 </script>
 
 <style lang="scss" scoped>
-$background-color: #322f3b;
 .layout-container {
   display: flex;
   height: 100vh;
@@ -68,7 +67,7 @@ $background-color: #322f3b;
 
 .main-content-wrapper {
   flex: 1;
-  background: $background-color;
+  background: var(--ui-rail);
   // border-radius: 20px;
   position: relative;
   padding: 0px 6px 6px 6px;
