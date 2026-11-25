@@ -80,6 +80,13 @@
       />
     </n-form-item>
 
+    <n-form-item path="autoTileWindows" label="多开窗口自动宫格平铺">
+      <n-switch
+        :value="modelValue.autoTileWindows"
+        @update:value="(value) => updateSetting('autoTileWindows', value)"
+      />
+    </n-form-item>
+
     <!-- <n-form-item label="恢复默认关闭提示">
       <n-button size="small" @click="resetCloseConfig">恢复默认</n-button>
     </n-form-item> -->

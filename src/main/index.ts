@@ -49,6 +49,13 @@ import {
   getSubtitleDataDir
 } from './services/subtitle-config'
 import { getBinaryStatus, downloadWhisper, downloadFfmpeg } from './services/binary-manager'
+import {
+  toggleWindowGrid,
+  setAutoTileWindows,
+  ensureGridIfAuto,
+  suspendWindowTiler,
+  initWindowTiler
+} from './services/window-tiler'
 
 // ========== 番茄短剧：缓存目录与 fqvideo:// 播放协议 ==========
 // 短剧缓存 mp4 的播放地址（dev 模式渲染页为 http 源，file:// 会被拦截，
@@ -223,6 +230,12 @@ function createTray(): void {
         mainWindow?.focus()
       }
     },
+    {
+      label: '窗口宫格排列 / 还原',
+      click: () => {
+        toggleWindowGrid()
+      }
+    },
     { type: 'separator' },
     {
       label: '退出',
@@ -371,8 +384,14 @@ app.whenReady().then(async () => {
     log.warn('[Main] @electron/llm 初始化失败（翻译功能不可用）:', err?.message)
   }
 
+  // 多开窗口宫格：窗口增删/跨屏监听（须在首个窗口创建前挂上，主窗口才能被监听到）
+  initWindowTiler()
   createWindow()
   createTray()
+  // 全局快捷键 Ctrl+Alt+G（平铺 ↔ 还原，作用于焦点屏）
+  globalShortcut.register('CommandOrControl+Alt+G', () => {
+    toggleWindowGrid()
+  })
   // 初始化自动更新
   registerAutoUpdate(mainWindow)
 
@@ -523,7 +542,25 @@ app.whenReady().then(async () => {
       const width = options?.width || 1280
       const height = options?.height || 720
 
+      // 新窗口落在焦点屏：取焦点窗口（退而求其次取鼠标）所在显示器的工作区，
+      // 居中 + 按窗口数级联偏移（避免连续新开的窗口完全重叠）
+      const focused = BrowserWindow.getFocusedWindow()
+      const area = (
+        focused ? screen.getDisplayMatching(focused.getBounds()) : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      ).workArea
+      const cascade = (BrowserWindow.getAllWindows().length % 6) * 28
+      const x = Math.min(
+        Math.max(area.x + Math.floor((area.width - width) / 2) + cascade, area.x),
+        area.x + Math.max(0, area.width - width)
+      )
+      const y = Math.min(
+        Math.max(area.y + Math.floor((area.height - height) / 2) + cascade, area.y),
+        area.y + Math.max(0, area.height - height)
+      )
+
       const newWin = new BrowserWindow({
+        x,
+        y,
         width,
         height,
         minWidth: 1024,
@@ -552,6 +589,8 @@ app.whenReady().then(async () => {
       newWin.on('ready-to-show', () => {
         setTimeout(() => {
           newWin.show()
+          // 自动宫格：设置开启时，保持所有有窗口的屏处于宫格态
+          ensureGridIfAuto()
         }, 100)
       })
 
@@ -577,6 +616,14 @@ app.whenReady().then(async () => {
       }
     }
   )
+
+  // ========== 多开窗口宫格平铺 ==========
+  // 触发键语义：宫格中且布局未被拖动/增删 → 还原原位，否则平铺/重排
+  ipcMain.handle('window-grid:toggle', () => toggleWindowGrid())
+  // 自动宫格设置镜像（渲染层数据库 setting 的 autoTileWindows，新开/关闭窗口后自动重排）
+  ipcMain.on('window-grid:setting-sync', (_e, setting: { autoTile?: boolean }) => {
+    setAutoTileWindows(!!setting?.autoTile)
+  })
 
   // ========== 字幕相关 IPC ==========
 
@@ -1400,6 +1447,8 @@ ipcMain.on('show-clipboard-popup', (_, position: 'cursor' | 'bottom-right' = 'cu
 
 app.on('before-quit', () => {
   isQuitting = true
+  // 退出时逐窗关闭，挂起自动宫格重排避免剩余窗口被来回搬动
+  suspendWindowTiler()
 })
 
 app.on('activate', function () {

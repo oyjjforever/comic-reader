@@ -66,4 +66,6 @@ export type setting = {
     closeToTray?: boolean
     // 关闭时不再提醒（原 close-config.json，已合并入库）
     dontRemind?: boolean
+    // 多开窗口自动宫格平铺（新开/关闭窗口后自动重新平分屏幕）
+    autoTileWindows?: boolean
 }

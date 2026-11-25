@@ -334,6 +334,16 @@ watch(
   { immediate: true }
 )
 
+// 自动宫格镜像：数据库 setting 的 autoTileWindows 推送给主进程
+// （开启后新开/关闭/隐藏窗口时自动重新平分屏幕）
+watch(
+  () => settingStore.setting.autoTileWindows,
+  (v) => {
+    window.electron.ipcRenderer.send('window-grid:setting-sync', { autoTile: !!v })
+  },
+  { immediate: true }
+)
+
 // ===== 站点动态组件管理 =====
 const siteInstances = reactive<Record<string, boolean>>({})
 const activeSite = ref<string>('')

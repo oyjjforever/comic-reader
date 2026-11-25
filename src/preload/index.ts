@@ -50,7 +50,14 @@ const server = {
 // 窗口管理 IPC 桥接
 const windowManager = {
   create: (options?: { route?: string; title?: string; width?: number; height?: number }): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke('window-create', options)
+    ipcRenderer.invoke('window-create', options),
+  // 多开窗口宫格平铺 / 还原（触发键同 Ctrl+Alt+G）
+  toggleGrid: (): Promise<{
+    tiled: boolean
+    windowCount: number
+    rows?: number
+    cols?: number
+  }> => ipcRenderer.invoke('window-grid:toggle')
 }
 
 // 关闭行为配置 IPC 桥接

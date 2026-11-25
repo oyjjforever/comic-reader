@@ -262,6 +262,12 @@ declare global {
         width?: number
         height?: number
       }) => Promise<{ success: boolean }>
+      toggleGrid: () => Promise<{
+        tiled: boolean
+        windowCount: number
+        rows?: number
+        cols?: number
+      }>
     }
     subtitle: {
       checkCache: (videoPath: string) => Promise<SubtitleCacheInfo>

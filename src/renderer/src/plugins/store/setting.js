@@ -31,7 +31,8 @@ export const defaultSetting = {
   controlsDisplayMode: 'click', // 阅读器控制栏显示方式：'hover' 鼠标移动显示，'click' 点击作品区域切换显示
   autoPlayInterval: 3, // 阅读器自动播放间隔（秒）
   closeToTray: true, // 关闭时最小化到托盘（原 close-config.json，已合并入库）
-  dontRemind: false // 关闭时不再提醒（原 close-config.json，已合并入库）
+  dontRemind: false, // 关闭时不再提醒（原 close-config.json，已合并入库）
+  autoTileWindows: false // 多开窗口自动宫格平铺（新开/关闭窗口后自动重新平分屏幕）
 }
 
 export const useSettingStore = defineStore('setting', {
